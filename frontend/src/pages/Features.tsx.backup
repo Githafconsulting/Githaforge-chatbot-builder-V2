@@ -1,0 +1,274 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { NavigationNew } from '../components/NavigationNew';
+import { Footer } from '../components/Footer';
+import { Card, Badge } from '../components/ui';
+import {
+  Zap, Brain, Palette, BarChart3, Globe, Shield,
+  Code, Database, Users, MessageSquare, Clock, Sparkles,
+  CheckCircle, ArrowRight
+} from 'lucide-react';
+
+export const Features: React.FC = () => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <NavigationNew />
+
+      {/* Hero Section */}
+      <section className="pt-32 pb-20">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <Badge variant="primary" size="lg" rounded className="mb-6">
+                <Sparkles className="w-4 h-4" />
+                <span className="ml-2">Powerful Features</span>
+              </Badge>
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-5xl sm:text-6xl font-display font-bold mb-6 text-theme-primary"
+            >
+              Everything You Need to Build{' '}
+              <span className="bg-gradient-to-r from-primary-500 via-secondary-500 to-accent-500 bg-clip-text text-transparent">
+                Amazing Chatbots
+              </span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-xl text-theme-secondary"
+            >
+              Powerful features designed to help you create, customize, and scale intelligent AI chatbots with ease.
+            </motion.p>
+          </div>
+
+          {/* Main Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+            {mainFeatures.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+              >
+                <Card hover variant="elevated" glass className="h-full p-6">
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 shadow-lg`}>
+                    <feature.icon className="w-7 h-7 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-3 text-theme-primary">{feature.title}</h3>
+                  <p className="text-theme-secondary mb-4">{feature.description}</p>
+                  <ul className="space-y-2">
+                    {feature.benefits.map((benefit) => (
+                      <li key={benefit} className="flex items-start gap-2 text-sm text-theme-secondary">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>{benefit}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Advanced Features Section */}
+          <div className="mb-20">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-display font-bold mb-4 text-theme-primary">
+                Advanced Capabilities
+              </h2>
+              <p className="text-xl text-theme-secondary max-w-2xl mx-auto">
+                Enterprise-grade features for professional deployments
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {advancedFeatures.map((feature, index) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                >
+                  <Card glass variant="elevated" className="p-8 h-full">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${feature.gradient} flex items-center justify-center flex-shrink-0`}>
+                        <feature.icon className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold mb-2 text-theme-primary">{feature.title}</h3>
+                        <p className="text-theme-secondary mb-4">{feature.description}</p>
+                        <div className="flex items-center gap-2 text-primary-600 font-medium text-sm">
+                          <span>Learn more</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* CTA Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center"
+          >
+            <Card glass variant="elevated" className="p-12 max-w-3xl mx-auto bg-gradient-to-br from-primary-500/10 to-accent-500/10">
+              <h2 className="text-3xl font-display font-bold mb-4 text-theme-primary">
+                Ready to Get Started?
+              </h2>
+              <p className="text-xl text-theme-secondary mb-8">
+                Try all features free for 14 days. No credit card required.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <a
+                  href="/signup"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl"
+                >
+                  Start Free Trial
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </a>
+                <a
+                  href="/pricing"
+                  className="inline-flex items-center justify-center px-8 py-4 glass border-2 border-primary-600 text-primary-600 dark:text-primary-400 rounded-xl font-medium transition-all hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                >
+                  View Pricing
+                </a>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      </section>
+
+      <Footer />
+    </div>
+  );
+};
+
+const mainFeatures = [
+  {
+    icon: Zap,
+    title: 'Lightning Fast Setup',
+    description: 'Create and deploy your AI chatbot in under 5 minutes without any technical expertise.',
+    gradient: 'from-yellow-500 to-orange-500',
+    benefits: [
+      'No coding required',
+      'Drag-and-drop interface',
+      'Pre-built templates',
+      'One-click deployment'
+    ]
+  },
+  {
+    icon: Brain,
+    title: 'RAG Technology',
+    description: 'Advanced retrieval-augmented generation ensures accurate, context-aware responses every time.',
+    gradient: 'from-blue-500 to-cyan-500',
+    benefits: [
+      'Semantic search',
+      'Context understanding',
+      'Source citations',
+      'Continuous learning'
+    ]
+  },
+  {
+    icon: Palette,
+    title: 'Full Customization',
+    description: 'Make it yours with complete control over colors, branding, and messaging.',
+    gradient: 'from-purple-500 to-pink-500',
+    benefits: [
+      'Custom brand colors',
+      'Logo upload',
+      'White-label option',
+      'Custom welcome messages'
+    ]
+  },
+  {
+    icon: BarChart3,
+    title: 'Analytics Dashboard',
+    description: 'Track performance, user satisfaction, and conversation insights in real-time.',
+    gradient: 'from-green-500 to-emerald-500',
+    benefits: [
+      'Real-time metrics',
+      'Conversation history',
+      'Satisfaction scores',
+      'Trending queries'
+    ]
+  },
+  {
+    icon: Globe,
+    title: 'Multi-Language Support',
+    description: 'Communicate with customers in 5+ languages with automatic translation.',
+    gradient: 'from-indigo-500 to-blue-500',
+    benefits: [
+      '5+ languages supported',
+      'Auto-translation',
+      'RTL text support',
+      'Language detection'
+    ]
+  },
+  {
+    icon: Shield,
+    title: 'Enterprise Security',
+    description: 'Bank-level encryption and GDPR compliance keep your data safe.',
+    gradient: 'from-red-500 to-rose-500',
+    benefits: [
+      'End-to-end encryption',
+      'GDPR compliant',
+      'SOC 2 certified',
+      'Role-based access'
+    ]
+  }
+];
+
+const advancedFeatures = [
+  {
+    icon: Code,
+    title: 'Easy Integration',
+    description: 'Embed your chatbot anywhere with a single line of code. Works on any website, platform, or framework. Supports React, Vue, Angular, and plain HTML.',
+    gradient: 'from-slate-600 to-gray-700'
+  },
+  {
+    icon: Database,
+    title: 'Smart Knowledge Base',
+    description: 'Upload PDFs, Word docs, text files, or scrape URLs. AI automatically learns from your content and creates searchable embeddings.',
+    gradient: 'from-teal-500 to-cyan-600'
+  },
+  {
+    icon: Users,
+    title: 'Team Collaboration',
+    description: 'Invite unlimited team members with granular permissions. Owner, Admin, and Member roles keep your team organized.',
+    gradient: 'from-violet-500 to-purple-600'
+  },
+  {
+    icon: MessageSquare,
+    title: 'Conversation Memory',
+    description: 'Chatbots remember context across sessions. Users can pick up conversations where they left off for a seamless experience.',
+    gradient: 'from-pink-500 to-rose-600'
+  },
+  {
+    icon: Clock,
+    title: '24/7 Availability',
+    description: 'Never miss a customer query. Your chatbot works around the clock, providing instant responses even when you sleep.',
+    gradient: 'from-amber-500 to-orange-600'
+  },
+  {
+    icon: Sparkles,
+    title: 'Auto-Improvement',
+    description: 'Machine learning algorithms continuously improve response quality based on user feedback and interaction patterns.',
+    gradient: 'from-sky-500 to-blue-600'
+  }
+];

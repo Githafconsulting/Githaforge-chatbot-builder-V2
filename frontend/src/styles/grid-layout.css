@@ -1,0 +1,93 @@
+/* Custom styles for react-grid-layout */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+  width: 100% !important;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+
+.react-grid-item img {
+  pointer-events: none;
+  user-select: none;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-right: 2px solid rgba(148, 163, 184, 0.6);
+  border-bottom: 2px solid rgba(148, 163, 184, 0.6);
+}
+
+.react-grid-item:hover > .react-resizable-handle::after {
+  border-color: rgba(59, 130, 246, 0.8);
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 100;
+  opacity: 0.9;
+}
+
+.react-grid-item.resizing {
+  transition: none;
+  z-index: 100;
+  opacity: 0.9;
+}
+
+.react-grid-item.static {
+  background: transparent;
+}
+
+.react-grid-item .react-resizable-handle {
+  cursor: se-resize;
+}
+
+/* Drag handle styles */
+.drag-handle {
+  cursor: move;
+  cursor: grab;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.drag-handle:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Placeholder style when dragging */
+.react-grid-placeholder {
+  background: rgba(59, 130, 246, 0.15);
+  border: 2px dashed rgba(59, 130, 246, 0.5);
+  border-radius: 12px;
+  opacity: 0.7;
+  transition-duration: 100ms;
+  z-index: 2;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
