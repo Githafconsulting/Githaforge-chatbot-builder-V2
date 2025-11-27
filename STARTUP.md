@@ -92,7 +92,8 @@ SECRET_KEY=your-secret-key-here  # Generate with: openssl rand -hex 32
 ```bash
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt (development)
+pip install -r requirements.txt (production)
 ```
 
 **Mac/Linux:**
