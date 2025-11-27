@@ -101,6 +101,12 @@ tzdata>=2024.1
 gunicorn>=21.2.0,<22.0.0; sys_platform != 'win32'
 
 # ============================================================================
+# GOOGLE CLOUD DEVELOPMENT TOOLS
+# ============================================================================
+google-api-python-client
+google-auth-oauthlib
+
+# ============================================================================
 # DEPENDENCIES (automatically resolved by pip)
 # ============================================================================
 # The following are dependencies of packages above.
