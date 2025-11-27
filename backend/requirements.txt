@@ -56,8 +56,8 @@ safetensors>=0.6.0,<0.7.0
 # SCIENTIFIC COMPUTING
 # ============================================================================
 numpy>=1.26.0,<2.0.0
-scipy>=1.16.0,<2.0.0
-scikit-learn>=1.7.0,<2.0.0
+scipy>=1.10.0,<2.0.0  # 1.16+ requires Python 3.11+
+scikit-learn>=1.5.0,<2.0.0  # 1.7+ requires Python 3.11+
 joblib>=1.5.0,<2.0.0
 
 # ============================================================================
@@ -116,7 +116,7 @@ google-auth-oauthlib
 typing-extensions>=4.12.0  # Required by multiple packages - using max compatible version
 anyio>=4.11.0
 aiosignal>=1.4.0
-asyncio-timeout>=5.0.0; python_version < "3.11"
+async-timeout>=4.0.0; python_version < "3.11"  # asyncio-timeout doesn't exist, use async-timeout
 attrs>=25.0.0
 certifi>=2024.8.0
 charset-normalizer>=3.4.0

@@ -47,7 +47,8 @@
       "Bash(cmd /c \"taskkill /F /PID 17460 & taskkill /F /PID 13680 & taskkill /F /PID 4196 & taskkill /F /PID 2720\")",
       "Bash(python:*)",
       "Bash(app/main.py)",
-      "Bash(.venvScriptspython -c \"\n# Quick test to verify the file size logic\nMAX_FILE_SIZE = 50 * 1024 * 1024\ntest_file_size = 55 * 1024 * 1024\n\nprint(f''MAX_FILE_SIZE: {MAX_FILE_SIZE / 1024 / 1024:.1f}MB'')\nprint(f''Test file size: {test_file_size / 1024 / 1024:.1f}MB'')\nprint(f''Would be rejected: {test_file_size > MAX_FILE_SIZE}'')\nprint(f''Error message: File too large ({test_file_size / 1024 / 1024:.1f}MB). Maximum size is 50MB.'')\n\")"
+      "Bash(.venvScriptspython -c \"\n# Quick test to verify the file size logic\nMAX_FILE_SIZE = 50 * 1024 * 1024\ntest_file_size = 55 * 1024 * 1024\n\nprint(f''MAX_FILE_SIZE: {MAX_FILE_SIZE / 1024 / 1024:.1f}MB'')\nprint(f''Test file size: {test_file_size / 1024 / 1024:.1f}MB'')\nprint(f''Would be rejected: {test_file_size > MAX_FILE_SIZE}'')\nprint(f''Error message: File too large ({test_file_size / 1024 / 1024:.1f}MB). Maximum size is 50MB.'')\n\")",
+      "Bash(pip install:*)"
     ],
     "deny": [],
     "ask": []
