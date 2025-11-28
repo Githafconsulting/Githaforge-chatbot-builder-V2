@@ -5,8 +5,51 @@ from typing import Dict, List, Any
 from datetime import datetime, timedelta
 from app.core.database import get_supabase_client
 from app.utils.logger import get_logger
+import re
 
 logger = get_logger(__name__)
+
+
+def _parse_timestamp(timestamp_str: str) -> datetime:
+    """
+    Parse timestamp string with robust handling of legacy formats.
+
+    Handles timestamps with 5 or 6 decimal places in microseconds:
+    - Standard: '2025-11-05T21:30:13.334555+00:00' (6 digits)
+    - Legacy:   '2025-11-05T21:30:13.33455+00:00'  (5 digits)
+
+    Args:
+        timestamp_str: ISO format timestamp string
+
+    Returns:
+        datetime: Parsed datetime object
+    """
+    # Replace 'Z' with '+00:00' for timezone
+    normalized = timestamp_str.replace('Z', '+00:00')
+
+    # Check if timestamp has microseconds with wrong precision
+    # Pattern: digits.{1,5}digits before timezone
+    pattern = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{1,5})(\+\d{2}:\d{2})'
+    match = re.match(pattern, normalized)
+
+    if match:
+        # Pad microseconds to 6 digits (standard format)
+        base_time = match.group(1)
+        microseconds = match.group(2).ljust(6, '0')  # Pad right with zeros
+        timezone = match.group(3)
+        normalized = f"{base_time}.{microseconds}{timezone}"
+
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        # Fallback: try without microseconds
+        pattern_no_micro = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d+)?(\+\d{2}:\d{2})'
+        match_no_micro = re.match(pattern_no_micro, normalized)
+        if match_no_micro:
+            base_time = match_no_micro.group(1)
+            timezone = match_no_micro.group(2)
+            return datetime.fromisoformat(f"{base_time}{timezone}")
+        raise
 
 
 def _empty_conversation_metrics() -> Dict[str, Any]:
@@ -124,9 +167,9 @@ async def get_conversation_metrics(company_id: str = None, chatbot_id: str = Non
                     last_message_at = conv.get("last_message_at")
 
                     if created_at and last_message_at:
-                        # Parse timestamps
-                        start_time = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                        end_time = datetime.fromisoformat(last_message_at.replace('Z', '+00:00'))
+                        # Parse timestamps using robust parser
+                        start_time = _parse_timestamp(created_at)
+                        end_time = _parse_timestamp(last_message_at)
 
                         # Calculate duration in seconds
                         duration = (end_time - start_time).total_seconds()
@@ -168,8 +211,8 @@ async def get_conversation_metrics(company_id: str = None, chatbot_id: str = Non
                         conversation_active_time = 0
 
                         for i in range(1, len(messages)):
-                            prev_msg_time = datetime.fromisoformat(messages[i-1]["created_at"].replace('Z', '+00:00'))
-                            curr_msg_time = datetime.fromisoformat(messages[i]["created_at"].replace('Z', '+00:00'))
+                            prev_msg_time = _parse_timestamp(messages[i-1]["created_at"])
+                            curr_msg_time = _parse_timestamp(messages[i]["created_at"])
 
                             # Calculate time gap between consecutive messages
                             gap_seconds = (curr_msg_time - prev_msg_time).total_seconds()
