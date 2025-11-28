@@ -20,6 +20,12 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             "error": True,
             "message": exc.detail,
             "status_code": exc.status_code
+        },
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
         }
     )
 
@@ -34,6 +40,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": True,
             "message": "Validation error",
             "details": exc.errors()
+        },
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
         }
     )
 
@@ -48,6 +60,12 @@ async def general_exception_handler(request: Request, exc: Exception):
             "error": True,
             "message": "Internal server error",
             "detail": str(exc) if hasattr(exc, '__str__') else "Unknown error"
+        },
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
         }
     )
 

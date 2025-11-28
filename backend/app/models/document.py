@@ -21,6 +21,18 @@ class Document(BaseModel):
     summary: Optional[str] = None  # 200-500 char summary (NOT full content)
     chunk_count: int = 0  # Number of embeddings
     metadata: Optional[Dict[str, Any]] = None  # Additional metadata as JSON
+
+    # Multi-tenancy fields
+    company_id: Optional[UUID] = None
+    chatbot_id: Optional[UUID] = None  # NULL = shared across all company chatbots
+
+    # AI Classification fields
+    scope: Optional[str] = None  # Primary scope: sales, support, product, billing, hr, legal, marketing, general
+    categories: Optional[List[str]] = None  # Granular tags
+    topics: Optional[List[str]] = None  # Keywords
+    auto_classified: Optional[bool] = False  # Whether AI classified this document
+    classification_confidence: Optional[float] = None  # Confidence score (0.0-1.0)
+
     created_at: datetime
     updated_at: Optional[datetime] = None
 

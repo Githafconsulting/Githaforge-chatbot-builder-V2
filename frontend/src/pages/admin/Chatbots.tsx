@@ -13,6 +13,8 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  List,
+  Grid3x3,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -26,6 +28,7 @@ export const ChatbotsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   useEffect(() => {
     loadChatbots();
@@ -130,19 +133,47 @@ export const ChatbotsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search chatbots..."
-          className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-        />
+      {/* Search and View Toggle */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search chatbots..."
+            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+
+        {/* View Toggle */}
+        <div className="flex items-center gap-2 bg-slate-900 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('list')}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'list'
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="List view"
+          >
+            <List className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'grid'
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Grid view"
+          >
+            <Grid3x3 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Chatbots Grid */}
+      {/* Chatbots Display */}
       {filteredChatbots.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
           <Bot className="w-16 h-16 text-slate-600 mb-4" />
@@ -164,7 +195,36 @@ export const ChatbotsPage: React.FC = () => {
             </button>
           )}
         </div>
+      ) : viewMode === 'list' ? (
+        // List View
+        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-900 border-b border-slate-700">
+              <tr>
+                <th className="text-left px-6 py-3 text-sm font-semibold text-slate-300">Name</th>
+                <th className="text-left px-6 py-3 text-sm font-semibold text-slate-300">Status</th>
+                <th className="text-left px-6 py-3 text-sm font-semibold text-slate-300">Chats</th>
+                <th className="text-left px-6 py-3 text-sm font-semibold text-slate-300">Messages</th>
+                <th className="text-left px-6 py-3 text-sm font-semibold text-slate-300">Rating</th>
+                <th className="text-right px-6 py-3 text-sm font-semibold text-slate-300">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700">
+              {filteredChatbots.map((chatbot) => (
+                <ChatbotListRow
+                  key={chatbot.id}
+                  chatbot={chatbot}
+                  onDeploy={() => handleDeployChatbot(chatbot)}
+                  onPause={() => handlePauseChatbot(chatbot)}
+                  onDelete={() => handleDeleteChatbot(chatbot)}
+                  onViewDetails={() => navigate(`/admin/chatbots/${chatbot.id}`)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
+        // Grid View
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredChatbots.map((chatbot) => (
             <ChatbotCard
@@ -193,7 +253,149 @@ export const ChatbotsPage: React.FC = () => {
   );
 };
 
-// Chatbot Card Component
+// Chatbot List Row Component (for table view)
+interface ChatbotListRowProps {
+  chatbot: Chatbot;
+  onDeploy: () => void;
+  onPause: () => void;
+  onDelete: () => void;
+  onViewDetails: () => void;
+}
+
+const ChatbotListRow: React.FC<ChatbotListRowProps> = ({
+  chatbot,
+  onDeploy,
+  onPause,
+  onDelete,
+  onViewDetails,
+}) => {
+  const getStatusIcon = () => {
+    switch (chatbot.deploy_status) {
+      case 'deployed':
+        return <CheckCircle className="w-4 h-4 text-green-400" />;
+      case 'paused':
+        return <Pause className="w-4 h-4 text-yellow-400" />;
+      case 'draft':
+        return <AlertCircle className="w-4 h-4 text-slate-400" />;
+      default:
+        return <XCircle className="w-4 h-4 text-red-400" />;
+    }
+  };
+
+  const getStatusText = () => {
+    switch (chatbot.deploy_status) {
+      case 'deployed':
+        return 'Active';
+      case 'paused':
+        return 'Paused';
+      case 'draft':
+        return 'Draft';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (chatbot.deploy_status) {
+      case 'deployed':
+        return 'bg-green-500/10 text-green-400 border-green-500/20';
+      case 'paused':
+        return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+      case 'draft':
+        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+      default:
+        return 'bg-red-500/10 text-red-400 border-red-500/20';
+    }
+  };
+
+  return (
+    <motion.tr
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="hover:bg-slate-700/50 transition-colors"
+    >
+      {/* Name */}
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-500/10 rounded-lg">
+            <Bot className="w-5 h-5 text-blue-400" />
+          </div>
+          <div>
+            <div className="font-medium text-white">{chatbot.name}</div>
+            {chatbot.description && (
+              <div className="text-sm text-slate-400 line-clamp-1">{chatbot.description}</div>
+            )}
+          </div>
+        </div>
+      </td>
+
+      {/* Status */}
+      <td className="px-6 py-4">
+        <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${getStatusColor()} w-fit`}>
+          {getStatusIcon()}
+          <span>{getStatusText()}</span>
+        </div>
+      </td>
+
+      {/* Chats */}
+      <td className="px-6 py-4">
+        <div className="text-white font-medium">{chatbot.total_conversations.toLocaleString()}</div>
+      </td>
+
+      {/* Messages */}
+      <td className="px-6 py-4">
+        <div className="text-white font-medium">{chatbot.total_messages.toLocaleString()}</div>
+      </td>
+
+      {/* Rating */}
+      <td className="px-6 py-4">
+        <div className="text-white font-medium">
+          {chatbot.avg_satisfaction ? `${(chatbot.avg_satisfaction * 100).toFixed(0)}%` : 'N/A'}
+        </div>
+      </td>
+
+      {/* Actions */}
+      <td className="px-6 py-4">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onViewDetails}
+            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+            title="Manage chatbot"
+          >
+            <Settings className="w-4 h-4" />
+            <span>Manage</span>
+          </button>
+          {chatbot.deploy_status === 'deployed' ? (
+            <button
+              onClick={onPause}
+              className="p-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+              title="Pause chatbot"
+            >
+              <Pause className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={onDeploy}
+              className="p-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors"
+              title="Deploy chatbot"
+            >
+              <Play className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onDelete}
+            className="p-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+            title="Delete chatbot"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </motion.tr>
+  );
+};
+
+// Chatbot Card Component (for grid view)
 interface ChatbotCardProps {
   chatbot: Chatbot;
   onDeploy: () => void;

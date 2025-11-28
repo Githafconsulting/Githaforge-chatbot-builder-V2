@@ -69,7 +69,13 @@ export interface Document {
   // Multi-tenancy fields
   company_id?: string;  // Company owner
   chatbot_id?: string | null;  // Optional chatbot assignment (NULL = shared)
+
+  // AI Classification fields
   scope?: string;  // Primary scope: sales, support, product, billing, hr, legal, marketing, general
+  categories?: string[];  // Granular tags
+  topics?: string[];  // Keywords
+  auto_classified?: boolean;  // Whether AI classified this document
+  classification_confidence?: number;  // Confidence score (0.0-1.0)
 
   created_at: string;
   updated_at?: string;
