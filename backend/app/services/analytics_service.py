@@ -9,9 +9,36 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def get_conversation_metrics() -> Dict[str, Any]:
+def _empty_conversation_metrics() -> Dict[str, Any]:
+    """Return empty conversation metrics structure"""
+    return {
+        "total_conversations": 0,
+        "total_messages": 0,
+        "avg_messages_per_conversation": 0,
+        "conversations_today": 0,
+        "avg_conversation_duration_seconds": 0,
+        "avg_active_chat_time_seconds": 0
+    }
+
+
+def _empty_satisfaction_metrics() -> Dict[str, Any]:
+    """Return empty satisfaction metrics structure"""
+    return {
+        "avg_satisfaction": 0,
+        "feedback_rate": 0,
+        "total_feedback": 0,
+        "positive_feedback": 0,
+        "negative_feedback": 0
+    }
+
+
+async def get_conversation_metrics(company_id: str = None, chatbot_id: str = None) -> Dict[str, Any]:
     """
-    Get conversation-related metrics
+    Get conversation-related metrics with multitenancy filtering
+
+    Args:
+        company_id: Optional company ID to filter metrics (multitenancy)
+        chatbot_id: Optional chatbot ID to filter metrics
 
     Returns:
         Dict: Conversation metrics
@@ -19,22 +46,63 @@ async def get_conversation_metrics() -> Dict[str, Any]:
     try:
         client = get_supabase_client()
 
+        # Build base queries with filters
+        conv_query = client.table("conversations").select("id", count="exact")
+        msg_query = client.table("messages").select("id", count="exact")
+
+        # Apply chatbot filter (conversations table has chatbot_id)
+        if chatbot_id:
+            conv_query = conv_query.eq("chatbot_id", chatbot_id)
+            # For messages, filter by conversations that belong to this chatbot
+            # We'll need to get conversation IDs first
+
+        # Apply company filter (filter via chatbot's company_id)
+        if company_id and not chatbot_id:
+            # Get chatbot IDs for this company first
+            chatbots_response = client.table("chatbots").select("id").eq("company_id", company_id).execute()
+            chatbot_ids = [cb["id"] for cb in chatbots_response.data] if chatbots_response.data else []
+
+            if chatbot_ids:
+                conv_query = conv_query.in_("chatbot_id", chatbot_ids)
+            else:
+                # No chatbots for this company - return zeros
+                return _empty_conversation_metrics()
+
         # Total conversations
-        total_conv_response = client.table("conversations").select("id", count="exact").execute()
+        total_conv_response = conv_query.execute()
         total_conversations = total_conv_response.count if total_conv_response.count else 0
 
-        # Total messages
-        total_msg_response = client.table("messages").select("id", count="exact").execute()
-        total_messages = total_msg_response.count if total_msg_response.count else 0
+        # Get conversation IDs for message filtering
+        conversation_ids = []
+        if total_conversations > 0:
+            convs_response = conv_query.execute()
+            conversation_ids = [conv["id"] for conv in convs_response.data] if convs_response.data else []
+
+        # Total messages (filtered by conversation IDs)
+        if conversation_ids:
+            msg_query = msg_query.in_("conversation_id", conversation_ids)
+            total_msg_response = msg_query.execute()
+            total_messages = total_msg_response.count if total_msg_response.count else 0
+        else:
+            total_messages = 0
 
         # Average messages per conversation
         avg_messages = total_messages / total_conversations if total_conversations > 0 else 0
 
         # Conversations today
         today = datetime.utcnow().date().isoformat()
-        today_conv_response = client.table("conversations").select(
-            "id", count="exact"
-        ).gte("created_at", today).execute()
+        today_conv_query = client.table("conversations").select("id", count="exact").gte("created_at", today)
+
+        # Apply same filters to today's query
+        if chatbot_id:
+            today_conv_query = today_conv_query.eq("chatbot_id", chatbot_id)
+        elif company_id:
+            chatbots_response = client.table("chatbots").select("id").eq("company_id", company_id).execute()
+            chatbot_ids = [cb["id"] for cb in chatbots_response.data] if chatbots_response.data else []
+            if chatbot_ids:
+                today_conv_query = today_conv_query.in_("chatbot_id", chatbot_ids)
+
+        today_conv_response = today_conv_query.execute()
         conversations_today = today_conv_response.count if today_conv_response.count else 0
 
         # Calculate average conversation duration
@@ -144,9 +212,13 @@ async def get_conversation_metrics() -> Dict[str, Any]:
         }
 
 
-async def get_satisfaction_metrics() -> Dict[str, Any]:
+async def get_satisfaction_metrics(company_id: str = None, chatbot_id: str = None) -> Dict[str, Any]:
     """
-    Get user satisfaction metrics
+    Get user satisfaction metrics with multitenancy filtering
+
+    Args:
+        company_id: Optional company ID to filter metrics
+        chatbot_id: Optional chatbot ID to filter metrics
 
     Returns:
         Dict: Satisfaction metrics
@@ -154,8 +226,33 @@ async def get_satisfaction_metrics() -> Dict[str, Any]:
     try:
         client = get_supabase_client()
 
-        # Total feedback
-        total_feedback_response = client.table("feedback").select("*").execute()
+        # Get conversation IDs for filtering
+        conversation_ids = None
+        if chatbot_id or company_id:
+            conv_query = client.table("conversations").select("id")
+
+            if chatbot_id:
+                conv_query = conv_query.eq("chatbot_id", chatbot_id)
+            elif company_id:
+                chatbots_response = client.table("chatbots").select("id").eq("company_id", company_id).execute()
+                chatbot_ids = [cb["id"] for cb in chatbots_response.data] if chatbots_response.data else []
+                if chatbot_ids:
+                    conv_query = conv_query.in_("chatbot_id", chatbot_ids)
+                else:
+                    return _empty_satisfaction_metrics()
+
+            convs_response = conv_query.execute()
+            conversation_ids = [conv["id"] for conv in convs_response.data] if convs_response.data else []
+
+            if not conversation_ids:
+                return _empty_satisfaction_metrics()
+
+        # Total feedback (filtered by conversation IDs if applicable)
+        feedback_query = client.table("feedback").select("*")
+        if conversation_ids:
+            feedback_query = feedback_query.in_("conversation_id", conversation_ids)
+
+        total_feedback_response = feedback_query.execute()
         feedback_list = total_feedback_response.data if total_feedback_response.data else []
 
         total_feedback = len(feedback_list)
@@ -204,12 +301,14 @@ async def get_satisfaction_metrics() -> Dict[str, Any]:
         }
 
 
-async def get_trending_queries(limit: int = 10) -> List[Dict[str, Any]]:
+async def get_trending_queries(limit: int = 10, company_id: str = None, chatbot_id: str = None) -> List[Dict[str, Any]]:
     """
-    Get trending/common queries grouped by intent
+    Get trending/common queries grouped by intent with multitenancy filtering
 
     Args:
         limit: Number of trending intents to return
+        company_id: Optional company ID to filter queries
+        chatbot_id: Optional chatbot ID to filter queries
 
     Returns:
         List[Dict]: Trending intents with sample queries
@@ -219,12 +318,36 @@ async def get_trending_queries(limit: int = 10) -> List[Dict[str, Any]]:
 
         client = get_supabase_client()
 
-        # Get all user messages from last 30 days
+        # Get conversation IDs for filtering
+        conversation_ids = None
+        if chatbot_id or company_id:
+            conv_query = client.table("conversations").select("id")
+
+            if chatbot_id:
+                conv_query = conv_query.eq("chatbot_id", chatbot_id)
+            elif company_id:
+                chatbots_response = client.table("chatbots").select("id").eq("company_id", company_id).execute()
+                chatbot_ids = [cb["id"] for cb in chatbots_response.data] if chatbots_response.data else []
+                if chatbot_ids:
+                    conv_query = conv_query.in_("chatbot_id", chatbot_ids)
+                else:
+                    return []
+
+            convs_response = conv_query.execute()
+            conversation_ids = [conv["id"] for conv in convs_response.data] if convs_response.data else []
+
+            if not conversation_ids:
+                return []
+
+        # Get all user messages from last 30 days (filtered by conversation IDs)
         thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
 
-        response = client.table("messages").select("content").eq(
-            "role", "user"
-        ).gte("created_at", thirty_days_ago).execute()
+        msg_query = client.table("messages").select("content").eq("role", "user").gte("created_at", thirty_days_ago)
+
+        if conversation_ids:
+            msg_query = msg_query.in_("conversation_id", conversation_ids)
+
+        response = msg_query.execute()
 
         messages = response.data if response.data else []
 
@@ -369,9 +492,13 @@ async def _group_queries_by_topic(queries: List[str]) -> Dict[str, Dict]:
     return topic_groups
 
 
-async def get_knowledge_base_metrics() -> Dict[str, Any]:
+async def get_knowledge_base_metrics(company_id: str = None, chatbot_id: str = None) -> Dict[str, Any]:
     """
-    Get knowledge base metrics
+    Get knowledge base metrics with multitenancy filtering
+
+    Args:
+        company_id: Optional company ID to filter metrics
+        chatbot_id: Optional chatbot ID to filter metrics
 
     Returns:
         Dict: Knowledge base metrics
@@ -379,8 +506,18 @@ async def get_knowledge_base_metrics() -> Dict[str, Any]:
     try:
         client = get_supabase_client()
 
+        # Build document query with filters
+        docs_query = client.table("documents").select("id", count="exact")
+
+        if company_id:
+            docs_query = docs_query.eq("company_id", company_id)
+
+        if chatbot_id:
+            # Documents assigned to this chatbot OR available to all (chatbot_id IS NULL)
+            docs_query = docs_query.or_(f"chatbot_id.eq.{chatbot_id},chatbot_id.is.null")
+
         # Total documents
-        docs_response = client.table("documents").select("id", count="exact").execute()
+        docs_response = docs_query.execute()
         total_documents = docs_response.count if docs_response.count else 0
 
         # Total chunks/embeddings
@@ -409,12 +546,13 @@ async def get_knowledge_base_metrics() -> Dict[str, Any]:
         }
 
 
-async def get_flagged_queries(limit: int = 20) -> List[Dict[str, Any]]:
+async def get_flagged_queries(limit: int = 20, company_id: str = None) -> List[Dict[str, Any]]:
     """
-    Get all feedback (both positive and negative) with queries and responses
+    Get all feedback (both positive and negative) with queries and responses with multitenancy filtering
 
     Args:
         limit: Maximum number of feedback entries
+        company_id: Optional company ID to filter feedback
 
     Returns:
         List[Dict]: Feedback entries with user queries and bot responses
@@ -422,11 +560,32 @@ async def get_flagged_queries(limit: int = 20) -> List[Dict[str, Any]]:
     try:
         client = get_supabase_client()
 
+        # Get conversation IDs for filtering (if company_id provided)
+        conversation_ids = None
+        if company_id:
+            # Get chatbot IDs for this company
+            chatbots_response = client.table("chatbots").select("id").eq("company_id", company_id).execute()
+            chatbot_ids = [cb["id"] for cb in chatbots_response.data] if chatbots_response.data else []
+
+            if chatbot_ids:
+                # Get conversations for these chatbots
+                conv_query = client.table("conversations").select("id").in_("chatbot_id", chatbot_ids)
+                convs_response = conv_query.execute()
+                conversation_ids = [conv["id"] for conv in convs_response.data] if convs_response.data else []
+            else:
+                # No chatbots for this company - return empty list
+                return []
+
         # Get ALL feedback (both thumbs up and thumbs down)
         # No rating filter - frontend will handle filtering
-        feedback_response = client.table("feedback").select(
+        feedback_query = client.table("feedback").select(
             "*, messages(*)"
-        ).order("created_at", desc=True).limit(limit).execute()
+        ).order("created_at", desc=True).limit(limit)
+
+        if conversation_ids is not None:
+            feedback_query = feedback_query.in_("conversation_id", conversation_ids)
+
+        feedback_response = feedback_query.execute()
 
         flagged = []
 
@@ -478,18 +637,22 @@ async def get_flagged_queries(limit: int = 20) -> List[Dict[str, Any]]:
         return []
 
 
-async def get_analytics_overview() -> Dict[str, Any]:
+async def get_analytics_overview(company_id: str = None, chatbot_id: str = None) -> Dict[str, Any]:
     """
-    Get complete analytics overview
+    Get complete analytics overview with multitenancy filtering
+
+    Args:
+        company_id: Optional company ID to filter metrics
+        chatbot_id: Optional chatbot ID to filter metrics
 
     Returns:
         Dict: Complete analytics data
     """
     try:
-        conversation_metrics = await get_conversation_metrics()
-        satisfaction_metrics = await get_satisfaction_metrics()
-        trending_queries = await get_trending_queries(limit=10)
-        knowledge_base_metrics = await get_knowledge_base_metrics()
+        conversation_metrics = await get_conversation_metrics(company_id, chatbot_id)
+        satisfaction_metrics = await get_satisfaction_metrics(company_id, chatbot_id)
+        trending_queries = await get_trending_queries(limit=10, company_id=company_id, chatbot_id=chatbot_id)
+        knowledge_base_metrics = await get_knowledge_base_metrics(company_id, chatbot_id)
 
         return {
             "conversation_metrics": conversation_metrics,
@@ -504,13 +667,14 @@ async def get_analytics_overview() -> Dict[str, Any]:
         raise
 
 
-async def get_daily_stats(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+async def get_daily_stats(start_date: str, end_date: str, company_id: str = None) -> List[Dict[str, Any]]:
     """
-    Get daily conversation statistics for a date range
+    Get daily conversation statistics for a date range with multitenancy filtering
 
     Args:
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
+        company_id: Optional company ID to filter stats
 
     Returns:
         List[Dict]: Daily statistics
@@ -525,25 +689,57 @@ async def get_daily_stats(start_date: str, end_date: str) -> List[Dict[str, Any]
 
         client = get_supabase_client()
 
+        # Get conversation IDs for filtering (if company_id provided)
+        conversation_ids = None
+        if company_id:
+            # Get chatbot IDs for this company
+            chatbots_response = client.table("chatbots").select("id").eq("company_id", company_id).execute()
+            chatbot_ids = [cb["id"] for cb in chatbots_response.data] if chatbots_response.data else []
+
+            if chatbot_ids:
+                # Get conversations for these chatbots
+                conv_query = client.table("conversations").select("id").in_("chatbot_id", chatbot_ids)
+                convs_response = conv_query.execute()
+                conversation_ids = [conv["id"] for conv in convs_response.data] if convs_response.data else []
+            else:
+                # No chatbots for this company - return empty stats
+                return []
+
         # Get conversations in date range
-        conversations_response = client.table("conversations").select(
+        conversations_query = client.table("conversations").select(
             "id, created_at"
-        ).gte("created_at", start_date).lte("created_at", f"{end_date}T23:59:59").execute()
+        ).gte("created_at", start_date).lte("created_at", f"{end_date}T23:59:59")
+
+        if conversation_ids is not None:
+            conversations_query = conversations_query.in_("id", conversation_ids)
+
+        conversations_response = conversations_query.execute()
 
         conversations = conversations_response.data if conversations_response.data else []
 
-        # Get messages in date range
-        messages_response = client.table("messages").select(
-            "id, created_at, conversation_id"
-        ).gte("created_at", start_date).lte("created_at", f"{end_date}T23:59:59").execute()
+        # Get actual conversation IDs for message/feedback filtering
+        actual_conv_ids = [conv["id"] for conv in conversations]
 
+        # Get messages in date range (filtered by conversation IDs if applicable)
+        messages_query = client.table("messages").select(
+            "id, created_at, conversation_id"
+        ).gte("created_at", start_date).lte("created_at", f"{end_date}T23:59:59")
+
+        if actual_conv_ids:
+            messages_query = messages_query.in_("conversation_id", actual_conv_ids)
+
+        messages_response = messages_query.execute()
         messages = messages_response.data if messages_response.data else []
 
-        # Get feedback in date range
-        feedback_response = client.table("feedback").select(
-            "rating, created_at"
-        ).gte("created_at", start_date).lte("created_at", f"{end_date}T23:59:59").execute()
+        # Get feedback in date range (filtered by conversation IDs if applicable)
+        feedback_query = client.table("feedback").select(
+            "rating, created_at, conversation_id"
+        ).gte("created_at", start_date).lte("created_at", f"{end_date}T23:59:59")
 
+        if actual_conv_ids:
+            feedback_query = feedback_query.in_("conversation_id", actual_conv_ids)
+
+        feedback_response = feedback_query.execute()
         feedback_list = feedback_response.data if feedback_response.data else []
 
         # Group by date
@@ -600,13 +796,14 @@ async def get_daily_stats(start_date: str, end_date: str) -> List[Dict[str, Any]
         return []
 
 
-async def get_country_stats(start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
+async def get_country_stats(start_date: str = None, end_date: str = None, company_id: str = None) -> List[Dict[str, Any]]:
     """
-    Get visitor country statistics with real geo-location data
+    Get visitor country statistics with real geo-location data and multitenancy filtering
 
     Args:
         start_date: Optional start date (YYYY-MM-DD)
         end_date: Optional end date (YYYY-MM-DD)
+        company_id: Optional company ID to filter stats
 
     Returns:
         List[Dict]: Country statistics with visitor counts and percentages
@@ -614,13 +811,31 @@ async def get_country_stats(start_date: str = None, end_date: str = None) -> Lis
     try:
         client = get_supabase_client()
 
-        # Build query based on date range
-        query = client.table("conversations").select("country_code, country_name")
+        # Get conversation IDs for filtering (if company_id provided)
+        conversation_ids = None
+        if company_id:
+            # Get chatbot IDs for this company
+            chatbots_response = client.table("chatbots").select("id").eq("company_id", company_id).execute()
+            chatbot_ids = [cb["id"] for cb in chatbots_response.data] if chatbots_response.data else []
+
+            if chatbot_ids:
+                # Get conversations for these chatbots
+                conv_query = client.table("conversations").select("id").in_("chatbot_id", chatbot_ids)
+                convs_response = conv_query.execute()
+                conversation_ids = [conv["id"] for conv in convs_response.data] if convs_response.data else []
+            else:
+                # No chatbots for this company - return empty stats
+                return []
+
+        # Build query based on date range and company filter
+        query = client.table("conversations").select("country_code, country_name, id")
 
         if start_date:
             query = query.gte("created_at", start_date)
         if end_date:
             query = query.lte("created_at", f"{end_date}T23:59:59")
+        if conversation_ids is not None:
+            query = query.in_("id", conversation_ids)
 
         response = query.execute()
         conversations = response.data if response.data else []

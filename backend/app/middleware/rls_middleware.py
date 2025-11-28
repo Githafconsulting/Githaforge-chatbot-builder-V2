@@ -42,15 +42,23 @@ class RLSMiddleware(BaseHTTPMiddleware):
     """
 
     # Paths that don't require RLS context (public endpoints)
+    # Note: These use prefix matching, so be careful with short paths
     EXCLUDED_PATHS = [
         "/health",
-        "/",
         "/docs",
         "/redoc",
         "/openapi.json",
         "/api/v1/auth/login",
+        "/api/v1/auth/signup",  # Public signup endpoint
+        "/api/v1/auth/unified-signup",  # Public unified signup endpoint
+        "/api/v1/auth/super-admin-login",  # Super admin login
         "/api/v1/chat/",  # Public chat endpoint (no auth required)
         "/api/v1/feedback/",  # Public feedback endpoint
+    ]
+
+    # Paths that must match exactly (not prefix)
+    EXCLUDED_EXACT_PATHS = [
+        "/",
     ]
 
     async def dispatch(
@@ -68,7 +76,6 @@ class RLSMiddleware(BaseHTTPMiddleware):
         """
         # Skip RLS context for excluded paths
         if self._is_excluded_path(request.url.path):
-            logger.debug(f"Skipping RLS for public path: {request.url.path}")
             return await call_next(request)
 
         # Extract JWT token from Authorization header
@@ -78,7 +85,6 @@ class RLSMiddleware(BaseHTTPMiddleware):
             # Decode token and set RLS context
             try:
                 await self._set_rls_context(token)
-                logger.debug(f"RLS context set for path: {request.url.path}")
             except HTTPException as e:
                 # Return 401 if token is invalid
                 return Response(
@@ -89,8 +95,6 @@ class RLSMiddleware(BaseHTTPMiddleware):
             except Exception as e:
                 logger.error(f"RLS middleware error: {e}")
                 # Continue without RLS context (will fail if protected route)
-        else:
-            logger.debug(f"No token found for path: {request.url.path}")
 
         # Continue to next middleware/route
         response = await call_next(request)
@@ -106,7 +110,11 @@ class RLSMiddleware(BaseHTTPMiddleware):
         Returns:
             bool: True if path is excluded
         """
-        # Exact match or prefix match
+        # Check exact matches first
+        if path in self.EXCLUDED_EXACT_PATHS:
+            return True
+
+        # Prefix match for other excluded paths
         for excluded in self.EXCLUDED_PATHS:
             if path == excluded or path.startswith(excluded):
                 return True
@@ -165,9 +173,9 @@ class RLSMiddleware(BaseHTTPMiddleware):
         # Get Supabase client
         db = get_supabase_client()
 
-        # Fetch user to get company_id and role
+        # Fetch user to get company_id, role, and is_super_admin flag
         try:
-            response = db.table("users").select("id, company_id, role").eq("id", user_id).single().execute()
+            response = db.table("users").select("id, company_id, role, is_super_admin").eq("id", user_id).single().execute()
             user = response.data
 
             if not user:
@@ -178,36 +186,25 @@ class RLSMiddleware(BaseHTTPMiddleware):
 
             company_id = user.get("company_id")
             role = user.get("role", "member")
+            is_super_admin_flag = user.get("is_super_admin", False)
 
             # Determine if user is super admin (bypasses RLS)
-            is_super_admin = (role == "super_admin")
+            # Check both role field and is_super_admin flag
+            is_super_admin = (role == "super_admin") or is_super_admin_flag
 
             # Set PostgreSQL session context via RPC function
-            if company_id:
-                try:
-                    db.rpc('set_company_context', {
-                        'p_company_id': company_id,
-                        'p_is_super_admin': is_super_admin
-                    }).execute()
-
-                    logger.info(
-                        f"RLS context set - User: {user_id}, "
-                        f"Company: {company_id}, "
-                        f"Role: {role}, "
-                        f"SuperAdmin: {is_super_admin}"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to set RLS context: {e}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Failed to set security context"
-                    )
-            else:
-                # User has no company (should not happen in production)
-                logger.warning(f"User {user_id} has no company_id")
+            # Super admins have company_id=NULL but still need RLS context set
+            try:
+                db.rpc('set_company_context', {
+                    'p_company_id': company_id if company_id else '00000000-0000-0000-0000-000000000000',
+                    'p_is_super_admin': is_super_admin,
+                    'p_user_id': user_id
+                }).execute()
+            except Exception as e:
+                logger.error(f"Failed to set RLS context: {e}")
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="User not associated with a company"
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to set security context"
                 )
 
         except HTTPException:

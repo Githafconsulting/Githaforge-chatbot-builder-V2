@@ -17,6 +17,10 @@ class CompanyBase(BaseModel):
     industry: Optional[str] = Field(None, max_length=100)
     plan: str = Field(default="free", pattern=r'^(free|pro|enterprise)$')
 
+    # Personal workspace flag - distinguishes individual accounts from company accounts
+    # Individual accounts have: is_personal=True, max_team_members=1
+    is_personal: bool = Field(default=False, description="True for individual/personal accounts")
+
     @validator('website')
     def validate_website(cls, v):
         if v and not re.match(r'https?://', v):
@@ -46,6 +50,7 @@ class Company(CompanyBase):
     max_bots: int = 1
     max_documents: int = 50
     max_monthly_messages: int = 1000
+    max_team_members: int = Field(default=5, description="Max team members (1 for personal accounts)")
     is_active: bool = True
     created_at: datetime
     updated_at: datetime

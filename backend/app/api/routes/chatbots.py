@@ -12,7 +12,7 @@ from app.models.chatbot import (
     ChatbotStats
 )
 from app.services.chatbot_service import ChatbotService
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_permission, require_any_permission
 from app.models.user import User
 
 router = APIRouter()
@@ -21,7 +21,8 @@ router = APIRouter()
 @router.post("/", response_model=Chatbot, status_code=status.HTTP_201_CREATED)
 async def create_chatbot(
     chatbot_data: ChatbotCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("create_chatbots"))
 ):
     """
     Create a new chatbot for the company
@@ -40,8 +41,13 @@ async def create_chatbot(
     - **allowed_domains**: Domains where bot can be embedded
     - **rate_limit_per_ip**: Max requests per minute per IP
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary: use default company
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     # TODO: Check company plan limits (max_bots)
     # service = ChatbotService()
@@ -54,7 +60,7 @@ async def create_chatbot(
 
     try:
         service = ChatbotService()
-        chatbot = await service.create_chatbot(chatbot_data, company_id)
+        chatbot = await service.create_chatbot(chatbot_data, str(company_id))
         return chatbot
     except ValueError as e:
         raise HTTPException(
@@ -72,7 +78,8 @@ async def create_chatbot(
 async def list_chatbots(
     limit: int = 100,
     offset: int = 0,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("view_chatbots"))
 ):
     """
     List all chatbots for the current user's company
@@ -82,12 +89,17 @@ async def list_chatbots(
 
     Returns only chatbots belonging to the user's company
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     service = ChatbotService()
     chatbots = await service.list_company_chatbots(
-        company_id=company_id,
+        company_id=str(company_id),
         limit=limit,
         offset=offset
     )
@@ -97,7 +109,8 @@ async def list_chatbots(
 @router.get("/{chatbot_id}", response_model=Chatbot)
 async def get_chatbot(
     chatbot_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("view_chatbots"))
 ):
     """
     Get chatbot by ID
@@ -106,11 +119,16 @@ async def get_chatbot(
 
     Returns chatbot configuration and metrics
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     service = ChatbotService()
-    chatbot = await service.get_chatbot(chatbot_id, company_id)
+    chatbot = await service.get_chatbot(chatbot_id, str(company_id))
 
     if not chatbot:
         raise HTTPException(
@@ -125,7 +143,8 @@ async def get_chatbot(
 async def update_chatbot(
     chatbot_id: str,
     chatbot_data: ChatbotUpdate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
     Update chatbot settings
@@ -140,11 +159,16 @@ async def update_chatbot(
     - RAG settings (top_k, similarity threshold)
     - Access control (domains, rate limits)
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     service = ChatbotService()
-    chatbot = await service.update_chatbot(chatbot_id, chatbot_data, company_id)
+    chatbot = await service.update_chatbot(chatbot_id, chatbot_data, str(company_id))
 
     if not chatbot:
         raise HTTPException(
@@ -158,7 +182,8 @@ async def update_chatbot(
 @router.delete("/{chatbot_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chatbot(
     chatbot_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("delete_chatbots"))
 ):
     """
     Soft delete a chatbot
@@ -171,11 +196,16 @@ async def delete_chatbot(
 
     IMPORTANT: This action cannot be undone
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     service = ChatbotService()
-    success = await service.delete_chatbot(chatbot_id, company_id)
+    success = await service.delete_chatbot(chatbot_id, str(company_id))
 
     if not success:
         raise HTTPException(
@@ -190,7 +220,8 @@ async def delete_chatbot(
 async def deploy_chatbot(
     chatbot_id: str,
     deploy_data: ChatbotDeploy,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("deploy_chatbots"))
 ):
     """
     Deploy or pause a chatbot
@@ -203,11 +234,16 @@ async def deploy_chatbot(
 
     Draft bots must be deployed before they can accept conversations
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     service = ChatbotService()
-    chatbot = await service.deploy_chatbot(chatbot_id, deploy_data, company_id)
+    chatbot = await service.deploy_chatbot(chatbot_id, deploy_data, str(company_id))
 
     if not chatbot:
         raise HTTPException(
@@ -221,7 +257,8 @@ async def deploy_chatbot(
 @router.get("/{chatbot_id}/stats", response_model=ChatbotStats)
 async def get_chatbot_stats(
     chatbot_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("view_analytics"))
 ):
     """
     Get chatbot statistics
@@ -238,27 +275,33 @@ async def get_chatbot_stats(
     - Top queries
     - Daily stats (last 30 days)
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     service = ChatbotService()
 
-    # Verify chatbot exists
-    chatbot = await service.get_chatbot(chatbot_id, company_id)
+    # Verify chatbot exists and belongs to user's company
+    chatbot = await service.get_chatbot(chatbot_id, str(company_id))
     if not chatbot:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chatbot {chatbot_id} not found"
         )
 
-    stats = await service.get_chatbot_stats(chatbot_id, company_id)
+    stats = await service.get_chatbot_stats(chatbot_id, str(company_id))
     return stats
 
 
 @router.get("/{chatbot_id}/embed-code", response_model=ChatbotWithEmbedCode)
 async def get_embed_code(
     chatbot_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("view_chatbots"))
 ):
     """
     Get chatbot with generated embed code
@@ -274,11 +317,16 @@ async def get_embed_code(
     - Greeting message
     - Auto-initialization script
     """
-    # TODO: Extract company_id from JWT
-    company_id = "00000000-0000-0000-0000-000000000001"  # Temporary
+    # Extract company_id from authenticated user
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
 
     service = ChatbotService()
-    chatbot_with_code = await service.get_chatbot_with_embed_code(chatbot_id, company_id)
+    chatbot_with_code = await service.get_chatbot_with_embed_code(chatbot_id, str(company_id))
 
     if not chatbot_with_code:
         raise HTTPException(

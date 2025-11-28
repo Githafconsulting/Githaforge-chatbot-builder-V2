@@ -3,6 +3,10 @@ Main FastAPI application
 """
 import sys
 import asyncio
+import warnings
+
+# Suppress passlib bcrypt version warning (harmless compatibility issue)
+warnings.filterwarnings("ignore", message=".*error reading bcrypt version.*")
 
 # Fix for Windows: Set event loop policy BEFORE any async operations
 if sys.platform == 'win32':

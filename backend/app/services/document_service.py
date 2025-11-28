@@ -292,13 +292,14 @@ async def process_url(url: str, category: Optional[str] = None) -> Dict[str, Any
         raise
 
 
-async def get_all_documents(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+async def get_all_documents(limit: int = 100, offset: int = 0, company_id: str = None) -> List[Dict[str, Any]]:
     """
     Get all documents from knowledge base (metadata only)
 
     Args:
         limit: Maximum number of documents
         offset: Offset for pagination
+        company_id: Optional company ID to filter documents (None for super admin)
 
     Returns:
         List[Dict]: List of documents
@@ -306,9 +307,13 @@ async def get_all_documents(limit: int = 100, offset: int = 0) -> List[Dict[str,
     try:
         client = get_supabase_client()
 
-        response = client.table("documents").select(
-            "*"
-        ).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+        query = client.table("documents").select("*").order("created_at", desc=True)
+
+        # Filter by company if provided (regular users)
+        if company_id:
+            query = query.eq("company_id", company_id)
+
+        response = query.range(offset, offset + limit - 1).execute()
 
         documents = response.data if response.data else []
 

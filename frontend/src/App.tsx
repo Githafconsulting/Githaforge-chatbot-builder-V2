@@ -1,9 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { SuperAdminAuthProvider } from './contexts/SuperAdminAuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import { SuperAdminProtectedRoute } from './components/layout/SuperAdminProtectedRoute';
 import { AdminLayout } from './components/layout/AdminLayout';
+import { SuperAdminLayout } from './components/layout/SuperAdminLayout';
 import { HomeNew } from './pages/HomeNew';
 import { Features } from './pages/Features';
 import { Pricing } from './pages/Pricing';
@@ -11,11 +14,17 @@ import { Contact } from './pages/Contact';
 import { Signup } from './pages/Signup';
 import { Onboarding } from './pages/Onboarding';
 import { Login } from './pages/Login';
+import { SuperAdminLogin } from './pages/SuperAdminLogin';
+import { Companies } from './pages/superAdmin/Companies';
 import { AnalyticsPage } from './pages/admin/Analytics';
+import { ChatbotsPage } from './pages/admin/Chatbots';
+import { ChatbotDetailPage } from './pages/admin/ChatbotDetail';
 import { DocumentsPage } from './pages/admin/Documents';
 import { ConversationsPage } from './pages/admin/Conversations';
 import { FlaggedPage } from './pages/admin/Flagged';
 import { UsersPage } from './pages/admin/Users';
+import { TeamPage } from './pages/admin/Team';
+import { CompanySettingsPage } from './pages/admin/CompanySettings';
 import { WidgetSettingsPage } from './pages/admin/WidgetSettings';
 import { SystemSettingsPage } from './pages/admin/SystemSettings';
 import { DeletedItemsPage } from './pages/admin/DeletedItems';
@@ -32,17 +41,19 @@ function App() {
     <ThemeProvider>
       <LanguageProvider>
         <AuthProvider>
-          <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomeNew />} />
-          <Route path="/features" element={<Features />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/embed" element={<EmbedPage />} />
-          <Route path="/oauth/callback" element={<OAuthCallback />} />
+          <SuperAdminAuthProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<HomeNew />} />
+                <Route path="/features" element={<Features />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+                <Route path="/embed" element={<EmbedPage />} />
+                <Route path="/oauth/callback" element={<OAuthCallback />} />
 
           {/* Glow Components Demo Pages */}
           <Route path="/glow-showcase" element={<GlowComponentsShowcase />} />
@@ -61,22 +72,43 @@ function App() {
           >
             <Route index element={<AnalyticsPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="chatbots" element={<ChatbotsPage />} />
+            <Route path="chatbots/:chatbotId" element={<ChatbotDetailPage />} />
             <Route path="documents" element={<DocumentsPage />} />
             <Route path="conversations" element={<ConversationsPage />} />
             <Route path="flagged" element={<FlaggedPage />} />
             <Route path="learning" element={<LearningPage />} />
             <Route path="deleted" element={<DeletedItemsPage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="team" element={<TeamPage />} />
+            <Route path="company" element={<CompanySettingsPage />} />
             <Route path="widget" element={<WidgetSettingsPage />} />
             <Route path="chatbot" element={<ChatbotSettings />} />
             <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="settings" element={<SystemSettingsPage />} />
           </Route>
 
+          {/* Super Admin Routes */}
+          <Route
+            path="/super-admin"
+            element={
+              <SuperAdminProtectedRoute>
+                <SuperAdminLayout />
+              </SuperAdminProtectedRoute>
+            }
+          >
+            <Route index element={<div className="text-white p-8">Platform Analytics Coming Soon</div>} />
+            <Route path="companies" element={<Companies />} />
+            <Route path="users" element={<div className="text-white p-8">All Users Coming Soon</div>} />
+            <Route path="billing" element={<div className="text-white p-8">Billing & Plans Coming Soon</div>} />
+            <Route path="logs" element={<div className="text-white p-8">System Logs Coming Soon</div>} />
+          </Route>
+
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-          </BrowserRouter>
+              </Routes>
+            </BrowserRouter>
+          </SuperAdminAuthProvider>
         </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>

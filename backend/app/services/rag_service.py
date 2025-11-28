@@ -223,7 +223,9 @@ async def get_rag_response(
     query: str,
     session_id: Optional[str] = None,
     include_history: bool = True,
-    max_retries: int = 2  # NEW: Phase 1 - Allow retries for validation
+    max_retries: int = 2,  # NEW: Phase 1 - Allow retries for validation
+    chatbot_id: Optional[str] = None,  # NEW: Multitenancy - chatbot ID for scope filtering
+    company_id: Optional[str] = None  # NEW: Multitenancy - company ID for data isolation
 ) -> Dict[str, Any]:
     """
     Get response using RAG pipeline with intent classification and validation (Phase 1: Observation Layer)
@@ -233,6 +235,8 @@ async def get_rag_response(
         session_id: Optional session ID for conversation context
         include_history: Whether to include conversation history
         max_retries: Maximum number of retries if validation fails (default: 2)
+        chatbot_id: Optional chatbot ID for scope filtering (multitenancy)
+        company_id: Optional company ID for data isolation (multitenancy)
 
     Returns:
         Dict containing response, sources, and validation metadata
@@ -350,7 +354,28 @@ async def get_rag_response(
                 }
             }
 
-        # 4. Enrich query with semantic memory (Phase 4: Advanced Memory)
+        # 4. Fetch chatbot configuration for scope filtering (MULTITENANCY)
+        allowed_scopes = None
+        if chatbot_id:
+            try:
+                from app.core.database import get_supabase_client
+                client = get_supabase_client()
+
+                # Fetch chatbot's allowed_scopes
+                chatbot_response = client.table("chatbots").select("allowed_scopes, company_id").eq("id", chatbot_id).single().execute()
+
+                if chatbot_response.data:
+                    allowed_scopes = chatbot_response.data.get("allowed_scopes")
+                    # Extract company_id from chatbot if not provided
+                    if not company_id:
+                        company_id = chatbot_response.data.get("company_id")
+
+                    logger.info(f"Chatbot {chatbot_id}: allowed_scopes={allowed_scopes}, company_id={company_id}")
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch chatbot config: {e}")
+
+        # 5. Enrich query with semantic memory (Phase 4: Advanced Memory)
         memories = []
         if session_id:
             try:
@@ -363,7 +388,7 @@ async def get_rag_response(
                 logger.warning(f"Failed to retrieve semantic memory: {e}")
                 memories = []
 
-        # 5. Continue with RAG pipeline for simple questions
+        # 6. Continue with RAG pipeline for simple questions
         logger.info("Using RAG pipeline for question/unknown intent")
 
         # 6. Embed the processed query (Phase 6: Track embedding latency)
@@ -400,7 +425,10 @@ async def get_rag_response(
             relevant_docs = await similarity_search(
                 query_embedding,
                 top_k=top_k,
-                threshold=threshold
+                threshold=threshold,
+                company_id=company_id,  # MULTITENANCY: Isolate by company
+                allowed_scopes=allowed_scopes,  # MULTITENANCY: Filter by chatbot scopes
+                chatbot_id=chatbot_id  # MULTITENANCY: Filter by chatbot assignment
             )
             ctx.add_context({"docs_found": len(relevant_docs) if relevant_docs else 0})
 

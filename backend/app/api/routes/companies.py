@@ -12,9 +12,40 @@ from app.models.company import (
 )
 from app.services.company_service import CompanyService
 from app.core.dependencies import get_current_user
+from app.core.multitenancy import verify_company_access
 from app.models.user import User
 
 router = APIRouter()
+
+
+@router.get("/me", response_model=Company)
+async def get_my_company(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get the current user's company settings
+
+    Returns company details for the logged-in user's company.
+    Used by Company Settings page for company admins.
+    """
+    company_id = current_user.get("company_id")
+
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not associated with any company"
+        )
+
+    service = CompanyService()
+    company = await service.get_company(company_id)
+
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+
+    return company
 
 
 @router.post("/", response_model=Company, status_code=status.HTTP_201_CREATED)
@@ -64,9 +95,9 @@ async def get_company(
 
     - **company_id**: UUID of the company
 
-    Returns company details including plan limits
+    Returns company details including plan limits.
+    Verifies user belongs to the company or is super admin.
     """
-    # TODO: Verify user belongs to this company or is super admin
     service = CompanyService()
     company = await service.get_company(company_id)
 
@@ -75,6 +106,9 @@ async def get_company(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Company {company_id} not found"
         )
+
+    # Verify user has access to this company
+    verify_company_access(company_id, current_user, "company")
 
     return company
 
@@ -96,9 +130,12 @@ async def update_company(
     - Brand colors (primary, secondary)
     - Company size, industry
 
-    Note: Plan and limits can only be changed by super admin
+    Note: Plan and limits can only be changed by super admin.
+    Verifies user belongs to the company or is super admin.
     """
-    # TODO: Verify user is company admin/owner
+    # Verify user has access to this company
+    verify_company_access(company_id, current_user, "company")
+
     service = CompanyService()
     company = await service.update_company(company_id, company_data)
 
@@ -121,12 +158,15 @@ async def delete_company(
 
     - **company_id**: UUID of the company
 
-    Sets is_active=false instead of hard delete
-    Cascades to all company resources (chatbots, documents, etc.)
+    Sets is_active=false instead of hard delete.
+    Cascades to all company resources (chatbots, documents, etc.).
+    Verifies user belongs to the company or is super admin.
 
     IMPORTANT: This action cannot be undone by users (admin recovery only)
     """
-    # TODO: Verify user is company owner or super admin
+    # Verify user has access to this company
+    verify_company_access(company_id, current_user, "company")
+
     service = CompanyService()
     success = await service.delete_company(company_id)
 
@@ -155,8 +195,12 @@ async def get_company_stats(
     - Total conversations
     - Total messages
     - Average satisfaction score
+
+    Verifies user belongs to the company or is super admin.
     """
-    # TODO: Verify user belongs to this company
+    # Verify user has access to this company
+    verify_company_access(company_id, current_user, "company")
+
     service = CompanyService()
 
     # Verify company exists
@@ -208,10 +252,13 @@ async def get_company_with_stats(
 
     - **company_id**: UUID of the company
 
-    Combines company info + stats for dashboard display
-    Optimized to reduce API calls
+    Combines company info + stats for dashboard display.
+    Optimized to reduce API calls.
+    Verifies user belongs to the company or is super admin.
     """
-    # TODO: Verify user belongs to this company
+    # Verify user has access to this company
+    verify_company_access(company_id, current_user, "company")
+
     service = CompanyService()
 
     # Get company

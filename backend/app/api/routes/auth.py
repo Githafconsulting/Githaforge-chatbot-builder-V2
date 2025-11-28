@@ -4,9 +4,10 @@ Authentication API endpoints
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
-from app.models.user import Token
+from typing import Dict, Any
+from app.models.user import Token, CompanySignup, UnifiedSignup, SignupResponse
 from app.core.database import get_supabase_client
-from app.core.security import verify_password, create_access_token
+from app.core.security import verify_password, create_access_token, get_password_hash
 from app.core.config import settings
 from app.utils.logger import get_logger
 
@@ -77,3 +78,368 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+
+
+@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+async def company_signup(signup_data: CompanySignup):
+    """
+    Company registration endpoint
+
+    Creates:
+    1. New company with default settings
+    2. Owner user with full permissions
+    3. Predefined roles for the company
+    4. Default chatbot (optional - can be created later)
+
+    Returns JWT access token for immediate login
+    """
+    try:
+        client = get_supabase_client()
+
+        # 1. Check if email already exists
+        existing_user = client.table("users").select("id").eq("email", signup_data.email).execute()
+        if existing_user.data and len(existing_user.data) > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+
+        # 2. Check if company name already exists
+        existing_company = client.table("companies").select("id").eq("name", signup_data.company_name).execute()
+        if existing_company.data and len(existing_company.data) > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Company name already taken"
+            )
+
+        # 3. Create company
+        company_data = {
+            "name": signup_data.company_name,
+            "website": signup_data.website,
+            "industry": signup_data.industry,
+            "company_size": signup_data.company_size,
+            "plan": "free",  # Default plan
+            "is_active": True
+        }
+
+        company_response = client.table("companies").insert(company_data).execute()
+        if not company_response.data or len(company_response.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create company"
+            )
+
+        company = company_response.data[0]
+        company_id = company["id"]
+
+        logger.info(f"Created company: {signup_data.company_name} (ID: {company_id})")
+
+        # 4. Get "Owner" role (created by database seed)
+        owner_role = client.table("roles").select("id").eq("code", "owner").is_("company_id", "null").execute()
+
+        if not owner_role.data or len(owner_role.data) == 0:
+            # Fallback: Create owner role if seed didn't run
+            logger.warning("Owner role not found in database - creating it")
+            role_response = client.table("roles").insert({
+                "code": "owner",
+                "name": "Owner",
+                "company_id": None,  # Predefined role
+                "is_custom": False
+            }).execute()
+            role_id = role_response.data[0]["id"] if role_response.data else None
+        else:
+            role_id = owner_role.data[0]["id"]
+
+        # 5. Hash password
+        password_hash = get_password_hash(signup_data.password)
+
+        # 6. Create owner user
+        user_data = {
+            "email": signup_data.email,
+            "password_hash": password_hash,
+            "full_name": signup_data.full_name,
+            "company_id": company_id,
+            "role_id": role_id,
+            "role": "owner",  # Legacy field for backward compatibility
+            "is_active": True,
+            "is_admin": True  # Company owners are admins for their company
+        }
+
+        user_response = client.table("users").insert(user_data).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            # Rollback: Delete company if user creation fails
+            client.table("companies").delete().eq("id", company_id).execute()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user account"
+            )
+
+        user = user_response.data[0]
+        user_id = user["id"]
+
+        logger.info(f"Created owner user: {signup_data.email} (ID: {user_id})")
+
+        # 7. Create predefined roles for company (optional - can be done by migration)
+        # This step is optional since roles can be created on-demand
+
+        # 8. Create access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        token_data = {
+            "sub": str(user_id),
+            "company_id": str(company_id),
+            "role": "owner"
+        }
+        access_token = create_access_token(
+            data=token_data,
+            expires_delta=access_token_expires
+        )
+
+        logger.info(f"Company signup successful: {signup_data.company_name}")
+
+        return SignupResponse(
+            access_token=access_token,
+            token_type="bearer",
+            company_id=company_id,
+            user_id=user_id,
+            message=f"Company '{signup_data.company_name}' registered successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during company signup: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Signup failed: {str(e)}"
+        )
+
+
+@router.post("/unified-signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+async def unified_signup(signup_data: UnifiedSignup):
+    """
+    Unified registration endpoint supporting both individual and company accounts.
+
+    **Individual accounts (account_type='individual'):**
+    - Creates a personal workspace with is_personal=True
+    - Workspace name defaults to "{full_name}'s Workspace"
+    - Limited to 1 team member (owner only)
+    - Can convert to company account later
+
+    **Company accounts (account_type='company'):**
+    - Creates standard company with is_personal=False
+    - company_name is REQUIRED
+    - Can invite unlimited team members (based on plan)
+    - Full multi-tenant features
+
+    Returns JWT access token for immediate login.
+    """
+    try:
+        client = get_supabase_client()
+
+        # Validate company_name is provided for company accounts
+        if signup_data.account_type == "company" and not signup_data.company_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Company name is required for company accounts"
+            )
+
+        # 1. Check if email already exists
+        existing_user = client.table("users").select("id").eq("email", signup_data.email).execute()
+        if existing_user.data and len(existing_user.data) > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+
+        # 2. Determine workspace name
+        is_personal = signup_data.account_type == "individual"
+        if is_personal:
+            workspace_name = f"{signup_data.full_name}'s Workspace"
+        else:
+            workspace_name = signup_data.company_name
+
+        # 3. Check if workspace/company name already exists
+        existing_company = client.table("companies").select("id").eq("name", workspace_name).execute()
+        if existing_company.data and len(existing_company.data) > 0:
+            if is_personal:
+                # For personal workspaces, append a number to make unique
+                import random
+                workspace_name = f"{signup_data.full_name}'s Workspace {random.randint(1000, 9999)}"
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Company name already taken"
+                )
+
+        # 4. Create company/workspace
+        company_data = {
+            "name": workspace_name,
+            "website": signup_data.website,
+            "industry": signup_data.industry,
+            "company_size": signup_data.company_size if not is_personal else "1-10",
+            "plan": signup_data.subscription_tier or "free",
+            "is_personal": is_personal,
+            "max_team_members": 1 if is_personal else 5,  # Individual = 1, Company = 5 default
+            "is_active": True
+        }
+
+        company_response = client.table("companies").insert(company_data).execute()
+        if not company_response.data or len(company_response.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create workspace"
+            )
+
+        company = company_response.data[0]
+        company_id = company["id"]
+
+        account_label = "personal workspace" if is_personal else "company"
+        logger.info(f"Created {account_label}: {workspace_name} (ID: {company_id})")
+
+        # 5. Get "Owner" role
+        owner_role = client.table("roles").select("id").eq("code", "owner").is_("company_id", "null").execute()
+
+        if not owner_role.data or len(owner_role.data) == 0:
+            logger.warning("Owner role not found - creating it")
+            role_response = client.table("roles").insert({
+                "code": "owner",
+                "name": "Owner",
+                "company_id": None,
+                "is_custom": False
+            }).execute()
+            role_id = role_response.data[0]["id"] if role_response.data else None
+        else:
+            role_id = owner_role.data[0]["id"]
+
+        # 6. Hash password
+        password_hash = get_password_hash(signup_data.password)
+
+        # 7. Create owner user
+        user_data = {
+            "email": signup_data.email,
+            "password_hash": password_hash,
+            "full_name": signup_data.full_name,
+            "company_id": company_id,
+            "role_id": role_id,
+            "role": "owner",
+            "is_active": True,
+            "is_admin": True
+        }
+
+        user_response = client.table("users").insert(user_data).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            # Rollback: Delete company if user creation fails
+            client.table("companies").delete().eq("id", company_id).execute()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user account"
+            )
+
+        user = user_response.data[0]
+        user_id = user["id"]
+
+        logger.info(f"Created owner user: {signup_data.email} (ID: {user_id})")
+
+        # 8. Create access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        token_data = {
+            "sub": str(user_id),
+            "company_id": str(company_id),
+            "role": "owner"
+        }
+        access_token = create_access_token(
+            data=token_data,
+            expires_delta=access_token_expires
+        )
+
+        logger.info(f"Unified signup successful: {workspace_name} ({signup_data.account_type})")
+
+        return SignupResponse(
+            access_token=access_token,
+            token_type="bearer",
+            company_id=company_id,
+            user_id=user_id,
+            message=f"{'Personal workspace' if is_personal else 'Company'} '{workspace_name}' created successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during unified signup: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Signup failed: {str(e)}"
+        )
+
+
+@router.post("/super-admin-login", response_model=Token)
+async def super_admin_login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    Super admin login endpoint (for Githaf platform admins)
+
+    Super admins have:
+    - is_super_admin = True
+    - company_id = NULL (not tied to any company)
+    - Access to all companies and data
+
+    Returns JWT with is_super_admin flag for RLS bypass
+    """
+    try:
+        client = get_supabase_client()
+
+        # Find user by email with is_super_admin flag
+        response = client.table("users").select("*").eq("email", form_data.username).eq("is_super_admin", True).execute()
+
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid super admin credentials"
+            )
+
+        user = response.data[0]
+
+        # Verify password
+        if not verify_password(form_data.password, user["password_hash"]):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid super admin credentials"
+            )
+
+        # Check if user is active
+        if not user.get("is_active", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Super admin account is inactive"
+            )
+
+        # Create access token with is_super_admin flag
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        token_data = {
+            "sub": str(user["id"]),
+            "company_id": None,  # Super admins have no company
+            "role": "super_admin",
+            "is_super_admin": True  # Flag for RLS bypass
+        }
+        access_token = create_access_token(
+            data=token_data,
+            expires_delta=access_token_expires
+        )
+
+        logger.info(f"Super admin logged in: {user['email']}")
+
+        return Token(access_token=access_token, token_type="bearer")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during super admin login: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Super admin login failed: {str(e)}"
+        )

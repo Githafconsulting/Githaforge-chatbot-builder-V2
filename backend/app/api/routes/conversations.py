@@ -6,6 +6,10 @@ from pydantic import BaseModel
 from app.models.conversation import ConversationList, ConversationDetail
 from app.services.conversation_service import get_all_conversations, get_conversation_detail, end_conversation
 from app.core.dependencies import get_current_user
+from app.core.multitenancy import (
+    get_filtered_company_id,
+    verify_resource_ownership
+)
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -25,10 +29,20 @@ async def list_conversations(
     """
     Get all conversations
 
+    Returns conversations filtered by user's company.
+    Super admins see all conversations across all companies.
+
     Requires authentication
     """
     try:
-        result = await get_all_conversations(limit=limit, offset=offset)
+        # Get company filter (None for super admin, company_id for regular users)
+        company_id = get_filtered_company_id(current_user)
+
+        result = await get_all_conversations(
+            limit=limit,
+            offset=offset,
+            company_id=company_id
+        )
 
         # Handle both old format (list) and new format (dict with metadata)
         if isinstance(result, dict):
@@ -56,13 +70,15 @@ async def get_conversation(
     """
     Get detailed conversation with messages
 
+    Verifies user owns the conversation or is super admin.
+
     Requires authentication
     """
     try:
         conversation = await get_conversation_detail(conversation_id)
 
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+        # Verify ownership
+        verify_resource_ownership(conversation, conversation_id, current_user, "Conversation")
 
         return conversation
 

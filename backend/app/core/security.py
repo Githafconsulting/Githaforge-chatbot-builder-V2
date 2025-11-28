@@ -4,6 +4,11 @@ Security utilities for authentication and authorization
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
+import warnings
+
+# Suppress bcrypt version deprecation warning
+warnings.filterwarnings("ignore", message=".*bcrypt.*", category=UserWarning)
+
 from passlib.context import CryptContext
 from app.core.config import settings
 

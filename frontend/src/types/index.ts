@@ -65,6 +65,12 @@ export interface Document {
   summary?: string;  // 200-500 char summary (NOT full content)
   chunk_count: number;  // Number of embeddings
   metadata?: Record<string, any>;  // Additional metadata
+
+  // Multi-tenancy fields
+  company_id?: string;  // Company owner
+  chatbot_id?: string | null;  // Optional chatbot assignment (NULL = shared)
+  scope?: string;  // Primary scope: sales, support, product, billing, hr, legal, marketing, general
+
   created_at: string;
   updated_at?: string;
 }
@@ -133,6 +139,48 @@ export interface User {
   id: string;
   username: string;
   email: string;
+}
+
+// RBAC Types
+export interface Permission {
+  id: string;
+  code: string;
+  name: string;
+  category: 'documents' | 'chatbots' | 'analytics' | 'team' | 'company';
+}
+
+export interface Role {
+  id: string;
+  company_id?: string | null;
+  code: string;
+  name: string;
+  description?: string;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompanyUser {
+  id: string;
+  email: string;
+  full_name?: string;
+  company_id: string;
+  role_id?: string;
+  role?: string; // Legacy field (owner, admin, etc.)
+  is_active: boolean;
+  is_admin: boolean;
+  created_at: string;
+  updated_at?: string;
+  // Enriched fields
+  role_name?: string;
+  permissions?: string[];
+}
+
+export interface InviteUserRequest {
+  email: string;
+  full_name?: string;
+  role_id: string;
+  password: string;
 }
 
 export interface Feedback {
@@ -488,4 +536,27 @@ export interface ChatbotStats {
 
 export interface ChatbotWithEmbedCode extends Chatbot {
   embed_code: string;
+}
+
+// Signup Types
+export type AccountType = 'company' | 'individual';
+
+export interface UnifiedSignupRequest {
+  account_type: AccountType;
+  email: string;
+  password: string;
+  full_name: string;
+  company_name?: string;  // Required for company accounts
+  website?: string;
+  industry?: string;
+  company_size?: '1-10' | '11-50' | '51-200' | '201-500' | '500+';
+  subscription_tier?: 'free' | 'pro' | 'enterprise';
+}
+
+export interface SignupResponse {
+  access_token: string;
+  token_type: string;
+  company_id: string;
+  user_id: string;
+  message: string;
 }

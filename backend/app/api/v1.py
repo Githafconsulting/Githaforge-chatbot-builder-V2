@@ -18,7 +18,8 @@ from app.api.routes import (
     chatbot_config,
     companies,
     chatbots,
-    integrations
+    integrations,
+    super_admin
 )
 
 api_router = APIRouter()
@@ -41,6 +42,9 @@ api_router.include_router(chatbot_config.router, prefix="/chatbot-config", tags=
 # Multi-tenant routes
 api_router.include_router(companies.router, prefix="/companies", tags=["Companies"])
 api_router.include_router(chatbots.router, prefix="/chatbots", tags=["Chatbots"])
+
+# Super admin routes (platform management)
+api_router.include_router(super_admin.router, prefix="/super-admin", tags=["Super Admin"])
 
 # Cloud integrations
 api_router.include_router(integrations.router, prefix="/integrations", tags=["Cloud Integrations"])

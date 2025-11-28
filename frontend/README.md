@@ -154,6 +154,22 @@ npm run build
 
 Output in `dist/` directory
 
+### Important: Remove StrictMode for Production
+
+Before deploying to production, remove or comment out `StrictMode` in `src/main.tsx` to prevent duplicate API calls:
+
+```tsx
+// Before (development)
+<StrictMode>
+  <App />
+</StrictMode>
+
+// After (production)
+<App />
+```
+
+StrictMode intentionally double-renders components in development to detect side effects, which causes duplicate API requests. This is not needed in production.
+
 ### Preview Production Build
 
 ```bash

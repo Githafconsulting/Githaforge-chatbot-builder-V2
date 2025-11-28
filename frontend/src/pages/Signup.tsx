@@ -5,9 +5,8 @@ import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardBody, 
 import { Building2, User, Mail, Lock, ArrowRight, Bot, Eye, EyeOff, Check, X } from 'lucide-react';
 import { NavigationNew } from '../components/NavigationNew';
 import { Footer } from '../components/Footer';
-
-// Type definition for account selection
-type AccountType = 'company' | 'individual';
+import { useAuth } from '../contexts/AuthContext';
+import type { AccountType, UnifiedSignupRequest } from '../types';
 
 const benefits = [
   'No credit card required for 14-day trial',
@@ -48,6 +47,7 @@ const calculatePasswordStrength = (password: string) => {
 
 export const Signup: React.FC = () => {
   const navigate = useNavigate();
+  const { signup: authSignup } = useAuth();
   const [searchParams] = useSearchParams();
   const planFromUrl = searchParams.get('plan') || 'free';
 
@@ -55,9 +55,8 @@ export const Signup: React.FC = () => {
   const [formData, setFormData] = useState({
     // Company fields
     companyName: '',
-    // Individual fields
+    // Common fields (required for both)
     fullName: '',
-    // Common fields
     email: '',
     password: '',
     confirmPassword: '',
@@ -78,13 +77,14 @@ export const Signup: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Validate based on account type
-    if (accountType === 'company' && !formData.companyName.trim()) {
-      newErrors.companyName = 'Company name is required';
+    // Full name is required for all accounts
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Full name is required';
     }
 
-    if (accountType === 'individual' && !formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+    // Company name is required for company accounts
+    if (accountType === 'company' && !formData.companyName.trim()) {
+      newErrors.companyName = 'Company name is required';
     }
 
     // Email validation
@@ -120,27 +120,33 @@ export const Signup: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // TODO: Call API to create account
-      // POST /api/v1/auth/signup
-      const payload = {
+      // Build the signup request based on account type
+      const signupData: UnifiedSignupRequest = {
         account_type: accountType,
-        company_name: accountType === 'company' ? formData.companyName : null,
-        full_name: accountType === 'individual' ? formData.fullName : null,
         email: formData.email,
         password: formData.password,
-        subscription_tier: planFromUrl,
+        full_name: formData.fullName,
+        subscription_tier: (planFromUrl as 'free' | 'pro' | 'enterprise') || 'free',
       };
 
-      console.log('Signup payload:', payload);
+      // Add company_name only for company accounts
+      if (accountType === 'company') {
+        signupData.company_name = formData.companyName;
+      }
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      console.log('Signup payload:', signupData);
 
-      // After successful signup, redirect to onboarding
-      navigate('/onboarding');
-    } catch (error) {
+      // Call the unified signup API via AuthContext
+      await authSignup(signupData);
+
+      console.log('Signup successful, navigating to admin dashboard');
+
+      // Navigate to admin dashboard after successful signup
+      navigate('/admin');
+    } catch (error: any) {
       console.error('Signup error:', error);
-      setErrors({ submit: 'Failed to create account. Please try again.' });
+      const errorMessage = error.response?.data?.detail || 'Failed to create account. Please try again.';
+      setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -290,7 +296,18 @@ export const Signup: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Company Name (if company) */}
+                  {/* Full Name (always required) */}
+                  <Input
+                    label="Full Name"
+                    placeholder="John Doe"
+                    icon={<User className="w-5 h-5" />}
+                    value={formData.fullName}
+                    onChange={(e) => handleInputChange('fullName', e.target.value)}
+                    error={errors.fullName}
+                    fullWidth
+                  />
+
+                  {/* Company Name (only for company accounts) */}
                   {accountType === 'company' && (
                     <Input
                       label="Company Name"
@@ -299,19 +316,6 @@ export const Signup: React.FC = () => {
                       value={formData.companyName}
                       onChange={(e) => handleInputChange('companyName', e.target.value)}
                       error={errors.companyName}
-                      fullWidth
-                    />
-                  )}
-
-                  {/* Full Name (if individual) */}
-                  {accountType === 'individual' && (
-                    <Input
-                      label="Full Name"
-                      placeholder="John Doe"
-                      icon={<User className="w-5 h-5" />}
-                      value={formData.fullName}
-                      onChange={(e) => handleInputChange('fullName', e.target.value)}
-                      error={errors.fullName}
                       fullWidth
                     />
                   )}

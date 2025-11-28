@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, Twitter, Linkedin, Github } from 'lucide-react';
+import { Mail, Phone, MapPin, Twitter, Linkedin, Github, Shield } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
@@ -158,6 +158,13 @@ export const Footer: React.FC = () => {
             <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               Cookie Policy
             </a>
+            <Link
+              to="/super-admin-login"
+              className="flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors opacity-50 hover:opacity-100"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Super Admin</span>
+            </Link>
           </div>
         </div>
       </div>

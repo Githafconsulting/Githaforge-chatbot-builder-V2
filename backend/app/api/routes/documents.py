@@ -15,6 +15,11 @@ from app.services.document_service import (
     update_document
 )
 from app.core.dependencies import get_current_user
+from app.core.multitenancy import (
+    get_filtered_company_id,
+    require_company_association,
+    verify_resource_ownership
+)
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -36,10 +41,20 @@ async def list_documents(
     """
     Get all documents in the knowledge base
 
+    Returns documents filtered by user's company.
+    Super admins see all documents across all companies.
+
     Requires authentication
     """
     try:
-        documents = await get_all_documents(limit=limit, offset=offset)
+        # Get company filter (None for super admin, company_id for regular users)
+        company_id = get_filtered_company_id(current_user)
+
+        documents = await get_all_documents(
+            limit=limit,
+            offset=offset,
+            company_id=company_id
+        )
 
         return DocumentList(
             documents=documents,
@@ -60,17 +75,23 @@ async def upload_document(
     """
     Upload a document file (PDF, TXT, DOCX)
 
+    Document is associated with the user's company.
+
     Requires authentication
     """
     try:
+        # Ensure user has company association
+        company_id = require_company_association(current_user)
+
         # Read file content
         file_content = await file.read()
 
-        # Process file
+        # Process file with company_id
         document = await process_file_upload(
             file_content=file_content,
             filename=file.filename,
-            category=category
+            category=category,
+            company_id=company_id
         )
 
         return {
@@ -93,10 +114,19 @@ async def add_url(
     """
     Add a document from URL
 
+    Document is associated with the user's company.
+
     Requires authentication
     """
     try:
-        document = await process_url(url=url, category=category)
+        # Ensure user has company association
+        company_id = require_company_association(current_user)
+
+        document = await process_url(
+            url=url,
+            category=category,
+            company_id=company_id
+        )
 
         return {
             "success": True,
@@ -117,13 +147,15 @@ async def get_document(
     """
     Get a specific document by ID
 
+    Verifies user owns the document or is super admin.
+
     Requires authentication
     """
     try:
         document = await get_document_by_id(document_id)
 
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+        # Verify ownership
+        verify_resource_ownership(document, document_id, current_user, "Document")
 
         return document
 
@@ -271,9 +303,16 @@ async def remove_document(
     """
     Delete a document and its embeddings
 
+    Verifies user owns the document before deletion.
+
     Requires authentication
     """
     try:
+        # First verify ownership
+        document = await get_document_by_id(document_id)
+        verify_resource_ownership(document, document_id, current_user, "Document")
+
+        # Proceed with deletion
         success = await delete_document(document_id)
 
         if not success:

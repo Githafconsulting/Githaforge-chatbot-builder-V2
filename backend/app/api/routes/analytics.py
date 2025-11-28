@@ -23,10 +23,19 @@ async def get_analytics(current_user: dict = Depends(get_current_user)):
     """
     Get complete analytics overview
 
+    Returns analytics filtered by the user's company.
+    Super admins see global (all companies) analytics.
+
     Requires authentication
     """
     try:
-        analytics = await get_analytics_overview()
+        company_id = current_user.get("company_id")
+        is_super_admin = current_user.get("is_super_admin", False)
+
+        # Super admin sees global stats, company users see their company only
+        analytics = await get_analytics_overview(
+            company_id=company_id if not is_super_admin else None
+        )
         return analytics
 
     except Exception as e:
@@ -42,10 +51,19 @@ async def get_flagged(
     """
     Get flagged queries needing review
 
+    Returns flagged queries filtered by the user's company.
+    Super admins see flagged queries from all companies.
+
     Requires authentication
     """
     try:
-        flagged = await get_flagged_queries(limit=limit)
+        company_id = current_user.get("company_id")
+        is_super_admin = current_user.get("is_super_admin", False)
+
+        flagged = await get_flagged_queries(
+            limit=limit,
+            company_id=company_id if not is_super_admin else None
+        )
         return flagged
 
     except Exception as e:
@@ -62,10 +80,20 @@ async def get_daily_analytics(
     """
     Get daily conversation statistics for date range
 
+    Returns daily stats filtered by the user's company.
+    Super admins see stats from all companies.
+
     Requires authentication
     """
     try:
-        daily_stats = await get_daily_stats(start_date, end_date)
+        company_id = current_user.get("company_id")
+        is_super_admin = current_user.get("is_super_admin", False)
+
+        daily_stats = await get_daily_stats(
+            start_date,
+            end_date,
+            company_id=company_id if not is_super_admin else None
+        )
         return {"daily_stats": daily_stats}
 
     except ValueError as e:
@@ -85,10 +113,20 @@ async def get_country_analytics(
     """
     Get visitor country statistics
 
+    Returns country stats filtered by the user's company.
+    Super admins see stats from all companies.
+
     Requires authentication
     """
     try:
-        country_stats = await get_country_stats(start_date, end_date)
+        company_id = current_user.get("company_id")
+        is_super_admin = current_user.get("is_super_admin", False)
+
+        country_stats = await get_country_stats(
+            start_date,
+            end_date,
+            company_id=company_id if not is_super_admin else None
+        )
         return {"country_stats": country_stats}
 
     except ValueError as e:

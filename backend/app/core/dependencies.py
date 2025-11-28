@@ -110,14 +110,171 @@ async def get_current_admin_user(
     """
     Verify that current user is an admin (Githaforge v2.0)
 
-    Accepts: super_admin, admin, owner roles
+    Accepts: super_admin, admin, owner roles OR is_super_admin flag
     """
     user_role = current_user.get("role", "member")
+    is_super_admin = current_user.get("is_super_admin", False)
 
-    # Allow super_admin (Githaf internal), admin (company admin), owner (company owner)
-    if user_role not in ["super_admin", "admin", "owner"]:
+    # Allow is_super_admin flag OR role-based access
+    if not is_super_admin and user_role not in ["super_admin", "admin", "owner"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
     return current_user
+
+
+def require_permission(permission_code: str):
+    """
+    Dependency factory for permission-based access control
+
+    Args:
+        permission_code: Permission code required (e.g., "create_chatbots")
+
+    Returns:
+        Dependency function that checks if user has the permission
+
+    Usage:
+        @router.post("/chatbots/")
+        async def create_chatbot(
+            ...,
+            _: None = Depends(require_permission("create_chatbots"))
+        ):
+            # Only users with create_chatbots permission can access this
+
+    Raises:
+        HTTPException: 403 if user lacks permission
+    """
+    async def permission_checker(current_user: dict = Depends(get_current_user)):
+        from app.services.rbac_service import get_rbac_service
+
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID not found"
+            )
+
+        # Check if user is super admin (bypasses all permission checks)
+        rbac = get_rbac_service()
+        is_super_admin = await rbac.check_super_admin(str(user_id))
+
+        if is_super_admin:
+            return None  # Super admin has all permissions
+
+        # Check specific permission
+        has_permission = await rbac.check_permission(str(user_id), permission_code)
+
+        if not has_permission:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission required: {permission_code}"
+            )
+
+        return None
+
+    return permission_checker
+
+
+def require_any_permission(*permission_codes: str):
+    """
+    Dependency factory requiring ANY of the specified permissions
+
+    Args:
+        *permission_codes: Variable number of permission codes
+
+    Returns:
+        Dependency function that checks if user has any permission
+
+    Usage:
+        @router.put("/chatbots/{id}")
+        async def update_chatbot(
+            ...,
+            _: None = Depends(require_any_permission("edit_chatbots", "deploy_chatbots"))
+        ):
+            # User needs either edit_chatbots OR deploy_chatbots permission
+
+    Raises:
+        HTTPException: 403 if user lacks all specified permissions
+    """
+    async def permission_checker(current_user: dict = Depends(get_current_user)):
+        from app.services.rbac_service import get_rbac_service
+
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID not found"
+            )
+
+        # Check if user is super admin
+        rbac = get_rbac_service()
+        is_super_admin = await rbac.check_super_admin(str(user_id))
+
+        if is_super_admin:
+            return None
+
+        # Check if user has any of the permissions
+        has_any = await rbac.has_any_permission(str(user_id), list(permission_codes))
+
+        if not has_any:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"One of these permissions required: {', '.join(permission_codes)}"
+            )
+
+        return None
+
+    return permission_checker
+
+
+def require_all_permissions(*permission_codes: str):
+    """
+    Dependency factory requiring ALL of the specified permissions
+
+    Args:
+        *permission_codes: Variable number of permission codes
+
+    Returns:
+        Dependency function that checks if user has all permissions
+
+    Usage:
+        @router.post("/analytics/export")
+        async def export_analytics(
+            ...,
+            _: None = Depends(require_all_permissions("view_analytics", "export_data"))
+        ):
+            # User needs BOTH view_analytics AND export_data permissions
+
+    Raises:
+        HTTPException: 403 if user lacks any of the specified permissions
+    """
+    async def permission_checker(current_user: dict = Depends(get_current_user)):
+        from app.services.rbac_service import get_rbac_service
+
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID not found"
+            )
+
+        # Check if user is super admin
+        rbac = get_rbac_service()
+        is_super_admin = await rbac.check_super_admin(str(user_id))
+
+        if is_super_admin:
+            return None
+
+        # Check if user has all permissions
+        has_all = await rbac.has_all_permissions(str(user_id), list(permission_codes))
+
+        if not has_all:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"All of these permissions required: {', '.join(permission_codes)}"
+            )
+
+        return None
+
+    return permission_checker

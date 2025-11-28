@@ -24,8 +24,12 @@ class ChatbotBase(BaseModel):
     similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
 
     # Access Control
-    allowed_domains: List[str] = Field(default_factory=list)
+    allowed_domains: Optional[List[str]] = Field(default_factory=list)
     rate_limit_per_ip: int = Field(default=10, ge=1, le=100)
+
+    @validator('allowed_domains', pre=True, always=True)
+    def set_allowed_domains(cls, v):
+        return v if v is not None else []
 
 
 class ChatbotCreate(ChatbotBase):

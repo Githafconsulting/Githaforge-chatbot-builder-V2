@@ -17,7 +17,8 @@ import {
   Trash2,
   Brain,
   Bot,
-  Cloud
+  Cloud,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { slideInLeft } from '../../utils/animations';
@@ -26,10 +27,13 @@ import { LanguageSelector } from '../LanguageSelector';
 
 export const AdminLayout: React.FC = () => {
   const { t } = useTranslation();
-  const { logout } = useAuth();
+  const { logout, userInfo } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Company name is now fetched in AuthContext during login
+  const companyName = userInfo?.companyName || 'Workspace';
 
   const handleLogout = () => {
     logout();
@@ -38,12 +42,14 @@ export const AdminLayout: React.FC = () => {
 
   const navItems = [
     { path: '/admin', label: t('nav.analytics'), icon: BarChart3, color: 'text-blue-400' },
+    { path: '/admin/chatbots', label: 'My Chatbots', icon: Bot, color: 'text-cyan-400' },
     { path: '/admin/documents', label: t('nav.knowledgeBase'), icon: FileText, color: 'text-green-400' },
     { path: '/admin/conversations', label: t('nav.conversations'), icon: MessageSquare, color: 'text-purple-400' },
     { path: '/admin/flagged', label: t('nav.flaggedQueries'), icon: Flag, color: 'text-red-400' },
     { path: '/admin/learning', label: t('nav.learning'), icon: Brain, color: 'text-emerald-400' },
-    { path: '/admin/users', label: t('nav.teamMembers'), icon: Users, color: 'text-amber-400' },
-    { path: '/admin/chatbot', label: 'Chatbot Config', icon: Bot, color: 'text-cyan-400' },
+    { path: '/admin/team', label: 'Team Management', icon: Users, color: 'text-amber-400' },
+    { path: '/admin/company', label: 'Company Settings', icon: Building2, color: 'text-purple-400' },
+    { path: '/admin/chatbot', label: 'Chatbot Config', icon: Settings, color: 'text-teal-400' },
     { path: '/admin/integrations', label: 'Integrations', icon: Cloud, color: 'text-sky-400' },
     { path: '/admin/widget', label: t('nav.widgetSettings'), icon: Settings, color: 'text-pink-400' },
     { path: '/admin/settings', label: t('nav.systemSettings'), icon: Settings, color: 'text-indigo-400' },
@@ -70,7 +76,7 @@ export const AdminLayout: React.FC = () => {
             />
             <div>
               <h1 className="text-lg font-bold text-white">Admin Dashboard</h1>
-              <p className="text-xs text-slate-300">Githaf Consulting</p>
+              <p className="text-xs text-slate-300">{companyName}</p>
             </div>
           </div>
 
@@ -172,7 +178,7 @@ export const AdminLayout: React.FC = () => {
             />
             <div>
               <h1 className="text-xl font-bold text-white">Admin Panel</h1>
-              <p className="text-xs text-slate-300">Githaf Consulting</p>
+              <p className="text-xs text-slate-300">{companyName}</p>
             </div>
           </div>
 

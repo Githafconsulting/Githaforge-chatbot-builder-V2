@@ -25,6 +25,13 @@ import type {
   UpdateFeedbackRequest,
   ChatbotConfig,
   ChatbotConfigUpdate,
+  Chatbot,
+  ChatbotCreate,
+  ChatbotUpdate,
+  ChatbotStats,
+  ChatbotWithEmbedCode,
+  UnifiedSignupRequest,
+  SignupResponse,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -110,6 +117,35 @@ class ApiService {
     });
 
     // Store token with correct key
+    if (response.data.access_token) {
+      localStorage.setItem('access_token', response.data.access_token);
+    }
+
+    return response.data;
+  }
+
+  async superAdminLogin(email: string, password: string): Promise<AuthResponse> {
+    // OAuth2 Password Flow for super admin
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+
+    const response = await this.api.post('/api/v1/auth/super-admin-login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    // Note: Token is stored in the component after successful login
+    // as super_admin_token (separate from regular user token)
+    return response.data;
+  }
+
+  async signup(data: UnifiedSignupRequest): Promise<SignupResponse> {
+    // Unified signup supporting both individual and company accounts
+    const response = await this.api.post('/api/v1/auth/unified-signup', data);
+
+    // Store token for immediate login after signup
     if (response.data.access_token) {
       localStorage.setItem('access_token', response.data.access_token);
     }
@@ -475,6 +511,51 @@ class ApiService {
     return response.data;
   }
 
+  // Multi-Tenant Chatbot APIs
+  async getChatbots(limit: number = 50, offset: number = 0): Promise<{ chatbots: Chatbot[]; total: number }> {
+    const response = await this.api.get('/api/v1/chatbots/', { params: { limit, offset } });
+    return response.data;
+  }
+
+  async getChatbot(chatbotId: string): Promise<Chatbot> {
+    const response = await this.api.get(`/api/v1/chatbots/${chatbotId}`);
+    return response.data;
+  }
+
+  async createChatbot(data: ChatbotCreate): Promise<Chatbot> {
+    const response = await this.api.post('/api/v1/chatbots/', data);
+    return response.data;
+  }
+
+  async updateChatbot(chatbotId: string, data: ChatbotUpdate): Promise<Chatbot> {
+    const response = await this.api.put(`/api/v1/chatbots/${chatbotId}`, data);
+    return response.data;
+  }
+
+  async deleteChatbot(chatbotId: string): Promise<void> {
+    await this.api.delete(`/api/v1/chatbots/${chatbotId}`);
+  }
+
+  async deployChatbot(chatbotId: string): Promise<Chatbot> {
+    const response = await this.api.post(`/api/v1/chatbots/${chatbotId}/deploy`);
+    return response.data;
+  }
+
+  async pauseChatbot(chatbotId: string): Promise<Chatbot> {
+    const response = await this.api.post(`/api/v1/chatbots/${chatbotId}/pause`);
+    return response.data;
+  }
+
+  async getChatbotStats(chatbotId: string): Promise<ChatbotStats> {
+    const response = await this.api.get(`/api/v1/chatbots/${chatbotId}/stats`);
+    return response.data;
+  }
+
+  async getChatbotWithEmbedCode(chatbotId: string): Promise<ChatbotWithEmbedCode> {
+    const response = await this.api.get(`/api/v1/chatbots/${chatbotId}/embed`);
+    return response.data;
+  }
+
   // Cloud Integration APIs
   async getIntegrations(): Promise<IntegrationConnection[]> {
     const response = await this.api.get('/api/v1/integrations/');
@@ -502,6 +583,40 @@ class ApiService {
 
   async importFromCloud(platform: IntegrationPlatform, request: ImportFilesRequest): Promise<{ success: boolean; message: string; documents: any[] }> {
     const response = await this.api.post(`/api/v1/integrations/${platform}/import`, request);
+    return response.data;
+  }
+
+  // Company Settings APIs
+  async getCompanySettings(): Promise<any> {
+    const response = await this.api.get('/api/v1/companies/me');
+    return response.data;
+  }
+
+  async updateCompanySettings(updates: {
+    name?: string;
+    website?: string;
+    industry?: string;
+    company_size?: string;
+    logo_url?: string;
+    primary_color?: string;
+    secondary_color?: string;
+    custom_scopes?: string[];
+  }): Promise<any> {
+    // Get current company ID from settings first
+    const currentSettings = await this.getCompanySettings();
+    const response = await this.api.put(`/api/v1/companies/${currentSettings.id}`, updates);
+    return response.data;
+  }
+
+  async uploadCompanyLogo(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await this.api.post('/api/v1/companies/upload-logo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   }
 
