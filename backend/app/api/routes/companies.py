@@ -27,7 +27,16 @@ async def get_my_company(
 
     Returns company details for the logged-in user's company.
     Used by Company Settings page for company admins.
+
+    Super admins (who have no company) receive a 403 Forbidden.
     """
+    # Check if user is super admin (no company)
+    if current_user.get("is_super_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admins do not belong to a company. Use super admin endpoints instead."
+        )
+
     company_id = current_user.get("company_id")
 
     if not company_id:

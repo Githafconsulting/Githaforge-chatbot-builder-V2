@@ -93,11 +93,11 @@
     "conversationDetails": "Détails de la Conversation"
   },
   "chat": {
-    "title": "Assistant IA Githaf",
+    "title": "Assistant IA",
     "subtitle": "Toujours là pour vous aider",
     "greeting": "Bonjour ! Comment puis-je vous aider aujourd'hui ?",
     "placeholder": "Tapez votre message...",
-    "askAnything": "Demandez-moi n'importe quoi sur Githaf Consulting",
+    "askAnything": "Demandez-moi n'importe quoi",
     "send": "Envoyer",
     "viewSources": "Voir les sources",
     "helpful": "Utile",

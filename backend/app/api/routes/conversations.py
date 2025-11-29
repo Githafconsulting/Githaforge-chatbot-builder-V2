@@ -95,17 +95,16 @@ async def end_conversation_endpoint(request: EndConversationRequest):
     Mark a conversation as ended (when user closes chatbot window)
 
     This is a public endpoint (no authentication required) so the chat widget can call it.
+    Returns success even if conversation doesn't exist (idempotent, best-effort operation).
     """
     try:
         success = await end_conversation(request.session_id)
 
-        if success:
-            return {"success": True, "message": "Conversation ended successfully"}
-        else:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+        # Always return success - this is a best-effort cleanup operation
+        # The conversation might not exist yet if user closes widget before sending any messages
+        return {"success": True, "message": "Conversation ended successfully" if success else "No conversation to end"}
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error ending conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Still return success to avoid unnecessary client errors
+        return {"success": True, "message": "Conversation end processed"}

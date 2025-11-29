@@ -56,7 +56,8 @@ export const Signup: React.FC = () => {
     // Company fields
     companyName: '',
     // Common fields (required for both)
-    fullName: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -77,9 +78,14 @@ export const Signup: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Full name is required for all accounts
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+    // First name is required
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    // Last name is required
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
     }
 
     // Company name is required for company accounts
@@ -125,7 +131,8 @@ export const Signup: React.FC = () => {
         account_type: accountType,
         email: formData.email,
         password: formData.password,
-        full_name: formData.fullName,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
         subscription_tier: (planFromUrl as 'free' | 'pro' | 'enterprise') || 'free',
       };
 
@@ -296,16 +303,26 @@ export const Signup: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Full Name (always required) */}
-                  <Input
-                    label="Full Name"
-                    placeholder="John Doe"
-                    icon={<User className="w-5 h-5" />}
-                    value={formData.fullName}
-                    onChange={(e) => handleInputChange('fullName', e.target.value)}
-                    error={errors.fullName}
-                    fullWidth
-                  />
+                  {/* First Name and Last Name */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      label="First Name"
+                      placeholder="John"
+                      icon={<User className="w-5 h-5" />}
+                      value={formData.firstName}
+                      onChange={(e) => handleInputChange('firstName', e.target.value)}
+                      error={errors.firstName}
+                      fullWidth
+                    />
+                    <Input
+                      label="Last Name"
+                      placeholder="Doe"
+                      value={formData.lastName}
+                      onChange={(e) => handleInputChange('lastName', e.target.value)}
+                      error={errors.lastName}
+                      fullWidth
+                    />
+                  </div>
 
                   {/* Company Name (only for company accounts) */}
                   {accountType === 'company' && (

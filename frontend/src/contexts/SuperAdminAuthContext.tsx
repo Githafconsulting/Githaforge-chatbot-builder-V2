@@ -53,7 +53,11 @@ export const SuperAdminAuthProvider: React.FC<{ children: ReactNode }> = ({ chil
   }, []);
 
   const login = (token: string) => {
-    // Store credentials
+    // Clear any regular user token to prevent conflicts
+    // This ensures super admin session is completely isolated
+    localStorage.removeItem('access_token');
+
+    // Store super admin credentials
     localStorage.setItem('super_admin_token', token);
     localStorage.setItem('is_super_admin', 'true');
 

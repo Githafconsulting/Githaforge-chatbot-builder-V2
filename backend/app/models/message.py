@@ -11,6 +11,7 @@ class ChatRequest(BaseModel):
     """Request model for chat endpoint"""
     message: str = Field(..., min_length=1, max_length=2000, description="User message")
     session_id: Optional[str] = Field(None, description="Session ID for conversation continuity")
+    chatbot_id: Optional[str] = Field(None, description="Chatbot ID for knowledge base scoping (uses system bot if not provided)")
 
 
 class ChatResponse(BaseModel):

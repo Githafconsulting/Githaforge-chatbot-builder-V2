@@ -93,11 +93,11 @@
     "conversationDetails": "Konversationsdetails"
   },
   "chat": {
-    "title": "Githaf KI-Assistent",
+    "title": "KI-Assistent",
     "subtitle": "Immer hier, um zu helfen",
     "greeting": "Hallo! Wie kann ich Ihnen heute helfen?",
     "placeholder": "Geben Sie Ihre Nachricht ein...",
-    "askAnything": "Fragen Sie mich alles über Githaf Consulting",
+    "askAnything": "Fragen Sie mich alles",
     "send": "Senden",
     "viewSources": "Quellen anzeigen",
     "helpful": "Hilfreich",

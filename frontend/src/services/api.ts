@@ -63,19 +63,25 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('API Error:', error);
-        console.error('API Error Response:', error.response);
-        console.error('API Error Config:', error.config);
+        // Only log non-401 errors to avoid console spam from expired tokens
+        if (error.response?.status !== 401) {
+          console.error('API Error:', error);
+          console.error('API Error Response:', error.response);
+        }
 
         if (error.response?.status === 401) {
-          console.warn('401 Unauthorized - Token may be invalid or expired');
-          console.warn('Current path:', window.location.pathname);
-          console.warn('Token exists:', !!localStorage.getItem('access_token'));
+          // Only handle if not already on login page and token exists
+          const tokenExists = !!localStorage.getItem('access_token');
+          const onLoginPage = window.location.pathname.includes('/login');
 
-          // Only redirect if not already on login page
-          if (!window.location.pathname.includes('/login')) {
-            console.warn('Redirecting to login...');
+          if (tokenExists && !onLoginPage) {
+            console.warn('401 Unauthorized - Token expired or invalid, logging out...');
             localStorage.removeItem('access_token');
+
+            // Dispatch event to notify AuthContext
+            window.dispatchEvent(new CustomEvent('auth:logout'));
+
+            // Redirect to login
             window.location.href = '/login';
           }
         }
@@ -85,10 +91,11 @@ class ApiService {
   }
 
   // Public APIs
-  async sendMessage(message: string, sessionId: string): Promise<ChatResponse> {
+  async sendMessage(message: string, sessionId: string, chatbotId?: string): Promise<ChatResponse> {
     const response = await this.api.post('/api/v1/chat/', {
       message,
       session_id: sessionId,
+      chatbot_id: chatbotId,
     });
     return response.data;
   }
@@ -115,6 +122,10 @@ class ApiService {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
+
+    // Clear any super admin tokens to prevent conflicts
+    localStorage.removeItem('super_admin_token');
+    localStorage.removeItem('is_super_admin');
 
     // Store token with correct key
     if (response.data.access_token) {
@@ -174,8 +185,8 @@ class ApiService {
 
     const response = await this.api.post('/api/v1/documents/upload', formData, {
       headers: {
-        // DO NOT set Content-Type - browser sets it with boundary
-        'Content-Type': undefined as any,
+        // Remove Content-Type to let browser set multipart/form-data with boundary
+        'Content-Type': 'multipart/form-data',
       },
     });
     // Backend returns { success: true, document: {...} }
@@ -291,10 +302,23 @@ class ApiService {
   async createUser(userData: {
     email: string;
     password: string;
+    first_name?: string;
+    last_name?: string;
     full_name?: string;
+    role_id?: string;
     is_admin?: boolean;
   }): Promise<any> {
     const response = await this.api.post('/api/v1/users/', userData);
+    return response.data;
+  }
+
+  async updateUser(userId: string, userData: {
+    first_name?: string;
+    last_name?: string;
+    role?: string;
+    is_active?: boolean;
+  }): Promise<any> {
+    const response = await this.api.patch(`/api/v1/users/${userId}`, userData);
     return response.data;
   }
 
@@ -537,12 +561,16 @@ class ApiService {
   }
 
   async deployChatbot(chatbotId: string): Promise<Chatbot> {
-    const response = await this.api.post(`/api/v1/chatbots/${chatbotId}/deploy`);
+    const response = await this.api.post(`/api/v1/chatbots/${chatbotId}/deploy`, {
+      deploy_status: 'deployed'
+    });
     return response.data;
   }
 
   async pauseChatbot(chatbotId: string): Promise<Chatbot> {
-    const response = await this.api.post(`/api/v1/chatbots/${chatbotId}/pause`);
+    const response = await this.api.post(`/api/v1/chatbots/${chatbotId}/deploy`, {
+      deploy_status: 'paused'
+    });
     return response.data;
   }
 
@@ -552,7 +580,7 @@ class ApiService {
   }
 
   async getChatbotWithEmbedCode(chatbotId: string): Promise<ChatbotWithEmbedCode> {
-    const response = await this.api.get(`/api/v1/chatbots/${chatbotId}/embed`);
+    const response = await this.api.get(`/api/v1/chatbots/${chatbotId}/embed-code`);
     return response.data;
   }
 

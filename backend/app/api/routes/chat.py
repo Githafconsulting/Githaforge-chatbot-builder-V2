@@ -8,6 +8,7 @@ from app.services.conversation_service import get_or_create_conversation, save_m
 from app.middleware.rate_limiter import limiter
 from app.utils.logger import get_logger
 from app.utils.geolocation import get_country_from_ip, anonymize_ip
+from app.core.config import settings
 import uuid
 
 router = APIRouter()
@@ -25,6 +26,13 @@ async def chat(chat_request: ChatRequest, request: Request):
     try:
         # Generate session ID if not provided
         session_id = chat_request.session_id or str(uuid.uuid4())
+
+        # Determine which chatbot to use for knowledge base scoping
+        # If no chatbot_id provided, use the system chatbot (website demo)
+        chatbot_id = chat_request.chatbot_id
+        if not chatbot_id and settings.SYSTEM_CHATBOT_ID:
+            chatbot_id = settings.SYSTEM_CHATBOT_ID
+            logger.info(f"Using system chatbot for public chat: {chatbot_id[:8]}...")
 
         # Get client IP address
         client_ip = request.client.host if request.client else None
@@ -64,11 +72,12 @@ async def chat(chat_request: ChatRequest, request: Request):
             content=chat_request.message
         )
 
-        # Get RAG response
+        # Get RAG response with chatbot-scoped knowledge base
         rag_result = await get_rag_response(
             query=chat_request.message,
             session_id=session_id,
-            include_history=True
+            include_history=True,
+            chatbot_id=chatbot_id  # Pass chatbot_id for knowledge base scoping
         )
 
         response_text = rag_result["response"]

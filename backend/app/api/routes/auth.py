@@ -18,8 +18,9 @@ logger = get_logger(__name__)
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
-    Admin login endpoint
+    Admin login endpoint (for company users only)
 
+    Super admins must use /super-admin-login instead.
     Returns JWT access token
     """
     try:
@@ -35,6 +36,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             )
 
         user = response.data[0]
+
+        # Block super admins from using regular login
+        if user.get("is_super_admin", False):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Please use the super admin login page"
+            )
 
         # Convert any bytes fields to strings (Supabase may return bytes)
         for key, value in user.items():
@@ -55,12 +63,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
                 detail="User account is inactive"
             )
 
-        # Create access token with company_id and role for multi-tenant support
+        # Create access token with company_id, role, and full_name for multi-tenant support
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         token_data = {
             "sub": str(user["id"]),
             "company_id": str(user.get("company_id")) if user.get("company_id") else None,
-            "role": user.get("role", "member")
+            "role": user.get("role", "member"),
+            "full_name": user.get("full_name")
         }
         access_token = create_access_token(
             data=token_data,
@@ -187,7 +196,8 @@ async def company_signup(signup_data: CompanySignup):
         token_data = {
             "sub": str(user_id),
             "company_id": str(company_id),
-            "role": "owner"
+            "role": "owner",
+            "full_name": signup_data.full_name
         }
         access_token = create_access_token(
             data=token_data,
@@ -245,6 +255,27 @@ async def unified_signup(signup_data: UnifiedSignup):
                 detail="Company name is required for company accounts"
             )
 
+        # Compute full_name from first_name + last_name if not provided directly
+        first_name = signup_data.first_name or ""
+        last_name = signup_data.last_name or ""
+
+        if signup_data.full_name:
+            # full_name provided directly (backward compatibility)
+            full_name = signup_data.full_name
+            # Try to extract first/last if not provided
+            if not first_name and not last_name:
+                name_parts = full_name.split(" ", 1)
+                first_name = name_parts[0] if name_parts else ""
+                last_name = name_parts[1] if len(name_parts) > 1 else ""
+        elif first_name or last_name:
+            # first_name/last_name provided
+            full_name = f"{first_name} {last_name}".strip()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either full_name or first_name/last_name is required"
+            )
+
         # 1. Check if email already exists
         existing_user = client.table("users").select("id").eq("email", signup_data.email).execute()
         if existing_user.data and len(existing_user.data) > 0:
@@ -256,7 +287,7 @@ async def unified_signup(signup_data: UnifiedSignup):
         # 2. Determine workspace name
         is_personal = signup_data.account_type == "individual"
         if is_personal:
-            workspace_name = f"{signup_data.full_name}'s Workspace"
+            workspace_name = f"{full_name}'s Workspace"
         else:
             workspace_name = signup_data.company_name
 
@@ -266,7 +297,7 @@ async def unified_signup(signup_data: UnifiedSignup):
             if is_personal:
                 # For personal workspaces, append a number to make unique
                 import random
-                workspace_name = f"{signup_data.full_name}'s Workspace {random.randint(1000, 9999)}"
+                workspace_name = f"{full_name}'s Workspace {random.randint(1000, 9999)}"
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -320,7 +351,9 @@ async def unified_signup(signup_data: UnifiedSignup):
         user_data = {
             "email": signup_data.email,
             "password_hash": password_hash,
-            "full_name": signup_data.full_name,
+            "first_name": first_name or None,
+            "last_name": last_name or None,
+            "full_name": full_name,
             "company_id": company_id,
             "role_id": role_id,
             "role": "owner",
@@ -347,7 +380,8 @@ async def unified_signup(signup_data: UnifiedSignup):
         token_data = {
             "sub": str(user_id),
             "company_id": str(company_id),
-            "role": "owner"
+            "role": "owner",
+            "full_name": signup_data.full_name
         }
         access_token = create_access_token(
             data=token_data,

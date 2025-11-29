@@ -93,11 +93,11 @@
     "conversationDetails": "تفاصيل المحادثة"
   },
   "chat": {
-    "title": "مساعد Githaf الذكي",
+    "title": "المساعد الذكي",
     "subtitle": "دائمًا هنا للمساعدة",
     "greeting": "مرحبًا! كيف يمكنني مساعدتك اليوم؟",
     "placeholder": "اكتب رسالتك...",
-    "askAnything": "اسألني أي شيء عن Githaf Consulting",
+    "askAnything": "اسألني أي شيء",
     "send": "إرسال",
     "viewSources": "عرض المصادر",
     "helpful": "مفيد",

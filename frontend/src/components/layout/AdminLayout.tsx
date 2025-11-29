@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -18,9 +18,12 @@ import {
   Brain,
   Bot,
   Cloud,
-  Building2
+  Building2,
+  ImageIcon,
+  User
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { apiService } from '../../services/api';
 import { slideInLeft } from '../../utils/animations';
 import { ThemeToggle } from '../ThemeToggle';
 import { LanguageSelector } from '../LanguageSelector';
@@ -31,9 +34,34 @@ export const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
 
   // Company name is now fetched in AuthContext during login
   const companyName = userInfo?.companyName || 'Workspace';
+
+  // Get first name from full name
+  const firstName = userInfo?.fullName?.split(' ')[0] || 'User';
+  const firstInitial = firstName[0]?.toUpperCase() || 'U';
+
+  // Fetch company logo on mount
+  useEffect(() => {
+    const fetchCompanyLogo = async () => {
+      try {
+        const company = await apiService.getCompanySettings();
+        if (company?.logo_url) {
+          setCompanyLogo(company.logo_url);
+          // Update favicon
+          const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+          if (link) {
+            link.href = company.logo_url;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch company logo:', error);
+      }
+    };
+    fetchCompanyLogo();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -69,11 +97,17 @@ export const AdminLayout: React.FC = () => {
       >
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <img
-              src="/githaf_fav.png"
-              alt="Githaf Logo"
-              className="w-10 h-10 rounded-xl shadow-lg object-contain"
-            />
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt="Company Logo"
+                className="w-10 h-10 rounded-xl shadow-lg object-contain bg-slate-800"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl shadow-lg bg-slate-800 flex items-center justify-center">
+                <ImageIcon className="w-5 h-5 text-slate-400" />
+              </div>
+            )}
             <div>
               <h1 className="text-lg font-bold text-white">Admin Dashboard</h1>
               <p className="text-xs text-slate-300">{companyName}</p>
@@ -171,11 +205,17 @@ export const AdminLayout: React.FC = () => {
         {/* Logo & Controls - Fixed at top */}
         <div className="flex-shrink-0 p-6 pb-4">
           <div className="flex items-center gap-3 mb-4">
-            <img
-              src="/githaf_fav.png"
-              alt="Githaf Logo"
-              className="w-12 h-12 rounded-2xl shadow-lg object-contain"
-            />
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt="Company Logo"
+                className="w-12 h-12 rounded-2xl shadow-lg object-contain bg-slate-800"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-2xl shadow-lg bg-slate-800 flex items-center justify-center">
+                <ImageIcon className="w-6 h-6 text-slate-400" />
+              </div>
+            )}
             <div>
               <h1 className="text-xl font-bold text-white">Admin Panel</h1>
               <p className="text-xs text-slate-300">{companyName}</p>
@@ -215,6 +255,14 @@ export const AdminLayout: React.FC = () => {
 
         {/* Bottom Actions - Fixed at bottom */}
         <div className="flex-shrink-0 p-6 pt-4 space-y-2 border-t border-slate-700">
+          {/* User Avatar */}
+          <div className="flex items-center gap-3 px-4 py-2 mb-2">
+            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+              <span className="text-blue-400 font-semibold text-sm">{firstInitial}</span>
+            </div>
+            <span className="text-sm text-slate-300">{firstName}</span>
+          </div>
+
           <Link
             to="/"
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-200 hover:bg-slate-800 hover:text-white transition-all"

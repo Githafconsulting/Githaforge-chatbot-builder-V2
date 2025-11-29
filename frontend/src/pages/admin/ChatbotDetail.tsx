@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,14 +14,21 @@ import {
   Code,
   MessageSquare,
   TrendingUp,
-  Users,
   ThumbsUp,
   Clock,
   AlertCircle,
+  Palette,
+  Send,
+  GraduationCap,
+  X,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
-import type { Chatbot, ChatbotUpdate, ChatbotStats, ChatbotWithEmbedCode } from '../../types';
+import type { Chatbot, ChatbotUpdate, ChatbotStats, ChatbotWithEmbedCode, ChatResponse } from '../../types';
+
+type TabType = 'settings' | 'appearance' | 'training' | 'analytics' | 'embed';
 
 export const ChatbotDetailPage: React.FC = () => {
   const { chatbotId } = useParams<{ chatbotId: string }>();
@@ -31,7 +38,7 @@ export const ChatbotDetailPage: React.FC = () => {
   const [embedCode, setEmbedCode] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'settings' | 'analytics' | 'embed'>('settings');
+  const [activeTab, setActiveTab] = useState<TabType>('settings');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -85,6 +92,15 @@ export const ChatbotDetailPage: React.FC = () => {
         greeting_message: chatbot.greeting_message,
         primary_color: chatbot.primary_color,
         secondary_color: chatbot.secondary_color,
+        widget_theme: chatbot.widget_theme,
+        widget_position: chatbot.widget_position,
+        button_size: chatbot.button_size,
+        show_notification_badge: chatbot.show_notification_badge,
+        widget_title: chatbot.widget_title,
+        widget_subtitle: chatbot.widget_subtitle,
+        padding_x: chatbot.padding_x,
+        padding_y: chatbot.padding_y,
+        z_index: chatbot.z_index,
         model_preset: chatbot.model_preset,
         temperature: chatbot.temperature,
         max_tokens: chatbot.max_tokens,
@@ -173,6 +189,14 @@ export const ChatbotDetailPage: React.FC = () => {
     );
   }
 
+  const tabs: { id: TabType; label: string; icon: React.ElementType }[] = [
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'appearance', label: 'Appearance', icon: Palette },
+    { id: 'training', label: 'Training', icon: GraduationCap },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'embed', label: 'Embed', icon: Code },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -221,40 +245,21 @@ export const ChatbotDetailPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-700">
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'settings'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-slate-400 hover:text-slate-300'
-          }`}
-        >
-          <Settings className="w-4 h-4 inline mr-2" />
-          Settings
-        </button>
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'analytics'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-slate-400 hover:text-slate-300'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4 inline mr-2" />
-          Analytics
-        </button>
-        <button
-          onClick={() => setActiveTab('embed')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'embed'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-slate-400 hover:text-slate-300'
-          }`}
-        >
-          <Code className="w-4 h-4 inline mr-2" />
-          Embed Code
-        </button>
+      <div className="flex gap-1 border-b border-slate-700 overflow-x-auto">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
+                : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Tab Content */}
@@ -266,6 +271,17 @@ export const ChatbotDetailPage: React.FC = () => {
             onSave={handleSave}
             saving={saving}
           />
+        )}
+        {activeTab === 'appearance' && (
+          <AppearanceTab
+            chatbot={chatbot}
+            setChatbot={setChatbot}
+            onSave={handleSave}
+            saving={saving}
+          />
+        )}
+        {activeTab === 'training' && (
+          <TrainingTab chatbot={chatbot} />
         )}
         {activeTab === 'analytics' && (
           <AnalyticsTab stats={stats} />
@@ -302,14 +318,29 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
         <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
-          <input
-            type="text"
-            value={chatbot.name}
-            onChange={(e) => setChatbot({ ...chatbot, name: e.target.value })}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
+            <input
+              type="text"
+              value={chatbot.name}
+              onChange={(e) => setChatbot({ ...chatbot, name: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Model Preset</label>
+            <select
+              value={chatbot.model_preset}
+              onChange={(e) => setChatbot({ ...chatbot, model_preset: e.target.value as 'fast' | 'balanced' | 'accurate' })}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="fast">Fast (Quick responses)</option>
+              <option value="balanced">Balanced (Recommended)</option>
+              <option value="accurate">Accurate (High quality)</option>
+            </select>
+          </div>
         </div>
 
         <div>
@@ -332,40 +363,6 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Primary Color</label>
-            <input
-              type="color"
-              value={chatbot.primary_color || '#1E40AF'}
-              onChange={(e) => setChatbot({ ...chatbot, primary_color: e.target.value })}
-              className="w-full h-10 px-2 bg-slate-900 border border-slate-700 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Secondary Color</label>
-            <input
-              type="color"
-              value={chatbot.secondary_color || '#3B82F6'}
-              onChange={(e) => setChatbot({ ...chatbot, secondary_color: e.target.value })}
-              className="w-full h-10 px-2 bg-slate-900 border border-slate-700 rounded-lg"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Model Preset</label>
-          <select
-            value={chatbot.model_preset}
-            onChange={(e) => setChatbot({ ...chatbot, model_preset: e.target.value as 'fast' | 'balanced' | 'accurate' })}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-          >
-            <option value="fast">Fast (Quick responses)</option>
-            <option value="balanced">Balanced (Recommended)</option>
-            <option value="accurate">Accurate (High quality)</option>
-          </select>
-        </div>
-
         <div className="pt-4 flex justify-end">
           <button
             onClick={onSave}
@@ -384,6 +381,586 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
               </>
             )}
           </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Appearance Tab Component
+interface AppearanceTabProps {
+  chatbot: Chatbot;
+  setChatbot: (chatbot: Chatbot) => void;
+  onSave: () => void;
+  saving: boolean;
+}
+
+const AppearanceTab: React.FC<AppearanceTabProps> = ({ chatbot, setChatbot, onSave, saving }) => {
+  return (
+    <motion.div
+      key="appearance"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+    >
+      {/* Left Side - Settings */}
+      <div className="space-y-6">
+        {/* Theme & Colors */}
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+          <h3 className="text-lg font-semibold text-white">Theme & Colors</h3>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Widget Theme</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['modern', 'minimal', 'classic'] as const).map((theme) => (
+                <button
+                  key={theme}
+                  onClick={() => setChatbot({ ...chatbot, widget_theme: theme })}
+                  className={`px-3 py-2 text-sm rounded-lg border-2 transition-all ${
+                    (chatbot.widget_theme || 'modern') === theme
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-300'
+                      : 'border-slate-600 text-slate-400 hover:border-slate-500'
+                  }`}
+                >
+                  {theme.charAt(0).toUpperCase() + theme.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Primary Color</label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={chatbot.primary_color || '#1E40AF'}
+                  onChange={(e) => setChatbot({ ...chatbot, primary_color: e.target.value })}
+                  className="w-12 h-10 rounded-lg cursor-pointer border-2 border-slate-600 bg-slate-700"
+                />
+                <input
+                  type="text"
+                  value={chatbot.primary_color || '#1E40AF'}
+                  onChange={(e) => setChatbot({ ...chatbot, primary_color: e.target.value })}
+                  className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Secondary Color</label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={chatbot.secondary_color || '#3B82F6'}
+                  onChange={(e) => setChatbot({ ...chatbot, secondary_color: e.target.value })}
+                  className="w-12 h-10 rounded-lg cursor-pointer border-2 border-slate-600 bg-slate-700"
+                />
+                <input
+                  type="text"
+                  value={chatbot.secondary_color || '#3B82F6'}
+                  onChange={(e) => setChatbot({ ...chatbot, secondary_color: e.target.value })}
+                  className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Button Size</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['small', 'medium', 'large'] as const).map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setChatbot({ ...chatbot, button_size: size })}
+                  className={`px-3 py-2 text-sm rounded-lg border-2 transition-all ${
+                    (chatbot.button_size || 'medium') === size
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-300'
+                      : 'border-slate-600 text-slate-400 hover:border-slate-500'
+                  }`}
+                >
+                  {size.charAt(0).toUpperCase() + size.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between py-2 px-3 bg-slate-700/30 rounded-lg">
+            <div>
+              <label className="text-sm font-medium text-slate-200">Notification Badge</label>
+              <p className="text-xs text-slate-400 mt-0.5">Show pulsing dot on button</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={chatbot.show_notification_badge ?? true}
+                onChange={(e) => setChatbot({ ...chatbot, show_notification_badge: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-600 peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+        </div>
+
+        {/* Position & Layout */}
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+          <h3 className="text-lg font-semibold text-white">Position & Layout</h3>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Screen Position</label>
+            <div className="relative bg-slate-900 rounded-xl p-4 border border-slate-700">
+              <div className="relative w-full h-32 bg-slate-950 rounded-lg border border-slate-700 overflow-hidden">
+                <button
+                  onClick={() => setChatbot({ ...chatbot, widget_position: 'top-left' })}
+                  className={`absolute top-2 left-2 w-6 h-6 rounded-full transition-all ${
+                    chatbot.widget_position === 'top-left'
+                      ? 'bg-blue-500 ring-2 ring-blue-400 scale-110'
+                      : 'bg-slate-600 hover:bg-slate-500'
+                  }`}
+                />
+                <button
+                  onClick={() => setChatbot({ ...chatbot, widget_position: 'top-right' })}
+                  className={`absolute top-2 right-2 w-6 h-6 rounded-full transition-all ${
+                    chatbot.widget_position === 'top-right'
+                      ? 'bg-blue-500 ring-2 ring-blue-400 scale-110'
+                      : 'bg-slate-600 hover:bg-slate-500'
+                  }`}
+                />
+                <button
+                  onClick={() => setChatbot({ ...chatbot, widget_position: 'bottom-left' })}
+                  className={`absolute bottom-2 left-2 w-6 h-6 rounded-full transition-all ${
+                    chatbot.widget_position === 'bottom-left'
+                      ? 'bg-blue-500 ring-2 ring-blue-400 scale-110'
+                      : 'bg-slate-600 hover:bg-slate-500'
+                  }`}
+                />
+                <button
+                  onClick={() => setChatbot({ ...chatbot, widget_position: 'bottom-right' })}
+                  className={`absolute bottom-2 right-2 w-6 h-6 rounded-full transition-all ${
+                    (chatbot.widget_position || 'bottom-right') === 'bottom-right'
+                      ? 'bg-blue-500 ring-2 ring-blue-400 scale-110'
+                      : 'bg-slate-600 hover:bg-slate-500'
+                  }`}
+                />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="text-slate-500 text-xs px-2 py-1 bg-slate-800/80 rounded">
+                    {(chatbot.widget_position || 'bottom-right').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Horizontal Padding</label>
+              <input
+                type="number"
+                value={chatbot.padding_x ?? 20}
+                onChange={(e) => setChatbot({ ...chatbot, padding_x: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+                min="0"
+                max="200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Vertical Padding</label>
+              <input
+                type="number"
+                value={chatbot.padding_y ?? 20}
+                onChange={(e) => setChatbot({ ...chatbot, padding_y: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+                min="0"
+                max="200"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Z-Index (Layer Priority)</label>
+            <input
+              type="number"
+              value={chatbot.z_index ?? 9999}
+              onChange={(e) => setChatbot({ ...chatbot, z_index: parseInt(e.target.value) || 9999 })}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+            />
+            <p className="text-xs text-slate-400 mt-1">Higher values appear above other elements</p>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+          <h3 className="text-lg font-semibold text-white">Widget Content</h3>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Widget Title</label>
+            <input
+              type="text"
+              value={chatbot.widget_title || chatbot.name}
+              onChange={(e) => setChatbot({ ...chatbot, widget_title: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+              placeholder="AI Assistant"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Widget Subtitle</label>
+            <input
+              type="text"
+              value={chatbot.widget_subtitle || 'Always here to help'}
+              onChange={(e) => setChatbot({ ...chatbot, widget_subtitle: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+              placeholder="Always here to help"
+            />
+          </div>
+
+          <div className="pt-4 flex justify-end">
+            <button
+              onClick={onSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Changes
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Preview */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Live Preview</h3>
+        <div className="relative bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg overflow-hidden" style={{ height: '600px' }}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-slate-400 text-sm text-center">
+              <p>Preview of your website</p>
+              <p className="text-xs mt-1 opacity-70">Click the chat button to interact</p>
+            </div>
+          </div>
+          <WidgetPreview chatbot={chatbot} />
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Widget Preview Component (Static visual preview)
+interface WidgetPreviewProps {
+  chatbot: Chatbot;
+}
+
+const WidgetPreview: React.FC<WidgetPreviewProps> = ({ chatbot }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const position = chatbot.widget_position || 'bottom-right';
+  const primaryColor = chatbot.primary_color || '#1E40AF';
+  const secondaryColor = chatbot.secondary_color || '#3B82F6';
+  const buttonSize = chatbot.button_size || 'medium';
+  const showBadge = chatbot.show_notification_badge ?? true;
+  const theme = chatbot.widget_theme || 'modern';
+
+  const buttonSizes = {
+    small: { width: '50px', height: '50px', icon: 20 },
+    medium: { width: '60px', height: '60px', icon: 24 },
+    large: { width: '70px', height: '70px', icon: 28 },
+  };
+
+  const positionStyles: Record<string, React.CSSProperties> = {
+    'bottom-right': { bottom: `${chatbot.padding_y ?? 20}px`, right: `${chatbot.padding_x ?? 20}px` },
+    'bottom-left': { bottom: `${chatbot.padding_y ?? 20}px`, left: `${chatbot.padding_x ?? 20}px` },
+    'top-right': { top: `${chatbot.padding_y ?? 20}px`, right: `${chatbot.padding_x ?? 20}px` },
+    'top-left': { top: `${chatbot.padding_y ?? 20}px`, left: `${chatbot.padding_x ?? 20}px` },
+  };
+
+  const getButtonStyle = () => {
+    const base: React.CSSProperties = {
+      width: buttonSizes[buttonSize].width,
+      height: buttonSizes[buttonSize].height,
+    };
+
+    switch (theme) {
+      case 'modern':
+        return { ...base, background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`, border: 'none', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)' };
+      case 'minimal':
+        return { ...base, background: primaryColor, border: `2px solid ${secondaryColor}`, boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' };
+      case 'classic':
+        return { ...base, background: `linear-gradient(to bottom, ${primaryColor}, ${secondaryColor})`, border: '1px solid rgba(255, 255, 255, 0.2)', boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)' };
+      default:
+        return base;
+    }
+  };
+
+  return (
+    <div className="absolute" style={{ ...positionStyles[position], zIndex: chatbot.z_index ?? 9999 }}>
+      {!isOpen && (
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          onClick={() => setIsOpen(true)}
+          className="relative flex items-center justify-center rounded-full"
+          style={getButtonStyle()}
+        >
+          <MessageSquare className="text-white" size={buttonSizes[buttonSize].icon} />
+          {showBadge && theme !== 'minimal' && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+          )}
+        </motion.button>
+      )}
+
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="w-80 h-96 bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
+        >
+          <div
+            className="p-3 text-white flex items-center justify-between"
+            style={{ backgroundColor: primaryColor }}
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              <div>
+                <span className="font-semibold text-sm block">{chatbot.widget_title || chatbot.name}</span>
+                <span className="text-xs opacity-80">{chatbot.widget_subtitle || 'Always here to help'}</span>
+              </div>
+            </div>
+            <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 p-3 overflow-y-auto bg-slate-50">
+            <div className="flex justify-start">
+              <div className="max-w-[75%] p-3 rounded-lg bg-white border border-slate-200 text-slate-800">
+                <p className="text-sm">{chatbot.greeting_message}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 border-t border-slate-200 bg-white">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Type your message..."
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                disabled
+              />
+              <button
+                className="p-2 rounded-lg text-white"
+                style={{ backgroundColor: primaryColor }}
+                disabled
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 text-center">Visual preview only</p>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+};
+
+// Training Tab Component - Live Interactive Chatbot
+interface TrainingTabProps {
+  chatbot: Chatbot;
+}
+
+const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; sources?: any[] }>>([
+    { role: 'assistant', content: chatbot.greeting_message }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId] = useState(() => `training-${chatbot.id}-${Date.now()}`);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setIsLoading(true);
+
+    try {
+      const response = await apiService.sendMessage(userMessage, sessionId, chatbot.id);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: response.response,
+        sources: response.sources
+      }]);
+    } catch (error: any) {
+      console.error('Failed to send message:', error);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.'
+      }]);
+      toast.error('Failed to get response');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleReset = () => {
+    setMessages([{ role: 'assistant', content: chatbot.greeting_message }]);
+  };
+
+  const primaryColor = chatbot.primary_color || '#1E40AF';
+  const secondaryColor = chatbot.secondary_color || '#3B82F6';
+
+  return (
+    <motion.div
+      key="training"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+    >
+      {/* Chat Interface */}
+      <div className="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden flex flex-col" style={{ height: '600px' }}>
+        {/* Header */}
+        <div className="p-4 border-b border-slate-700 flex items-center justify-between" style={{ backgroundColor: primaryColor }}>
+          <div className="flex items-center gap-3 text-white">
+            <Sparkles className="w-5 h-5" />
+            <div>
+              <h3 className="font-semibold">Training Mode</h3>
+              <p className="text-xs opacity-80">Test your chatbot with live AI responses</p>
+            </div>
+          </div>
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Reset
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 p-4 overflow-y-auto bg-slate-900">
+          <div className="space-y-4">
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] ${
+                    msg.role === 'user'
+                      ? 'rounded-lg p-3 text-white'
+                      : 'rounded-lg p-3 bg-slate-800 border border-slate-700 text-slate-200'
+                  }`}
+                  style={msg.role === 'user' ? { backgroundColor: secondaryColor } : {}}
+                >
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  {msg.sources && msg.sources.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-slate-600">
+                      <p className="text-xs text-slate-400 mb-1">Sources:</p>
+                      <div className="space-y-1">
+                        {msg.sources.slice(0, 3).map((source: any, sIdx: number) => (
+                          <p key={sIdx} className="text-xs text-slate-500 truncate">
+                            • {source.content?.substring(0, 100)}...
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="rounded-lg p-3 bg-slate-800 border border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t border-slate-700 bg-slate-800">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your message..."
+              className="flex-1 px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+              disabled={isLoading}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              className="flex items-center justify-center p-2 rounded-lg text-white transition-colors disabled:opacity-50"
+              style={{ backgroundColor: isLoading ? '#64748b' : primaryColor }}
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Training Tips */}
+      <div className="space-y-4">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-blue-400" />
+            Training Tips
+          </h3>
+          <div className="space-y-3 text-sm text-slate-300">
+            <div className="p-3 bg-slate-700/50 rounded-lg">
+              <p className="font-medium text-blue-300 mb-1">Test edge cases</p>
+              <p className="text-slate-400">Ask questions the chatbot might struggle with to identify gaps.</p>
+            </div>
+            <div className="p-3 bg-slate-700/50 rounded-lg">
+              <p className="font-medium text-green-300 mb-1">Check sources</p>
+              <p className="text-slate-400">Verify the AI is using the correct knowledge base documents.</p>
+            </div>
+            <div className="p-3 bg-slate-700/50 rounded-lg">
+              <p className="font-medium text-yellow-300 mb-1">Test greetings</p>
+              <p className="text-slate-400">Try casual messages like "hi" or "thanks" to test conversation flow.</p>
+            </div>
+            <div className="p-3 bg-slate-700/50 rounded-lg">
+              <p className="font-medium text-purple-300 mb-1">Multi-turn conversations</p>
+              <p className="text-slate-400">Ask follow-up questions to test context retention.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4 text-sm text-blue-200">
+          <p className="font-medium mb-1">Session ID:</p>
+          <p className="text-xs text-blue-400 font-mono break-all">{sessionId}</p>
         </div>
       </div>
     </motion.div>
@@ -506,8 +1083,18 @@ const EmbedTab: React.FC<EmbedTabProps> = ({ embedCode, onCopy, copied }) => {
         </p>
 
         <pre className="bg-slate-900 border border-slate-700 rounded-lg p-4 overflow-x-auto">
-          <code className="text-sm text-slate-300">{embedCode || 'Loading embed code...'}</code>
+          <code className="text-sm text-green-400">{embedCode || 'Loading embed code...'}</code>
         </pre>
+      </div>
+
+      <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-blue-300 mb-2">Installation Instructions</h4>
+        <ol className="text-sm text-blue-200 space-y-2 list-decimal list-inside">
+          <li>Copy the embed code above</li>
+          <li>Paste it just before the closing <code className="bg-slate-800 px-1 rounded">&lt;/body&gt;</code> tag</li>
+          <li>The chat widget will appear automatically on your website</li>
+          <li>Make sure to deploy your chatbot first!</li>
+        </ol>
       </div>
     </motion.div>
   );

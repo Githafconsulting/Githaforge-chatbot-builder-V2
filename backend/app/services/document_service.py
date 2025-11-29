@@ -33,7 +33,8 @@ async def create_document_metadata(
     source_url: Optional[str] = None,
     category: Optional[str] = None,
     summary: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    company_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Create document metadata record (Layer 2)
@@ -49,6 +50,7 @@ async def create_document_metadata(
         category: Document category
         summary: Optional summary
         metadata: Additional metadata
+        company_id: Company ID for multi-tenant isolation
 
     Returns:
         Dict: Created document record
@@ -70,6 +72,10 @@ async def create_document_metadata(
             "metadata": metadata or {},
             "created_at": datetime.utcnow().isoformat()
         }
+
+        # Add company_id if provided (for multi-tenant isolation)
+        if company_id:
+            data["company_id"] = company_id
 
         response = client.table("documents").insert(data).execute()
 
@@ -116,7 +122,8 @@ async def process_and_store_document(
     filename: str,
     source_type: str,
     category: Optional[str] = None,
-    source_url: Optional[str] = None
+    source_url: Optional[str] = None,
+    company_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Complete document processing pipeline:
@@ -130,11 +137,14 @@ async def process_and_store_document(
         source_type: upload, url, or scraped
         category: Optional category
         source_url: Original URL if from web
+        company_id: Company ID for multi-tenant isolation
 
     Returns:
         Dict: Created document with all metadata
     """
     try:
+        logger.info(f"[PROCESS_AND_STORE] Received file: {filename}, size: {len(file_content)} bytes")
+
         # Step 1: Upload file to Supabase Storage (Layer 1)
         logger.info(f"Uploading file to storage: {filename}")
         storage_result = await upload_file_to_storage(
@@ -168,7 +178,8 @@ async def process_and_store_document(
             file_size=file_size,
             source_url=source_url,
             category=category,
-            summary=summary
+            summary=summary,
+            company_id=company_id
         )
 
         document_id = document["id"]
@@ -218,7 +229,8 @@ async def process_and_store_document(
 async def process_file_upload(
     file_content: bytes,
     filename: str,
-    category: Optional[str] = None
+    category: Optional[str] = None,
+    company_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Process uploaded file
@@ -227,18 +239,20 @@ async def process_file_upload(
         file_content: File bytes
         filename: Original filename
         category: Optional category
+        company_id: Company ID for multi-tenant isolation
 
     Returns:
         Dict: Created document
     """
     try:
-        logger.info(f"Processing file upload: {filename}")
+        logger.info(f"[PROCESS_FILE_UPLOAD] Processing file: {filename}, size: {len(file_content)} bytes")
 
         document = await process_and_store_document(
             file_content=file_content,
             filename=filename,
             source_type="upload",
-            category=category
+            category=category,
+            company_id=company_id
         )
 
         return document
@@ -248,13 +262,18 @@ async def process_file_upload(
         raise
 
 
-async def process_url(url: str, category: Optional[str] = None) -> Dict[str, Any]:
+async def process_url(
+    url: str,
+    category: Optional[str] = None,
+    company_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Process URL by scraping content and creating PDF
 
     Args:
         url: URL to scrape
         category: Optional category
+        company_id: Company ID for multi-tenant isolation
 
     Returns:
         Dict: Created document
@@ -282,7 +301,8 @@ async def process_url(url: str, category: Optional[str] = None) -> Dict[str, Any
             filename=filename,
             source_type="url",
             category=category,
-            source_url=url
+            source_url=url,
+            company_id=company_id
         )
 
         return document

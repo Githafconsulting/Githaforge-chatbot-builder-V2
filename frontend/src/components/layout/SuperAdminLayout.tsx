@@ -11,7 +11,8 @@ import {
   X,
   ChevronRight,
   Users,
-  DollarSign
+  DollarSign,
+  Bot
 } from 'lucide-react';
 import { useSuperAdminAuth } from '../../contexts/SuperAdminAuthContext';
 import { slideInLeft } from '../../utils/animations';
@@ -31,6 +32,7 @@ export const SuperAdminLayout: React.FC = () => {
   const navItems = [
     { path: '/super-admin', label: 'Platform Analytics', icon: BarChart3, color: 'text-blue-400' },
     { path: '/super-admin/companies', label: 'Companies', icon: Building2, color: 'text-purple-400' },
+    { path: '/super-admin/platform-chatbot', label: 'Platform Chatbot', icon: Bot, color: 'text-pink-400' },
     { path: '/super-admin/users', label: 'All Users', icon: Users, color: 'text-green-400' },
     { path: '/super-admin/billing', label: 'Billing & Plans', icon: DollarSign, color: 'text-amber-400' },
     { path: '/super-admin/logs', label: 'System Logs', icon: FileText, color: 'text-slate-400' },

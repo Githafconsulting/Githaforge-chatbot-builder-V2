@@ -169,7 +169,9 @@ export interface Role {
 export interface CompanyUser {
   id: string;
   email: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;  // Computed from first_name + last_name for backward compatibility
   company_id: string;
   role_id?: string;
   role?: string; // Legacy field (owner, admin, etc.)
@@ -184,7 +186,9 @@ export interface CompanyUser {
 
 export interface InviteUserRequest {
   email: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;  // Kept for backward compatibility
   role_id: string;
   password: string;
 }
@@ -469,6 +473,17 @@ export interface Chatbot {
   secondary_color?: string;
   logo_url?: string;
 
+  // Widget Appearance
+  widget_theme?: 'modern' | 'minimal' | 'classic';
+  widget_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  button_size?: 'small' | 'medium' | 'large';
+  show_notification_badge?: boolean;
+  widget_title?: string;
+  widget_subtitle?: string;
+  padding_x?: number;
+  padding_y?: number;
+  z_index?: number;
+
   // Configuration
   model_preset: 'fast' | 'balanced' | 'accurate';
   temperature: number;
@@ -500,6 +515,15 @@ export interface ChatbotCreate {
   primary_color?: string;
   secondary_color?: string;
   logo_url?: string;
+  widget_theme?: 'modern' | 'minimal' | 'classic';
+  widget_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  button_size?: 'small' | 'medium' | 'large';
+  show_notification_badge?: boolean;
+  widget_title?: string;
+  widget_subtitle?: string;
+  padding_x?: number;
+  padding_y?: number;
+  z_index?: number;
   model_preset?: 'fast' | 'balanced' | 'accurate';
   temperature?: number;
   max_tokens?: number;
@@ -516,6 +540,15 @@ export interface ChatbotUpdate {
   primary_color?: string;
   secondary_color?: string;
   logo_url?: string;
+  widget_theme?: 'modern' | 'minimal' | 'classic';
+  widget_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  button_size?: 'small' | 'medium' | 'large';
+  show_notification_badge?: boolean;
+  widget_title?: string;
+  widget_subtitle?: string;
+  padding_x?: number;
+  padding_y?: number;
+  z_index?: number;
   model_preset?: 'fast' | 'balanced' | 'accurate';
   temperature?: number;
   max_tokens?: number;
@@ -551,7 +584,10 @@ export interface UnifiedSignupRequest {
   account_type: AccountType;
   email: string;
   password: string;
-  full_name: string;
+  // Name fields - support both first_name/last_name and full_name for backward compatibility
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;  // Deprecated, use first_name + last_name
   company_name?: string;  // Required for company accounts
   website?: string;
   industry?: string;

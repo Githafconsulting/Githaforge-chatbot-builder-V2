@@ -85,6 +85,7 @@ async def upload_document(
 
         # Read file content
         file_content = await file.read()
+        logger.info(f"[UPLOAD ROUTE] Read file: {file.filename}, size: {len(file_content)} bytes")
 
         # Process file with company_id
         document = await process_file_upload(

@@ -16,6 +16,7 @@ import { Onboarding } from './pages/Onboarding';
 import { Login } from './pages/Login';
 import { SuperAdminLogin } from './pages/SuperAdminLogin';
 import { Companies } from './pages/superAdmin/Companies';
+import { PlatformChatbot } from './pages/superAdmin/PlatformChatbot';
 import { AnalyticsPage } from './pages/admin/Analytics';
 import { ChatbotsPage } from './pages/admin/Chatbots';
 import { ChatbotDetailPage } from './pages/admin/ChatbotDetail';
@@ -99,6 +100,7 @@ function App() {
           >
             <Route index element={<div className="text-white p-8">Platform Analytics Coming Soon</div>} />
             <Route path="companies" element={<Companies />} />
+            <Route path="platform-chatbot" element={<PlatformChatbot />} />
             <Route path="users" element={<div className="text-white p-8">All Users Coming Soon</div>} />
             <Route path="billing" element={<div className="text-white p-8">Billing & Plans Coming Soon</div>} />
             <Route path="logs" element={<div className="text-white p-8">System Logs Coming Soon</div>} />

@@ -50,15 +50,44 @@ async def create_user(
         # Hash password
         password_hash = get_password_hash(user_data.password)
 
+        # Compute full_name from first_name + last_name if not provided
+        full_name = user_data.full_name
+        if not full_name and (user_data.first_name or user_data.last_name):
+            full_name = f"{user_data.first_name or ''} {user_data.last_name or ''}".strip()
+
+        # Determine role from role_id or default to member
+        role = user_data.role_id if user_data.role_id else "member"
+
+        # Validate owner role assignment
+        # Only owners can assign owner role, and there can only be 1 owner per company
+        current_user_role = current_user.get("role", "member")
+        if role == "owner":
+            if current_user_role != "owner":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only owners can assign the owner role"
+                )
+            # Check if company already has an owner
+            existing_owner = client.table("users").select("id").eq(
+                "company_id", company_id
+            ).eq("role", "owner").execute()
+            if existing_owner.data and len(existing_owner.data) > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Company already has an owner. There can only be one owner per company."
+                )
+
         # Create user record with company_id
         data = {
             "email": user_data.email,
             "password_hash": password_hash,
-            "full_name": user_data.full_name,
+            "first_name": user_data.first_name,
+            "last_name": user_data.last_name,
+            "full_name": full_name,
             "is_active": True,
             "is_admin": user_data.is_admin,
             "company_id": company_id,
-            "role": user_data.role if hasattr(user_data, 'role') else "member",
+            "role": role,
             "created_at": datetime.utcnow().isoformat()
         }
 
@@ -80,7 +109,10 @@ async def create_user(
             "user": {
                 "id": user["id"],
                 "email": user["email"],
-                "full_name": user["full_name"],
+                "first_name": user.get("first_name"),
+                "last_name": user.get("last_name"),
+                "full_name": user.get("full_name"),
+                "role": user.get("role"),
                 "is_admin": user["is_admin"],
                 "company_id": user["company_id"],
                 "created_at": user["created_at"]
@@ -118,9 +150,20 @@ async def list_users(current_user: dict = Depends(get_current_admin_user)):
             )
 
         # Filter by company_id and exclude super admins
-        response = client.table("users").select(
-            "id, email, full_name, is_active, is_admin, role, company_id, created_at"
-        ).eq("company_id", company_id).eq("is_super_admin", False).execute()
+        # Try to select with first_name/last_name, fallback to without if columns don't exist
+        try:
+            response = client.table("users").select(
+                "id, email, first_name, last_name, full_name, is_active, is_admin, role, company_id, created_at"
+            ).eq("company_id", company_id).eq("is_super_admin", False).execute()
+        except Exception as col_error:
+            # Fallback: columns might not exist yet
+            if "first_name" in str(col_error) or "last_name" in str(col_error):
+                logger.warning("first_name/last_name columns not found, using fallback query")
+                response = client.table("users").select(
+                    "id, email, full_name, is_active, is_admin, role, company_id, created_at"
+                ).eq("company_id", company_id).eq("is_super_admin", False).execute()
+            else:
+                raise
 
         return response.data if response.data else []
 
@@ -131,6 +174,151 @@ async def list_users(current_user: dict = Depends(get_current_admin_user)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list users: {str(e)}"
+        )
+
+
+@router.patch("/{user_id}")
+async def update_user(user_id: str, user_data: dict, current_user: dict = Depends(get_current_admin_user)):
+    """
+    Update a user by ID
+
+    Request body (all fields optional):
+    - first_name: User's first name
+    - last_name: User's last name
+    - role: Role code (owner, admin, editor, trainer, analyst, viewer)
+    - is_active: Boolean to activate/deactivate user
+
+    Users can only update users from their own company.
+    Super admins cannot be updated through this endpoint.
+    """
+    try:
+        client = get_supabase_client()
+
+        # Get company_id from current user
+        company_id = current_user.get("company_id")
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot update users without a company"
+            )
+
+        # Verify the user belongs to the same company and is not a super admin
+        # Also fetch first_name/last_name to compute full_name correctly
+        try:
+            target_user = client.table("users").select(
+                "id, company_id, is_super_admin, first_name, last_name"
+            ).eq("id", user_id).single().execute()
+        except Exception as col_error:
+            # Fallback: columns might not exist yet
+            if "first_name" in str(col_error) or "last_name" in str(col_error):
+                logger.warning("first_name/last_name columns not found, using fallback query")
+                target_user = client.table("users").select(
+                    "id, company_id, is_super_admin"
+                ).eq("id", user_id).single().execute()
+            else:
+                raise
+
+        if not target_user.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        if target_user.data.get("is_super_admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot update super admin users"
+            )
+
+        if target_user.data.get("company_id") != company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot update users from other companies"
+            )
+
+        # Build update data (only include fields that are provided)
+        update_data = {}
+        if "first_name" in user_data:
+            update_data["first_name"] = user_data["first_name"]
+        if "last_name" in user_data:
+            update_data["last_name"] = user_data["last_name"]
+        if "role" in user_data:
+            new_role = user_data["role"]
+            current_user_role = current_user.get("role", "member")
+            target_user_role = target_user.data.get("role")
+
+            # Validate owner role changes
+            if new_role == "owner" or target_user_role == "owner":
+                if current_user_role != "owner":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Only owners can assign or change the owner role"
+                    )
+
+            # If assigning owner role, check there isn't already one
+            if new_role == "owner" and target_user_role != "owner":
+                existing_owner = client.table("users").select("id").eq(
+                    "company_id", company_id
+                ).eq("role", "owner").execute()
+                if existing_owner.data and len(existing_owner.data) > 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Company already has an owner. There can only be one owner per company."
+                    )
+
+            update_data["role"] = new_role
+        if "is_active" in user_data:
+            update_data["is_active"] = user_data["is_active"]
+
+        # Compute full_name if first_name or last_name is updated
+        # Use existing values for fields not being updated
+        if "first_name" in update_data or "last_name" in update_data:
+            existing_first = target_user.data.get("first_name", "") or ""
+            existing_last = target_user.data.get("last_name", "") or ""
+            first = update_data.get("first_name", existing_first)
+            last = update_data.get("last_name", existing_last)
+            update_data["full_name"] = f"{first} {last}".strip() or None
+
+        if not update_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No valid fields to update"
+            )
+
+        # Update the user
+        response = client.table("users").update(update_data).eq("id", user_id).execute()
+
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        user = response.data[0]
+        logger.info(f"User updated: {user_id} in company: {company_id}")
+
+        return {
+            "success": True,
+            "message": "User updated successfully",
+            "user": {
+                "id": user["id"],
+                "email": user["email"],
+                "first_name": user.get("first_name"),
+                "last_name": user.get("last_name"),
+                "full_name": user.get("full_name"),
+                "role": user.get("role"),
+                "is_active": user.get("is_active"),
+                "company_id": user["company_id"],
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user: {str(e)}"
         )
 
 

@@ -17,17 +17,21 @@ from app.services.intent_service import (
     get_intent_metadata
 )
 from app.utils.prompts import (
-    RAG_SYSTEM_PROMPT,
-    FALLBACK_RESPONSE,
-    GREETING_RESPONSES,
-    FAREWELL_RESPONSES,
-    GRATITUDE_RESPONSES,
-    HELP_RESPONSE,
-    CHIT_CHAT_RESPONSES,
-    UNCLEAR_QUERY_RESPONSE,
-    OUT_OF_SCOPE_RESPONSE,
-    CONVERSATIONAL_WITH_CONTEXT_PROMPT,
     CLARIFICATION_RESPONSES
+)
+# Import branding service for chatbot-specific prompts
+from app.services.branding_service import (
+    get_chatbot_branding,
+    generate_rag_system_prompt,
+    generate_fallback_response,
+    generate_greeting_responses,
+    generate_farewell_responses,
+    generate_gratitude_responses,
+    generate_help_response,
+    generate_chit_chat_responses,
+    generate_out_of_scope_response,
+    generate_unclear_query_response,
+    generate_conversational_context_prompt
 )
 from app.core.config import settings
 from app.utils.logger import get_logger
@@ -95,39 +99,56 @@ def preprocess_query(query: str) -> str:
 async def get_conversational_response(
     intent: Intent,
     query: str,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    chatbot_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Generate response for conversational intents (non-RAG)
     Uses conversation context for better continuity
+    Uses chatbot-specific branding for responses
 
     Args:
         intent: Detected user intent
         query: Original user query
         session_id: Optional session ID for conversation history
+        chatbot_id: Optional chatbot ID for branding
 
     Returns:
         Dict containing response and metadata
     """
     logger.info(f"Handling conversational intent: {intent.value}")
 
+    # Get chatbot branding for personalized responses
+    branding = await get_chatbot_branding(chatbot_id)
+    logger.debug(f"Using branding: {branding.brand_name}")
+
+    # Generate branded response templates
+    greeting_responses = generate_greeting_responses(branding)
+    farewell_responses = generate_farewell_responses(branding)
+    gratitude_responses = generate_gratitude_responses(branding)
+    help_response = generate_help_response(branding)
+    chit_chat_responses = generate_chit_chat_responses(branding)
+    out_of_scope_response = generate_out_of_scope_response(branding)
+    unclear_response = generate_unclear_query_response(branding)
+    conversational_context_prompt = generate_conversational_context_prompt(branding)
+
     response_text = ""
 
-    # Handle clear template-based intents
+    # Handle clear template-based intents with branding
     if intent == Intent.GREETING:
-        response_text = random.choice(GREETING_RESPONSES)
+        response_text = random.choice(greeting_responses)
 
     elif intent == Intent.FAREWELL:
-        response_text = random.choice(FAREWELL_RESPONSES)
+        response_text = random.choice(farewell_responses)
 
     elif intent == Intent.GRATITUDE:
-        response_text = random.choice(GRATITUDE_RESPONSES)
+        response_text = random.choice(gratitude_responses)
 
     elif intent == Intent.HELP:
-        response_text = HELP_RESPONSE
+        response_text = help_response
 
     elif intent == Intent.OUT_OF_SCOPE:
-        response_text = OUT_OF_SCOPE_RESPONSE
+        response_text = out_of_scope_response
 
     elif intent == Intent.UNCLEAR:
         # Vague query - provide context-specific clarification
@@ -163,21 +184,21 @@ async def get_conversational_response(
         # For chit-chat, check if we need context-aware response
         query_lower = query.lower().strip()
 
-        # Specific pattern responses
+        # Specific pattern responses with branding
         if "how are you" in query_lower or "how r u" in query_lower:
-            response_text = random.choice(CHIT_CHAT_RESPONSES["how_are_you"])
+            response_text = random.choice(chit_chat_responses["how_are_you"])
         elif "your name" in query_lower or "who are you" in query_lower or "what are you" in query_lower:
-            response_text = random.choice(CHIT_CHAT_RESPONSES["name"])
+            response_text = random.choice(chit_chat_responses["name"])
         elif "bot" in query_lower or "robot" in query_lower or "ai" in query_lower:
-            response_text = random.choice(CHIT_CHAT_RESPONSES["bot"])
+            response_text = random.choice(chit_chat_responses["bot"])
         # Context-dependent responses (yes, okay, sure, etc.)
         elif session_id and query_lower in ["yes", "okay", "ok", "sure", "yep", "yeah", "yup"]:
             # Get conversation history for context
             history = await get_conversation_history(session_id, limit=3)
             if history and len(history) > 0:
                 history_text = await format_history_for_llm(history)
-                # Use LLM with context
-                prompt = CONVERSATIONAL_WITH_CONTEXT_PROMPT.format(
+                # Use LLM with context and branding
+                prompt = conversational_context_prompt.format(
                     query=query,
                     history=history_text
                 )
@@ -185,15 +206,15 @@ async def get_conversational_response(
                     response_text = await generate_response(prompt, max_tokens=100, temperature=0.7)
                 except Exception as e:
                     logger.error(f"Error generating context-aware response: {e}")
-                    response_text = random.choice(CHIT_CHAT_RESPONSES["default"])
+                    response_text = random.choice(chit_chat_responses["default"])
             else:
-                response_text = random.choice(CHIT_CHAT_RESPONSES["default"])
+                response_text = random.choice(chit_chat_responses["default"])
         else:
-            # Generic chit-chat default
-            response_text = random.choice(CHIT_CHAT_RESPONSES["default"])
+            # Generic chit-chat default with branding
+            response_text = random.choice(chit_chat_responses["default"])
 
     else:
-        response_text = UNCLEAR_QUERY_RESPONSE
+        response_text = unclear_response
 
     # Translate conversational response if enabled (Phase 7: Translation)
     from app.services.translation_service import translate_ai_response
@@ -310,7 +331,7 @@ async def get_rag_response(
         # 2. Handle conversational intents (fast path - no RAG needed)
         if not should_use_rag(intent):
             logger.info(f"Using conversational response for intent: {intent.value}")
-            return await get_conversational_response(intent, processed_query, session_id)
+            return await get_conversational_response(intent, processed_query, session_id, chatbot_id)
 
         # 3. Check if planning needed (Phase 2: Planning Layer + Phase 2.5: Reflexive Planning)
         from app.services.planning_service import needs_planning, create_plan
@@ -354,8 +375,11 @@ async def get_rag_response(
                 }
             }
 
-        # 4. Fetch chatbot configuration for scope filtering (MULTITENANCY)
+        # 4. Fetch chatbot configuration for scope filtering (MULTITENANCY) and branding
         allowed_scopes = None
+        branding = await get_chatbot_branding(chatbot_id)  # Get branding for prompts
+        logger.info(f"Using branding for chatbot: {branding.brand_name}")
+
         if chatbot_id:
             try:
                 from app.core.database import get_supabase_client
@@ -470,8 +494,10 @@ async def get_rag_response(
         if not relevant_docs or len(relevant_docs) == 0:
             logger.warning(f"No relevant documents found for query: '{query[:50]}...'")
             logger.warning(f"Threshold: {settings.RAG_SIMILARITY_THRESHOLD}, Top-K: {settings.RAG_TOP_K}")
+            # Use branded fallback response
+            fallback_response = generate_fallback_response(branding)
             return {
-                "response": FALLBACK_RESPONSE,
+                "response": fallback_response,
                 "sources": [],
                 "context_found": False,
                 "intent": intent.value
@@ -515,10 +541,13 @@ async def get_rag_response(
             memory_text = "\n".join(memory_parts)
             logger.info(f"Including {len(memories)} semantic facts in prompt")
 
-        # 12. Build prompt (use original query so user sees their question)
+        # 12. Build prompt with chatbot branding (use original query so user sees their question)
+        # Generate branded RAG system prompt
+        rag_system_prompt = generate_rag_system_prompt(branding)
+
         if memory_text:
             # Include semantic memory in prompt for personalization
-            prompt = f"""{RAG_SYSTEM_PROMPT.format(
+            prompt = f"""{rag_system_prompt.format(
                 context=context,
                 history=history_text,
                 query=query
@@ -535,8 +564,8 @@ Use these facts to personalize your response. For example:
 
 Generate your personalized response now:"""
         else:
-            # No memories, use standard prompt
-            prompt = RAG_SYSTEM_PROMPT.format(
+            # No memories, use standard branded prompt
+            prompt = rag_system_prompt.format(
                 context=context,
                 history=history_text,
                 query=query  # Use original query in prompt for natural response
@@ -642,8 +671,16 @@ Generate your personalized response now:"""
 
     except Exception as e:
         logger.error(f"Error in RAG pipeline: {e}")
+        # Try to use branded fallback, fall back to default if branding unavailable
+        try:
+            error_branding = await get_chatbot_branding(chatbot_id)
+            fallback_text = generate_fallback_response(error_branding)
+        except:
+            # If branding fails, use a generic fallback
+            fallback_text = "I apologize, but I'm having trouble processing your request. Please try again or contact support."
+
         return {
-            "response": FALLBACK_RESPONSE,
+            "response": fallback_text,
             "sources": [],
             "context_found": False,
             "error": str(e)

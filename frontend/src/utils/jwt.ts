@@ -7,6 +7,7 @@ interface JWTPayload {
   sub: string;              // user_id
   company_id: string | null;
   role: string;
+  full_name?: string;       // user's full name
   is_super_admin?: boolean;
   exp: number;              // expiration timestamp
   iat?: number;             // issued at timestamp
@@ -95,6 +96,7 @@ export function getUserInfoFromToken(token: string): {
   userId: string | null;
   companyId: string | null;
   role: string | null;
+  fullName: string | null;
   isSuperAdmin: boolean;
 } {
   const payload = decodeJWT(token);
@@ -103,6 +105,7 @@ export function getUserInfoFromToken(token: string): {
     userId: payload?.sub || null,
     companyId: payload?.company_id || null,
     role: payload?.role || null,
+    fullName: payload?.full_name || null,
     isSuperAdmin: payload?.is_super_admin === true,
   };
 }

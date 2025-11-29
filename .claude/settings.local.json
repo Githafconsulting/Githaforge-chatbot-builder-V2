@@ -1,12 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)",
-      "Bash(findstr:*)",
-      "Bash(rm:*)",
-      "Bash(del /f \"backend\\app\\api\\routes\\nul\" \"backend\\nul\")",
-      "Bash(npx tsc --noEmit)",
-      "Bash(netstat:*)"
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

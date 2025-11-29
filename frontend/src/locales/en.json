@@ -97,11 +97,11 @@
     "conversationDetails": "Conversation Details"
   },
   "chat": {
-    "title": "Githaf AI Assistant",
+    "title": "AI Assistant",
     "subtitle": "Always here to help",
     "greeting": "Hi! How can I help you today?",
     "placeholder": "Type your message...",
-    "askAnything": "Ask me anything about Githaf Consulting",
+    "askAnything": "Ask me anything",
     "send": "Send",
     "viewSources": "View sources",
     "helpful": "Helpful",

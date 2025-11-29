@@ -11,7 +11,9 @@ class User(BaseModel):
     """User database model"""
     id: UUID
     email: EmailStr
-    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    full_name: Optional[str] = None  # Computed field for backward compatibility
     is_active: bool = True
     is_admin: bool = False
     company_id: Optional[UUID] = None  # Multi-tenant support
@@ -23,7 +25,10 @@ class UserCreate(BaseModel):
     """Model for user creation"""
     email: EmailStr
     password: str = Field(..., min_length=8)
-    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    full_name: Optional[str] = None  # For backward compatibility
+    role_id: Optional[str] = None  # Role code (editor, trainer, etc.)
     is_admin: bool = False
 
 
@@ -75,7 +80,11 @@ class UnifiedSignup(BaseModel):
     account_type: str = Field(..., pattern=r'^(company|individual)$', description="Account type: 'company' or 'individual'")
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password (minimum 8 characters)")
-    full_name: str = Field(..., min_length=2, description="User full name")
+
+    # Name fields - support both first_name/last_name and full_name for backward compatibility
+    first_name: Optional[str] = Field(None, max_length=100, description="User first name")
+    last_name: Optional[str] = Field(None, max_length=100, description="User last name")
+    full_name: Optional[str] = Field(None, min_length=2, description="User full name (deprecated, use first_name + last_name)")
 
     # Company-specific fields (required for company, optional for individual)
     company_name: Optional[str] = Field(None, min_length=2, max_length=100, description="Company name (required for company accounts)")

@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
-import { getUserInfoFromToken } from '../utils/jwt';
+import { getUserInfoFromToken, isTokenExpired } from '../utils/jwt';
 import type { LoginCredentials, UnifiedSignupRequest } from '../types';
 
 interface UserInfo {
@@ -9,6 +9,7 @@ interface UserInfo {
   role: string;
   isSuperAdmin: boolean;
   companyName?: string; // Display name for company or user
+  fullName?: string; // User's full name
 }
 
 interface AuthContextType {
@@ -28,10 +29,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Logout function - defined early so it can be used in effects
+  const performLogout = useCallback(() => {
+    localStorage.removeItem('access_token');
+    setIsAuthenticated(false);
+    setUserInfo(null);
+  }, []);
+
+  // Check token expiration
+  const checkTokenExpiration = useCallback(() => {
+    const token = localStorage.getItem('access_token');
+    if (token && isTokenExpired(token)) {
+      console.warn('Token expired, logging out...');
+      performLogout();
+      // Redirect to login if not already there
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+      return true;
+    }
+    return false;
+  }, [performLogout]);
+
+  // Listen for auth:logout events from API interceptor
+  useEffect(() => {
+    const handleLogoutEvent = () => {
+      console.warn('Received auth:logout event');
+      performLogout();
+    };
+
+    window.addEventListener('auth:logout', handleLogoutEvent);
+    return () => window.removeEventListener('auth:logout', handleLogoutEvent);
+  }, [performLogout]);
+
+  // Periodically check token expiration (every 30 seconds)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      checkTokenExpiration();
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, checkTokenExpiration]);
+
   useEffect(() => {
     // Check if token exists and decode it on mount
     const token = localStorage.getItem('access_token');
     if (token) {
+      // Check if token is expired first
+      if (isTokenExpired(token)) {
+        console.warn('Token expired on mount, clearing...');
+        localStorage.removeItem('access_token');
+        setLoading(false);
+        return;
+      }
+
       const info = getUserInfoFromToken(token);
 
       const fetchCompanyNameOnMount = async () => {
@@ -51,6 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (err) {
           console.error('Failed to fetch company name on mount:', err);
+          // If we get a 401 here, token might be invalid/expired
+          if ((err as any)?.response?.status === 401) {
+            performLogout();
+            setLoading(false);
+            return;
+          }
         }
 
         if (info.userId && info.companyId) {
@@ -60,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: info.role || 'member',
             isSuperAdmin: info.isSuperAdmin,
             companyName,
+            fullName: info.fullName || undefined,
           });
           setIsAuthenticated(true);
         } else if (info.userId && info.isSuperAdmin) {
@@ -70,6 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: info.role || 'super_admin',
             isSuperAdmin: true,
             companyName,
+            fullName: info.fullName || undefined,
           });
           setIsAuthenticated(true);
         } else {
@@ -84,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [performLogout]);
 
   const login = async (credentials: LoginCredentials) => {
     try {
@@ -123,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: info.role || 'member',
           isSuperAdmin: info.isSuperAdmin,
           companyName,
+          fullName: info.fullName || undefined,
         });
       }
 
@@ -164,6 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: info.role || 'owner',
           isSuperAdmin: info.isSuperAdmin,
           companyName,
+          fullName: info.fullName || undefined,
         });
       }
 
