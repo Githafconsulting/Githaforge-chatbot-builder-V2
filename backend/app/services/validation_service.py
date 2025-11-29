@@ -296,7 +296,10 @@ def parse_validation_response(text: str) -> Dict:
 async def retry_with_adjustment(
     query: str,
     adjustment: str,
-    original_threshold: float
+    original_threshold: float,
+    session_id: Optional[str] = None,
+    chatbot_id: Optional[str] = None,
+    company_id: Optional[str] = None
 ) -> Dict:
     """
     Retry RAG pipeline with adjusted parameters
@@ -305,6 +308,9 @@ async def retry_with_adjustment(
         query: Original user query
         adjustment: Suggested adjustment from validation
         original_threshold: Original similarity threshold
+        session_id: Session ID for conversation context
+        chatbot_id: Chatbot ID for scope filtering (CRITICAL for isolation)
+        company_id: Company ID for data isolation (CRITICAL for multitenancy)
 
     Returns:
         New RAG response with adjusted parameters
@@ -339,8 +345,14 @@ async def retry_with_adjustment(
     config.settings.RAG_TOP_K = new_top_k
 
     try:
-        # Retry RAG
-        response = await get_rag_response(query, include_history=False)
+        # Retry RAG with isolation parameters (CRITICAL: preserve company_id and chatbot_id)
+        response = await get_rag_response(
+            query,
+            session_id=session_id,
+            include_history=False,
+            chatbot_id=chatbot_id,
+            company_id=company_id
+        )
 
         return response
     finally:

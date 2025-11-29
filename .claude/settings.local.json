@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cat:*)"
+      "Bash(python -m uvicorn:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

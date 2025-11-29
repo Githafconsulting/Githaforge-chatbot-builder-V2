@@ -34,7 +34,7 @@ class ChatbotBase(BaseModel):
 
 class ChatbotCreate(ChatbotBase):
     """Schema for creating a new chatbot"""
-    company_id: str  # Will be set from JWT context
+    company_id: Optional[str] = Field(default=None)  # Auto-injected from JWT context, frontend shouldn't send this
 
 
 class ChatbotUpdate(BaseModel):
@@ -45,6 +45,18 @@ class ChatbotUpdate(BaseModel):
     primary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     secondary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     logo_url: Optional[str] = None
+
+    # Widget Appearance
+    widget_theme: Optional[str] = Field(None, pattern=r'^(modern|minimal|classic)$')
+    widget_position: Optional[str] = Field(None, pattern=r'^(bottom-right|bottom-left|top-right|top-left)$')
+    button_size: Optional[str] = Field(None, pattern=r'^(small|medium|large)$')
+    show_notification_badge: Optional[bool] = None
+    widget_title: Optional[str] = Field(None, max_length=100)
+    widget_subtitle: Optional[str] = Field(None, max_length=100)
+    padding_x: Optional[int] = Field(None, ge=0, le=200)
+    padding_y: Optional[int] = Field(None, ge=0, le=200)
+    z_index: Optional[int] = Field(None, ge=0, le=99999)
+
     model_preset: Optional[str] = Field(None, pattern=r'^(fast|balanced|accurate)$')
     temperature: Optional[float] = Field(None, ge=0.0, le=1.0)
     max_tokens: Optional[int] = Field(None, ge=100, le=2000)

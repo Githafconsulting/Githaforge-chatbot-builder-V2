@@ -110,7 +110,8 @@ export const CompanySettingsPage: React.FC = () => {
     industry: '',
     company_size: '',
     primary_color: '#3B82F6',
-    secondary_color: '#8B5CF6'
+    secondary_color: '#8B5CF6',
+    admin_can_access_billing: false
   });
   const [customScopes, setCustomScopes] = useState<string[]>([]);
   const [newScope, setNewScope] = useState('');
@@ -132,7 +133,8 @@ export const CompanySettingsPage: React.FC = () => {
         industry: data.industry || '',
         company_size: data.company_size || '',
         primary_color: data.primary_color || '#3B82F6',
-        secondary_color: data.secondary_color || '#8B5CF6'
+        secondary_color: data.secondary_color || '#8B5CF6',
+        admin_can_access_billing: data.admin_can_access_billing || false
       });
       setCustomScopes(data.custom_scopes || []);
       setLogoPreview(data.logo_url || '');
@@ -453,6 +455,39 @@ export const CompanySettingsPage: React.FC = () => {
               {/* Color Preview */}
               <div className="p-4 rounded-lg" style={{ background: `linear-gradient(135deg, ${formData.primary_color}, ${formData.secondary_color})` }}>
                 <p className="text-white font-medium text-center">Color Preview</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Permissions & Access Control */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <Shield className="h-6 w-6 text-purple-400" />
+              <h2 className="text-xl font-semibold text-white">Permissions & Access Control</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                <div>
+                  <h3 className="text-white font-medium">Admin Billing Access</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Allow admins to view and manage billing and subscription settings
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.admin_can_access_billing}
+                    onChange={(e) => setFormData({ ...formData, admin_can_access_billing: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                </label>
               </div>
             </div>
           </motion.div>

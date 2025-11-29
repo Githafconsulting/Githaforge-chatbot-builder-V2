@@ -68,7 +68,7 @@ const PREDEFINED_ROLES = [
 ];
 
 export const TeamPage: React.FC = () => {
-  const { userInfo } = useAuth();
+  const { userInfo, refreshUserInfo } = useAuth();
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,6 +151,11 @@ export const TeamPage: React.FC = () => {
       setShowEditModal(false);
       setEditingUser(null);
       toast.success('User updated successfully!');
+
+      // If the updated user is the currently logged-in user, refresh user info to update the sidebar
+      if (userInfo && userId === userInfo.userId) {
+        await refreshUserInfo();
+      }
     } catch (error: any) {
       console.error('Failed to update user:', error);
       toast.error(error.response?.data?.detail || 'Failed to update user');
@@ -366,16 +371,9 @@ export const TeamPage: React.FC = () => {
                         {index + 1}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                            <span className="text-blue-400 font-semibold text-sm">
-                              {user.first_name?.[0]?.toUpperCase() || user.full_name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="font-medium text-white">
-                            {user.first_name || <span className="text-slate-500">N/A</span>}
-                          </span>
-                        </div>
+                        <span className="font-medium text-white">
+                          {user.first_name || <span className="text-slate-500">N/A</span>}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-medium text-white">
@@ -768,12 +766,16 @@ interface EditUserModalProps {
 }
 
 const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onUpdate, roles, currentUserRole }) => {
-  // Only owners can assign the owner role
-  // Also, if the user being edited is already an owner, show it but disable changing away from it
+  const { userInfo } = useAuth();
+  const isEditingSelf = userInfo?.userId === user.id;
   const isEditingOwner = user.role === 'owner';
+
+  // Determine which roles are available based on current user's role
   const availableRoles = currentUserRole === 'owner'
-    ? roles
-    : roles.filter(r => r.code !== 'owner');
+    ? roles  // Owners see all roles
+    : currentUserRole === 'admin'
+    ? roles.filter(r => r.code !== 'owner')  // Admins see all except owner
+    : [];  // Others see no roles (shouldn't reach here)
 
   const [formData, setFormData] = useState({
     first_name: user.first_name || user.full_name?.split(' ')[0] || '',
@@ -851,14 +853,20 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onUpdate, 
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">
               Role
-              {isEditingOwner && currentUserRole !== 'owner' && (
-                <span className="ml-2 text-xs text-amber-400">(Only owners can change owner role)</span>
+              {isEditingSelf && (
+                <span className="ml-2 text-xs text-amber-400">(You cannot change your own role)</span>
+              )}
+              {!isEditingSelf && isEditingOwner && currentUserRole !== 'owner' && (
+                <span className="ml-2 text-xs text-amber-400">(Only owners can change owner's role)</span>
               )}
             </label>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {availableRoles.map((role) => {
-                // If editing an owner user and current user is not owner, disable all role options
-                const isDisabled = isEditingOwner && currentUserRole !== 'owner';
+                // Disable role selection if:
+                // 1. User is editing themselves
+                // 2. Admin trying to edit owner's role
+                const isDisabled = isEditingSelf || (isEditingOwner && currentUserRole !== 'owner');
+
                 return (
                   <div
                     key={role.code}

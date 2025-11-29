@@ -169,16 +169,11 @@ export const UsersPage: React.FC = () => {
                 {users.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-700">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Mail size={20} className="text-blue-600" />
+                      <div>
+                        <div className="text-sm font-medium text-slate-50">
+                          {user.full_name || 'No name'}
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-slate-50">
-                            {user.full_name || 'No name'}
-                          </div>
-                          <div className="text-sm text-slate-400">{user.email}</div>
-                        </div>
+                        <div className="text-sm text-slate-400">{user.email}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

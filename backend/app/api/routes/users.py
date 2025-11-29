@@ -13,6 +13,24 @@ from typing import List
 router = APIRouter()
 logger = get_logger(__name__)
 
+@router.get("/me", response_model=dict)
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """
+    Get current user's information
+
+    Returns the authenticated user's details.
+    """
+    return {
+        "id": current_user["id"],
+        "email": current_user["email"],
+        "first_name": current_user.get("first_name"),
+        "last_name": current_user.get("last_name"),
+        "full_name": current_user.get("full_name"),
+        "role": current_user.get("role"),
+        "company_id": current_user.get("company_id"),
+        "is_active": current_user.get("is_active")
+    }
+
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
@@ -245,26 +263,44 @@ async def update_user(user_id: str, user_data: dict, current_user: dict = Depend
         if "role" in user_data:
             new_role = user_data["role"]
             current_user_role = current_user.get("role", "member")
+            current_user_id = current_user.get("id")
             target_user_role = target_user.data.get("role")
 
-            # Validate owner role changes
-            if new_role == "owner" or target_user_role == "owner":
-                if current_user_role != "owner":
+            # Prevent users from changing their own role (regardless of whether it's changing)
+            if str(current_user_id) == str(user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You cannot change your own role"
+                )
+
+            # Only validate if role is actually changing
+            if new_role != target_user_role:
+
+                # Prevent non-owners from changing owner role
+                if new_role == "owner" or target_user_role == "owner":
+                    if current_user_role != "owner":
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Only owners can assign or change the owner role"
+                        )
+
+                # Owners and admins can change other roles
+                if current_user_role not in ["owner", "admin"]:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Only owners can assign or change the owner role"
+                        detail="Only owners and admins can assign roles"
                     )
 
-            # If assigning owner role, check there isn't already one
-            if new_role == "owner" and target_user_role != "owner":
-                existing_owner = client.table("users").select("id").eq(
-                    "company_id", company_id
-                ).eq("role", "owner").execute()
-                if existing_owner.data and len(existing_owner.data) > 0:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail="Company already has an owner. There can only be one owner per company."
-                    )
+                # If assigning owner role (and user isn't already owner), check there isn't already one
+                if new_role == "owner":
+                    existing_owner = client.table("users").select("id").eq(
+                        "company_id", company_id
+                    ).eq("role", "owner").neq("id", user_id).execute()  # Exclude the user being updated
+                    if existing_owner.data and len(existing_owner.data) > 0:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail="Company already has an owner. There can only be one owner per company."
+                        )
 
             update_data["role"] = new_role
         if "is_active" in user_data:

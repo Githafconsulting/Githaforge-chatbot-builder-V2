@@ -12,13 +12,18 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def get_feedback_insights(start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
+async def get_feedback_insights(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    company_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Analyze feedback to identify knowledge gaps and patterns
 
     Args:
         start_date: Optional start date (ISO format YYYY-MM-DD)
         end_date: Optional end date (ISO format YYYY-MM-DD)
+        company_id: Optional company ID for filtering
 
     Returns:
         Dict with feedback patterns and insights
@@ -35,9 +40,14 @@ async def get_feedback_insights(start_date: Optional[str] = None, end_date: Opti
         if not end_date:
             end_date = datetime.utcnow().isoformat()
 
-        # Query feedback with date range
-        response = client.table("feedback").select("id, message_id, rating, comment, created_at").eq(
-            "rating", 0).gte("created_at", thirty_days_ago).lte("created_at", end_date).execute()
+        # Query feedback with date range and company filter
+        query = client.table("feedback").select("id, message_id, rating, comment, created_at").eq(
+            "rating", 0).gte("created_at", thirty_days_ago).lte("created_at", end_date)
+
+        if company_id:
+            query = query.eq("company_id", company_id)
+
+        response = query.execute()
 
         negative_feedback = response.data if response.data else []
 
@@ -46,9 +56,13 @@ async def get_feedback_insights(start_date: Optional[str] = None, end_date: Opti
         # 1. Pending drafts (still under review)
         # 2. Successfully published drafts (published_document_id is set)
         # DO NOT exclude feedback from broken drafts (approved but failed to publish)
-        used_feedback_response = client.table("draft_documents").select(
+        draft_query = client.table("draft_documents").select(
             "source_feedback_ids, status, published_document_id"
-        ).execute()
+        )
+        if company_id:
+            draft_query = draft_query.eq("company_id", company_id)
+
+        used_feedback_response = draft_query.execute()
 
         used_feedback_ids = set()
         if used_feedback_response.data:
@@ -267,16 +281,29 @@ FEEDBACK ANALYSIS:
         return {"success": False, "message": f"Error: {str(e)}"}
 
 
-async def get_pending_drafts(limit: int = 20, offset: int = 0) -> Dict[str, Any]:
+async def get_pending_drafts(
+    limit: int = 20,
+    offset: int = 0,
+    company_id: Optional[str] = None
+) -> Dict[str, Any]:
     """Get all pending draft documents"""
     try:
         client = get_supabase_client()
 
-        response = client.table("draft_documents").select("*").eq(
-            "status", "pending").order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+        query = client.table("draft_documents").select("*").eq("status", "pending")
+
+        if company_id:
+            query = query.eq("company_id", company_id)
+
+        response = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
 
         drafts = response.data if response.data else []
-        count_response = client.table("draft_documents").select("id", count="exact").eq("status", "pending").execute()
+
+        count_query = client.table("draft_documents").select("id", count="exact").eq("status", "pending")
+        if company_id:
+            count_query = count_query.eq("company_id", company_id)
+
+        count_response = count_query.execute()
         total = count_response.count if hasattr(count_response, 'count') else len(drafts)
 
         return {"drafts": drafts, "total": total, "limit": limit, "offset": offset}

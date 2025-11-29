@@ -42,6 +42,7 @@ class CompanyUpdate(BaseModel):
     secondary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     company_size: Optional[str] = None
     industry: Optional[str] = None
+    admin_can_access_billing: Optional[bool] = None
 
 
 class Company(CompanyBase):
@@ -51,6 +52,7 @@ class Company(CompanyBase):
     max_documents: int = 50
     max_monthly_messages: int = 1000
     max_team_members: int = Field(default=5, description="Max team members (1 for personal accounts)")
+    admin_can_access_billing: bool = False
     is_active: bool = True
     created_at: datetime
     updated_at: datetime

@@ -83,6 +83,7 @@ function App() {
             <Route path="users" element={<UsersPage />} />
             <Route path="team" element={<TeamPage />} />
             <Route path="company" element={<CompanySettingsPage />} />
+            <Route path="billing" element={<div className="text-white p-8">Billing & Plans - Coming Soon</div>} />
             <Route path="widget" element={<WidgetSettingsPage />} />
             <Route path="chatbot" element={<ChatbotSettings />} />
             <Route path="integrations" element={<IntegrationsPage />} />

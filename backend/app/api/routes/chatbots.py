@@ -49,6 +49,9 @@ async def create_chatbot(
             detail="User must be associated with a company"
         )
 
+    # Override company_id from JWT (security: prevent users from creating bots for other companies)
+    chatbot_data.company_id = str(company_id)
+
     # TODO: Check company plan limits (max_bots)
     # service = ChatbotService()
     # company_bots = await service.list_company_chatbots(company_id)

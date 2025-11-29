@@ -20,7 +20,8 @@ import {
   Cloud,
   Building2,
   ImageIcon,
-  User
+  User,
+  DollarSign
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../services/api';
@@ -35,17 +36,19 @@ export const AdminLayout: React.FC = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [adminCanAccessBilling, setAdminCanAccessBilling] = useState(false);
 
   // Company name is now fetched in AuthContext during login
   const companyName = userInfo?.companyName || 'Workspace';
+  const userRole = userInfo?.role || 'member';
 
   // Get first name from full name
   const firstName = userInfo?.fullName?.split(' ')[0] || 'User';
   const firstInitial = firstName[0]?.toUpperCase() || 'U';
 
-  // Fetch company logo on mount
+  // Fetch company logo and billing permission on mount
   useEffect(() => {
-    const fetchCompanyLogo = async () => {
+    const fetchCompanySettings = async () => {
       try {
         const company = await apiService.getCompanySettings();
         if (company?.logo_url) {
@@ -56,17 +59,21 @@ export const AdminLayout: React.FC = () => {
             link.href = company.logo_url;
           }
         }
+        setAdminCanAccessBilling(company?.admin_can_access_billing || false);
       } catch (error) {
-        console.error('Failed to fetch company logo:', error);
+        console.error('Failed to fetch company settings:', error);
       }
     };
-    fetchCompanyLogo();
+    fetchCompanySettings();
   }, []);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  // Check if user can access billing
+  const canAccessBilling = userRole === 'owner' || (userRole === 'admin' && adminCanAccessBilling);
 
   const navItems = [
     { path: '/admin', label: t('nav.analytics'), icon: BarChart3, color: 'text-blue-400' },
@@ -77,6 +84,7 @@ export const AdminLayout: React.FC = () => {
     { path: '/admin/learning', label: t('nav.learning'), icon: Brain, color: 'text-emerald-400' },
     { path: '/admin/team', label: 'Team Management', icon: Users, color: 'text-amber-400' },
     { path: '/admin/company', label: 'Company Settings', icon: Building2, color: 'text-purple-400' },
+    ...(canAccessBilling ? [{ path: '/admin/billing', label: 'Billing & Plans', icon: DollarSign, color: 'text-yellow-400' }] : []),
     { path: '/admin/chatbot', label: 'Chatbot Config', icon: Settings, color: 'text-teal-400' },
     { path: '/admin/integrations', label: 'Integrations', icon: Cloud, color: 'text-sky-400' },
     { path: '/admin/widget', label: t('nav.widgetSettings'), icon: Settings, color: 'text-pink-400' },

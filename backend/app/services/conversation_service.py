@@ -205,7 +205,11 @@ async def format_history_for_llm(messages: List[Dict[str, Any]]) -> str:
     return "\n".join(formatted)
 
 
-async def get_all_conversations(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+async def get_all_conversations(
+    limit: int = 50,
+    offset: int = 0,
+    company_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Get all conversations (for admin dashboard)
 
@@ -216,6 +220,7 @@ async def get_all_conversations(limit: int = 50, offset: int = 0) -> Dict[str, A
     Args:
         limit: Ignored (kept for API compatibility)
         offset: Ignored (kept for API compatibility)
+        company_id: Optional company ID for filtering
 
     Returns:
         Dict with 'conversations' list and 'total' count
@@ -223,10 +228,13 @@ async def get_all_conversations(limit: int = 50, offset: int = 0) -> Dict[str, A
     try:
         client = get_supabase_client()
 
-        # Get all conversations
-        all_response = client.table("conversations").select(
-            "*"
-        ).order("last_message_at", desc=True).execute()
+        # Get all conversations with optional company filter
+        query = client.table("conversations").select("*")
+
+        if company_id:
+            query = query.eq("company_id", company_id)
+
+        all_response = query.order("last_message_at", desc=True).execute()
 
         all_conversations = all_response.data if all_response.data else []
 

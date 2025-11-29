@@ -175,9 +175,16 @@ async def get_document_content(
     """
     Get full document content reconstructed from embedding chunks
 
+    Verifies user owns the document.
+
     Requires authentication
     """
     try:
+        # First verify ownership
+        document = await get_document_by_id(document_id)
+        verify_resource_ownership(document, document_id, current_user, "Document")
+
+        # Get content
         content = await get_document_full_content(document_id)
 
         if content is None:
@@ -205,9 +212,16 @@ async def edit_document(
     """
     Update a document and regenerate embeddings if content changes
 
+    Verifies user owns the document before updating.
+
     Requires authentication
     """
     try:
+        # First verify ownership
+        document = await get_document_by_id(document_id)
+        verify_resource_ownership(document, document_id, current_user, "Document")
+
+        # Proceed with update
         updated_document = await update_document(
             document_id=document_id,
             title=update_request.title,
@@ -224,6 +238,8 @@ async def edit_document(
             "document": updated_document
         }
 
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
@@ -239,6 +255,8 @@ async def download_document(
     """
     Download document file from storage or generate text file from content
 
+    Verifies user owns the document before downloading.
+
     Requires authentication
     """
     try:
@@ -246,11 +264,13 @@ async def download_document(
         from app.services.storage_service import get_file_from_storage
         import io
 
-        # Get document metadata
+        # Get document metadata and verify ownership
         document = await get_document_by_id(document_id)
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
+
+        verify_resource_ownership(document, document_id, current_user, "Document")
 
         # If document has a storage path, download from storage
         if document.get("storage_path"):

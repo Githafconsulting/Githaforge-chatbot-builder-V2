@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { showErrorToast } from '../utils/errorHandler';
 import type {
   ChatResponse,
   Conversation,
@@ -63,28 +64,31 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       (error) => {
-        // Only log non-401 errors to avoid console spam from expired tokens
+        // Log errors for debugging (except 401)
         if (error.response?.status !== 401) {
           console.error('API Error:', error);
           console.error('API Error Response:', error.response);
         }
 
+        // Handle 401 Unauthorized - Token expired
         if (error.response?.status === 401) {
-          // Only handle if not already on login page and token exists
           const tokenExists = !!localStorage.getItem('access_token');
           const onLoginPage = window.location.pathname.includes('/login');
 
           if (tokenExists && !onLoginPage) {
             console.warn('401 Unauthorized - Token expired or invalid, logging out...');
             localStorage.removeItem('access_token');
-
-            // Dispatch event to notify AuthContext
             window.dispatchEvent(new CustomEvent('auth:logout'));
-
-            // Redirect to login
             window.location.href = '/login';
           }
         }
+
+        // Show toast notification for all errors except 401 (handled above)
+        // and except silent errors (those with skipToast flag)
+        if (error.response?.status !== 401 && !error.config?.skipToast) {
+          showErrorToast(error);
+        }
+
         return Promise.reject(error);
       }
     );
@@ -296,6 +300,11 @@ class ApiService {
   // User Management APIs
   async getUsers(): Promise<any[]> {
     const response = await this.api.get('/api/v1/users/');
+    return response.data;
+  }
+
+  async getCurrentUser(): Promise<any> {
+    const response = await this.api.get('/api/v1/users/me');
     return response.data;
   }
 

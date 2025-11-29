@@ -393,8 +393,11 @@ async def get_rag_response(
                     # Extract company_id from chatbot if not provided
                     if not company_id:
                         company_id = chatbot_response.data.get("company_id")
+                        logger.info(f"[ISOLATION] Extracted company_id from chatbot: {company_id}")
+                    else:
+                        logger.info(f"[ISOLATION] company_id already provided: {company_id}")
 
-                    logger.info(f"Chatbot {chatbot_id}: allowed_scopes={allowed_scopes}, company_id={company_id}")
+                    logger.info(f"[ISOLATION] Chatbot {chatbot_id[:8] if chatbot_id else 'None'}...: allowed_scopes={allowed_scopes}, company_id={company_id[:8] if company_id else 'None'}...")
 
             except Exception as e:
                 logger.warning(f"Failed to fetch chatbot config: {e}")
@@ -446,6 +449,7 @@ async def get_rag_response(
 
         # Phase 6: Track search latency
         async with MetricsContext("search", session_id=session_id) as ctx:
+            logger.info(f"[ISOLATION] Calling similarity_search with: company_id={company_id[:8] if company_id else 'None'}..., chatbot_id={chatbot_id[:8] if chatbot_id else 'None'}..., scopes={allowed_scopes}")
             relevant_docs = await similarity_search(
                 query_embedding,
                 top_k=top_k,
@@ -456,7 +460,7 @@ async def get_rag_response(
             )
             ctx.add_context({"docs_found": len(relevant_docs) if relevant_docs else 0})
 
-        logger.info(f"Similarity search returned {len(relevant_docs) if relevant_docs else 0} documents")
+        logger.info(f"[ISOLATION] Similarity search returned {len(relevant_docs) if relevant_docs else 0} documents for company {company_id[:8] if company_id else 'None'}...")
 
         # 8. Re-rank results for factual queries (boost documents with actual facts)
         if is_factual_query and relevant_docs:
@@ -601,11 +605,14 @@ Generate your personalized response now:"""
             logger.warning(f"Issues: {validation['issues']}")
             logger.warning(f"Adjustment: {validation['suggested_adjustment']}")
 
-            # Retry with adjusted parameters
+            # Retry with adjusted parameters (CRITICAL: preserve isolation)
             retry_response = await retry_with_adjustment(
                 query=query,
                 adjustment=validation["suggested_adjustment"],
-                original_threshold=threshold
+                original_threshold=threshold,
+                session_id=session_id,
+                chatbot_id=chatbot_id,
+                company_id=company_id
             )
 
             # Update response and sources from retry

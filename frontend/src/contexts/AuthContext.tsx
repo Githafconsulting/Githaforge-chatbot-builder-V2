@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   signup: (data: UnifiedSignupRequest) => Promise<void>;
   logout: () => void;
+  refreshUserInfo: () => Promise<void>;
   loading: boolean;
   setAuthenticated: (value: boolean) => void;
 }
@@ -242,6 +243,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserInfo(null);
   };
 
+  const refreshUserInfo = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      // Check if token is expired
+      if (isTokenExpired(token)) {
+        performLogout();
+        return;
+      }
+
+      // Fetch current user data from database (to get latest name changes)
+      const currentUser = await apiService.getCurrentUser();
+
+      // Get token info for company/super admin status
+      const tokenInfo = getUserInfoFromToken(token);
+
+      // Fetch company name
+      let companyName = 'Workspace';
+      try {
+        if (tokenInfo.isSuperAdmin) {
+          companyName = 'Super Admin';
+        } else {
+          const company = await apiService.getCompanySettings();
+
+          if (company.is_personal) {
+            const email = currentUser.email || '';
+            companyName = email.split('@')[0] || 'Personal Workspace';
+          } else {
+            companyName = company.name || 'Company';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch company name during refresh:', err);
+      }
+
+      // Update user info with fresh data from database
+      if (currentUser.id && currentUser.company_id) {
+        setUserInfo({
+          userId: currentUser.id,
+          companyId: currentUser.company_id,
+          role: currentUser.role || 'member',
+          isSuperAdmin: tokenInfo.isSuperAdmin,
+          companyName,
+          fullName: currentUser.full_name || undefined,
+        });
+      } else if (currentUser.id && tokenInfo.isSuperAdmin) {
+        setUserInfo({
+          userId: currentUser.id,
+          companyId: null,
+          role: currentUser.role || 'super_admin',
+          isSuperAdmin: true,
+          companyName,
+          fullName: currentUser.full_name || undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to refresh user info:', error);
+    }
+  };
+
   const setAuthenticated = (value: boolean) => {
     setIsAuthenticated(value);
     if (!value) {
@@ -250,7 +312,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userInfo, login, signup, logout, loading, setAuthenticated }}>
+    <AuthContext.Provider value={{ isAuthenticated, userInfo, login, signup, logout, refreshUserInfo, loading, setAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

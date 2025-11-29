@@ -42,7 +42,12 @@ async def get_insights(
         end_date: End date in YYYY-MM-DD format (optional)
     """
     try:
-        insights = await get_feedback_insights(start_date=start_date, end_date=end_date)
+        company_id = current_user.get("company_id")
+        insights = await get_feedback_insights(
+            start_date=start_date,
+            end_date=end_date,
+            company_id=company_id
+        )
         return insights
     except Exception as e:
         logger.error(f"Error getting insights: {e}")
@@ -106,8 +111,13 @@ async def list_drafts(
     List draft documents (pending, approved, rejected)
     """
     try:
+        company_id = current_user.get("company_id")
         if status == "pending":
-            result = await get_pending_drafts(limit=limit, offset=offset)
+            result = await get_pending_drafts(
+                limit=limit,
+                offset=offset,
+                company_id=company_id
+            )
             return result
         else:
             # TODO: Add support for other statuses
