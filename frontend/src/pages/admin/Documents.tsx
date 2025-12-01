@@ -1,40 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
   Link as LinkIcon,
   Trash2,
   FileText,
   Download,
-  Tag,
-  Bot,
   Filter,
   X,
   Edit,
-  List,
-  Grid3x3,
+  MoreVertical,
+  Globe,
+  Lock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
 import type { Document, Chatbot } from '../../types';
 
-const SCOPES = [
-  { value: 'sales', label: 'Sales', color: 'bg-green-500/10 text-green-400 border-green-500/20' },
-  { value: 'support', label: 'Support', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  { value: 'product', label: 'Product', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
-  { value: 'billing', label: 'Billing', color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
-  { value: 'hr', label: 'HR', color: 'bg-pink-500/10 text-pink-400 border-pink-500/20' },
-  { value: 'legal', label: 'Legal', color: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  { value: 'marketing', label: 'Marketing', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
-  { value: 'general', label: 'General', color: 'bg-slate-500/10 text-slate-400 border-slate-500/20' },
-];
-
 // Utility functions
-const getScopeColor = (scope?: string) => {
-  const scopeObj = SCOPES.find(s => s.value === scope);
-  return scopeObj?.color || 'bg-slate-500/10 text-slate-400 border-slate-500/20';
-};
-
 const formatFileSize = (bytes?: number): string => {
   if (!bytes) return 'Unknown';
   const kb = bytes / 1024;
@@ -42,12 +25,6 @@ const formatFileSize = (bytes?: number): string => {
   if (mb >= 1) return `${mb.toFixed(2)} MB`;
   if (kb >= 1) return `${kb.toFixed(2)} KB`;
   return `${bytes} bytes`;
-};
-
-const getChatbotName = (chatbotId: string | null, chatbots: Chatbot[]): string => {
-  if (!chatbotId) return 'Shared (All Chatbots)';
-  const chatbot = chatbots.find(c => c.id === chatbotId);
-  return chatbot?.name || 'Unknown';
 };
 
 export const DocumentsPage: React.FC = () => {
@@ -58,26 +35,43 @@ export const DocumentsPage: React.FC = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [scopeFilter, setScopeFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [chatbotFilter, setChatbotFilter] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [sharingFilter, setSharingFilter] = useState<string>('all');
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadIsShared, setUploadIsShared] = useState(true);
 
   // URL form state
   const [url, setUrl] = useState('');
+  const [urlIsShared, setUrlIsShared] = useState(true);
 
   // Edit form state
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [editTitle, setEditTitle] = useState<string>('');
   const [editContent, setEditContent] = useState<string>('');
+  const [originalContent, setOriginalContent] = useState<string>(''); // Track original to detect changes
   const [editCategory, setEditCategory] = useState<string>('');
+  const [editIsShared, setEditIsShared] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
 
   useEffect(() => {
     loadDocuments();
     loadChatbots();
+  }, []);
+
+  // Close action menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+        setOpenActionMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadDocuments = async () => {
@@ -111,21 +105,14 @@ export const DocumentsPage: React.FC = () => {
     try {
       setUploading(true);
 
-      // Upload document - backend will auto-classify
-      const result = await apiService.uploadDocument(selectedFile);
-
-      // Show classification result
-      if (result.scope && result.classification_confidence) {
-        const confidence = (result.classification_confidence * 100).toFixed(0);
-        const scopeLabel = SCOPES.find(s => s.value === result.scope)?.label || result.scope;
-        toast.success(`Document classified as "${scopeLabel}" (${confidence}% confidence)`, { duration: 4000 });
-      } else {
-        toast.success('Document uploaded successfully!');
-      }
+      // Upload document with is_shared setting
+      await apiService.uploadDocument(selectedFile, undefined, uploadIsShared);
+      toast.success('Document uploaded successfully!');
 
       await loadDocuments();
       setShowUploadModal(false);
       setSelectedFile(null);
+      setUploadIsShared(true); // Reset for next upload
     } catch (error: any) {
       console.error('Failed to upload document:', error);
       toast.error(error.response?.data?.detail || 'Failed to upload document');
@@ -140,21 +127,14 @@ export const DocumentsPage: React.FC = () => {
     try {
       setUploading(true);
 
-      // Upload URL - backend will auto-classify
-      const result = await apiService.addDocumentFromUrl(url, undefined);
-
-      // Show classification result
-      if (result.scope && result.classification_confidence) {
-        const confidence = (result.classification_confidence * 100).toFixed(0);
-        const scopeLabel = SCOPES.find(s => s.value === result.scope)?.label || result.scope;
-        toast.success(`Document classified as "${scopeLabel}" (${confidence}% confidence)`, { duration: 4000 });
-      } else {
-        toast.success('Document added from URL successfully!');
-      }
+      // Upload URL with is_shared setting
+      await apiService.addDocumentFromUrl(url, undefined, urlIsShared);
+      toast.success('Document added from URL successfully!');
 
       await loadDocuments();
       setShowUrlModal(false);
       setUrl('');
+      setUrlIsShared(true); // Reset for next upload
     } catch (error: any) {
       console.error('Failed to add document from URL:', error);
       toast.error(error.response?.data?.detail || 'Failed to add document from URL');
@@ -168,12 +148,14 @@ export const DocumentsPage: React.FC = () => {
       setEditingDocument(doc);
       setEditTitle(doc.title);
       setEditCategory(doc.category || '');
+      setEditIsShared(doc.is_shared !== false);
       setShowEditModal(true);
       setLoadingContent(true);
 
       // Fetch document content
       const content = await apiService.getDocumentContent(doc.id);
       setEditContent(content);
+      setOriginalContent(content); // Store original to detect changes
     } catch (error: any) {
       console.error('Failed to load document content:', error);
       toast.error('Failed to load document content');
@@ -186,17 +168,29 @@ export const DocumentsPage: React.FC = () => {
   const handleUpdateDocument = async () => {
     if (!editingDocument) return;
 
+    const contentChanged = editContent !== originalContent;
+
+    // Show confirmation if content changed (will trigger re-embedding)
+    if (contentChanged) {
+      const confirmed = confirm(
+        'Content has been modified. This will regenerate all embeddings for this document.\n\n' +
+        'This process may take a moment. Continue?'
+      );
+      if (!confirmed) return;
+    }
+
     try {
       setUploading(true);
 
-      // Prepare update data - content change triggers AI re-classification
+      // Prepare update data - only include changed fields
       const updateData: any = {};
 
       if (editTitle !== editingDocument.title) {
         updateData.title = editTitle;
       }
 
-      if (editContent) {
+      // Only send content if it has actually changed (avoids unnecessary re-embedding)
+      if (contentChanged) {
         updateData.content = editContent;
       }
 
@@ -204,20 +198,26 @@ export const DocumentsPage: React.FC = () => {
         updateData.category = editCategory;
       }
 
-      const result = await apiService.updateDocument(editingDocument.id, updateData);
-
-      // Show AI re-classification result if content was updated
-      if (updateData.content && result.scope && result.classification_confidence) {
-        const confidence = (result.classification_confidence * 100).toFixed(0);
-        const scopeLabel = SCOPES.find(s => s.value === result.scope)?.label || result.scope;
-        toast.success(`Document updated and re-classified as "${scopeLabel}" (${confidence}% confidence)`, { duration: 4000 });
-      } else {
-        toast.success('Document updated successfully!');
+      // Update document if there are changes
+      if (Object.keys(updateData).length > 0) {
+        await apiService.updateDocument(editingDocument.id, updateData);
       }
+
+      // Update sharing status if changed
+      const currentIsShared = editingDocument.is_shared !== false;
+      if (editIsShared !== currentIsShared) {
+        await apiService.updateDocumentSharing(editingDocument.id, editIsShared);
+      }
+
+      // Show appropriate success message
+      toast.success(contentChanged
+        ? 'Document updated and embeddings regenerated!'
+        : 'Document updated successfully!');
 
       await loadDocuments();
       setShowEditModal(false);
       setEditingDocument(null);
+      setOriginalContent(''); // Reset
     } catch (error: any) {
       console.error('Failed to update document:', error);
       toast.error(error.response?.data?.detail || 'Failed to update document');
@@ -248,8 +248,18 @@ export const DocumentsPage: React.FC = () => {
     }
   };
 
+  // Get unique categories from documents
+  const categories = Array.from(new Set(documents.map(d => d.category).filter(Boolean))) as string[];
+
   const filteredDocuments = documents.filter(doc => {
-    if (scopeFilter !== 'all' && doc.scope !== scopeFilter) return false;
+    // Sharing filter
+    if (sharingFilter === 'shared' && doc.is_shared !== true) return false;
+    if (sharingFilter === 'specific' && doc.is_shared === true) return false;
+
+    // Category filter
+    if (categoryFilter !== 'all' && doc.category !== categoryFilter) return false;
+
+    // Chatbot filter
     if (chatbotFilter !== 'all') {
       if (chatbotFilter === 'shared' && doc.chatbot_id !== null) return false;
       if (chatbotFilter !== 'shared' && doc.chatbot_id !== chatbotFilter) return false;
@@ -266,7 +276,7 @@ export const DocumentsPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -295,310 +305,225 @@ export const DocumentsPage: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <span className="text-sm font-medium text-slate-300">Filters:</span>
-            </div>
-
-            {/* Scope Filter */}
-            <select
-              value={scopeFilter}
-              onChange={(e) => setScopeFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-            >
-              <option value="all">All Scopes</option>
-              {SCOPES.map(scope => (
-                <option key={scope.value} value={scope.value}>{scope.label}</option>
-              ))}
-            </select>
-
-            {/* Chatbot Filter */}
-            <select
-              value={chatbotFilter}
-              onChange={(e) => setChatbotFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-            >
-              <option value="all">All Chatbots</option>
-              <option value="shared">Shared (All Chatbots)</option>
-              {chatbots.map(chatbot => (
-                <option key={chatbot.id} value={chatbot.id}>{chatbot.name}</option>
-              ))}
-            </select>
-
-            {(scopeFilter !== 'all' || chatbotFilter !== 'all') && (
-              <button
-                onClick={() => {
-                  setScopeFilter('all');
-                  setChatbotFilter('all');
-                }}
-                className="text-sm text-slate-400 hover:text-white transition-colors"
-              >
-                Clear filters
-              </button>
-            )}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <span className="text-sm font-medium text-slate-300">Filters:</span>
           </div>
 
-          {/* View Toggle */}
-          <div className="flex items-center gap-2 bg-slate-900 rounded-lg p-1">
+          {/* Sharing Filter */}
+          <select
+            value={sharingFilter}
+            onChange={(e) => setSharingFilter(e.target.value)}
+            className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="all">All ({documents.length})</option>
+            <option value="shared">Shared KB ({documents.filter(d => d.is_shared !== false).length})</option>
+            <option value="specific">Chatbot-Specific ({documents.filter(d => d.is_shared === false).length})</option>
+          </select>
+
+          {/* Category Filter */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="all">All Categories</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+
+          {/* Chatbot Filter */}
+          <select
+            value={chatbotFilter}
+            onChange={(e) => setChatbotFilter(e.target.value)}
+            className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="all">All Chatbots</option>
+            <option value="shared">Shared (All Chatbots)</option>
+            {chatbots.map(chatbot => (
+              <option key={chatbot.id} value={chatbot.id}>{chatbot.name}</option>
+            ))}
+          </select>
+
+          {(sharingFilter !== 'all' || categoryFilter !== 'all' || chatbotFilter !== 'all') && (
             <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="List view"
+              onClick={() => {
+                setSharingFilter('all');
+                setCategoryFilter('all');
+                setChatbotFilter('all');
+              }}
+              className="text-sm text-slate-400 hover:text-white transition-colors"
             >
-              <List className="w-4 h-4" />
+              Clear filters
             </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Grid view"
-            >
-              <Grid3x3 className="w-4 h-4" />
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Documents - List/Grid View */}
-      {viewMode === 'list' ? (
-        // List View
-        <div className="space-y-2">
-          {filteredDocuments.map((doc) => (
-            <motion.div
-              key={doc.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-4">
-                {/* Left: Title and Metadata */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FileText className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                    <h3 className="font-semibold text-white text-sm truncate">{doc.title}</h3>
-                  </div>
-
-                  {/* Badges Row */}
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {doc.scope && (
-                      <span className={`text-xs px-2 py-0.5 rounded border ${getScopeColor(doc.scope)} flex items-center gap-1`}>
-                        <Tag className="w-3 h-3" />
-                        {SCOPES.find(s => s.value === doc.scope)?.label || doc.scope}
+      {/* Documents Table */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden flex-1 flex flex-col min-h-[400px]">
+        {filteredDocuments.length === 0 ? (
+          <div className="text-center py-12 flex-1 flex flex-col items-center justify-center">
+            <FileText className="w-16 h-16 text-slate-600 mb-4" />
+            <h3 className="text-xl font-semibold text-slate-300 mb-2">No documents found</h3>
+            <p className="text-slate-400 mb-6">
+              {sharingFilter !== 'all' || categoryFilter !== 'all' || chatbotFilter !== 'all'
+                ? 'Try adjusting your filters'
+                : 'Upload your first document to get started'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full">
+              <thead className="bg-slate-900">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider w-12">
+                    #
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Title
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Size
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Chunks
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Created
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700">
+                {filteredDocuments.map((doc, index) => (
+                  <motion.tr
+                    key={doc.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="hover:bg-slate-700/50 transition-colors"
+                  >
+                    <td className="px-4 py-4 text-sm text-slate-400 font-medium">
+                      {index + 1}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                        <span className="font-medium text-white text-sm truncate max-w-[200px]" title={doc.title}>
+                          {doc.title}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300">
+                        {doc.file_type.toUpperCase()}
                       </span>
-                    )}
-                    <span className="text-xs px-2 py-0.5 rounded border bg-slate-700/50 text-slate-300 border-slate-600 flex items-center gap-1">
-                      <Bot className="w-3 h-3" />
-                      {getChatbotName(doc.chatbot_id, chatbots)}
-                    </span>
-                    {doc.auto_classified && doc.classification_confidence && (
-                      <span className="text-xs px-2 py-0.5 rounded border bg-cyan-500/10 text-cyan-400 border-cyan-500/20 flex items-center gap-1" title={`AI Confidence: ${(doc.classification_confidence * 100).toFixed(0)}%`}>
-                        <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full"></span>
-                        AI Classified
-                      </span>
-                    )}
-                    <span className="text-xs px-2 py-0.5 text-slate-500">
-                      {doc.file_type.toUpperCase()} • {formatFileSize(doc.file_size)} • {doc.chunk_count} chunks
-                    </span>
-                  </div>
-
-                  {/* Categories and Topics */}
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {doc.categories && doc.categories.length > 0 && (
-                      <>
-                        {doc.categories.slice(0, 5).map((cat, idx) => (
-                          <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                            {cat}
-                          </span>
-                        ))}
-                        {doc.categories.length > 5 && (
-                          <span className="text-xs px-1.5 py-0.5 text-slate-400">
-                            +{doc.categories.length - 5} more
-                          </span>
-                        )}
-                      </>
-                    )}
-                    {doc.topics && doc.topics.length > 0 && (
-                      <>
-                        {doc.topics.slice(0, 5).map((topic, idx) => (
-                          <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                            #{topic}
-                          </span>
-                        ))}
-                        {doc.topics.length > 5 && (
-                          <span className="text-xs px-1.5 py-0.5 text-slate-400">
-                            +{doc.topics.length - 5} more
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Summary */}
-                  {doc.summary && (
-                    <p className="text-xs text-slate-400 line-clamp-1">{doc.summary}</p>
-                  )}
-                </div>
-
-                {/* Right: Action Buttons */}
-                <div className="flex gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => handleEdit(doc)}
-                    className="p-1.5 hover:bg-slate-700 rounded transition-colors"
-                    title="Edit"
-                  >
-                    <Edit className="w-4 h-4 text-blue-400" />
-                  </button>
-                  {doc.download_url && (
-                    <button
-                      onClick={() => handleDownload(doc)}
-                      className="p-1.5 hover:bg-slate-700 rounded transition-colors"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4 text-slate-400" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(doc.id)}
-                    className="p-1.5 hover:bg-slate-700 rounded transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      ) : (
-        // Grid View
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDocuments.map((doc) => (
-            <motion.div
-              key={doc.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-blue-400" />
-                  <h3 className="font-semibold text-white text-sm truncate">{doc.title}</h3>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleEdit(doc)}
-                    className="p-1 hover:bg-slate-700 rounded transition-colors"
-                    title="Edit"
-                  >
-                    <Edit className="w-4 h-4 text-blue-400" />
-                  </button>
-                  {doc.download_url && (
-                    <button
-                      onClick={() => handleDownload(doc)}
-                      className="p-1 hover:bg-slate-700 rounded transition-colors"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4 text-slate-400" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(doc.id)}
-                    className="p-1 hover:bg-slate-700 rounded transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Badges */}
-              <div className="flex flex-wrap gap-2 mb-3">
-                {doc.scope && (
-                  <span className={`text-xs px-2 py-0.5 rounded border ${getScopeColor(doc.scope)} flex items-center gap-1`}>
-                    <Tag className="w-3 h-3" />
-                    {SCOPES.find(s => s.value === doc.scope)?.label || doc.scope}
-                  </span>
-                )}
-                <span className="text-xs px-2 py-0.5 rounded border bg-slate-700/50 text-slate-300 border-slate-600 flex items-center gap-1">
-                  <Bot className="w-3 h-3" />
-                  {getChatbotName(doc.chatbot_id, chatbots)}
-                </span>
-                {doc.auto_classified && doc.classification_confidence && (
-                  <span className="text-xs px-2 py-0.5 rounded border bg-cyan-500/10 text-cyan-400 border-cyan-500/20 flex items-center gap-1" title={`AI Confidence: ${(doc.classification_confidence * 100).toFixed(0)}%`}>
-                    <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full"></span>
-                    AI Classified
-                  </span>
-                )}
-              </div>
-
-              {/* Categories */}
-              {doc.categories && doc.categories.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {doc.categories.slice(0, 3).map((cat, idx) => (
-                    <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                      {cat}
-                    </span>
-                  ))}
-                  {doc.categories.length > 3 && (
-                    <span className="text-xs px-1.5 py-0.5 text-slate-400">
-                      +{doc.categories.length - 3} more
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Topics */}
-              {doc.topics && doc.topics.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {doc.topics.slice(0, 3).map((topic, idx) => (
-                    <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                      #{topic}
-                    </span>
-                  ))}
-                  {doc.topics.length > 3 && (
-                    <span className="text-xs px-1.5 py-0.5 text-slate-400">
-                      +{doc.topics.length - 3} more
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Summary */}
-              {doc.summary && (
-                <p className="text-xs text-slate-400 mb-3 line-clamp-2">{doc.summary}</p>
-              )}
-
-              {/* Meta */}
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>{doc.file_type.toUpperCase()}</span>
-                <span>{formatFileSize(doc.file_size)}</span>
-                <span>{doc.chunk_count} chunks</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {filteredDocuments.length === 0 && (
-        <div className="text-center py-12">
-          <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-slate-300 mb-2">No documents found</h3>
-          <p className="text-slate-400 mb-6">
-            {scopeFilter !== 'all' || chatbotFilter !== 'all'
-              ? 'Try adjusting your filters'
-              : 'Upload your first document to get started'}
-          </p>
-        </div>
-      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      {doc.category ? (
+                        <span className="text-xs px-2 py-1 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                          {doc.category}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-500">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-slate-400">
+                      {formatFileSize(doc.file_size)}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-slate-400">
+                      {doc.chunk_count ?? '—'}
+                    </td>
+                    <td className="px-4 py-4">
+                      {doc.is_shared !== false ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20 text-xs">
+                          <Globe className="w-3 h-3" />
+                          Shared
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs">
+                          <Lock className="w-3 h-3" />
+                          Specific
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-slate-400">
+                      {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <div className="relative" ref={openActionMenu === doc.id ? actionMenuRef : null}>
+                        <button
+                          onClick={() => setOpenActionMenu(openActionMenu === doc.id ? null : doc.id)}
+                          className="p-2 hover:bg-slate-600 rounded transition-colors"
+                          title="Actions"
+                        >
+                          <MoreVertical className="w-4 h-4 text-slate-400" />
+                        </button>
+                        <AnimatePresence>
+                          {openActionMenu === doc.id && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className="absolute right-0 mt-1 w-40 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-10"
+                            >
+                              <button
+                                onClick={() => {
+                                  handleEdit(doc);
+                                  setOpenActionMenu(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-600 transition-colors rounded-t-lg"
+                              >
+                                <Edit className="w-4 h-4" />
+                                Edit
+                              </button>
+                              {doc.download_url && (
+                                <button
+                                  onClick={() => {
+                                    handleDownload(doc);
+                                    setOpenActionMenu(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-600 transition-colors"
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  handleDelete(doc.id);
+                                  setOpenActionMenu(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-slate-600 transition-colors rounded-b-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Upload Modal */}
       {showUploadModal && (
@@ -608,6 +533,8 @@ export const DocumentsPage: React.FC = () => {
           uploading={uploading}
           selectedFile={selectedFile}
           setSelectedFile={setSelectedFile}
+          isShared={uploadIsShared}
+          setIsShared={setUploadIsShared}
         />
       )}
 
@@ -619,6 +546,8 @@ export const DocumentsPage: React.FC = () => {
           uploading={uploading}
           url={url}
           setUrl={setUrl}
+          isShared={urlIsShared}
+          setIsShared={setUrlIsShared}
         />
       )}
 
@@ -629,6 +558,7 @@ export const DocumentsPage: React.FC = () => {
           onClose={() => {
             setShowEditModal(false);
             setEditingDocument(null);
+            setOriginalContent('');
           }}
           onUpdate={handleUpdateDocument}
           uploading={uploading}
@@ -637,8 +567,11 @@ export const DocumentsPage: React.FC = () => {
           setTitle={setEditTitle}
           content={editContent}
           setContent={setEditContent}
+          originalContent={originalContent}
           category={editCategory}
           setCategory={setEditCategory}
+          isShared={editIsShared}
+          setIsShared={setEditIsShared}
         />
       )}
     </div>
@@ -652,6 +585,8 @@ interface UploadModalProps {
   uploading: boolean;
   selectedFile: File | null;
   setSelectedFile: (file: File | null) => void;
+  isShared: boolean;
+  setIsShared: (value: boolean) => void;
 }
 
 const UploadModal: React.FC<UploadModalProps> = ({
@@ -660,6 +595,8 @@ const UploadModal: React.FC<UploadModalProps> = ({
   uploading,
   selectedFile,
   setSelectedFile,
+  isShared,
+  setIsShared,
 }) => {
   return (
     <motion.div
@@ -694,9 +631,39 @@ const UploadModal: React.FC<UploadModalProps> = ({
             />
           </div>
 
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-            <p className="text-xs text-blue-300">
-              <strong>Shared Knowledge Base:</strong> This document will be added to your company's shared knowledge base and automatically classified by AI into scopes, categories, and topics. Each chatbot will access relevant documents based on its scope configuration.
+          {/* Sharing Option */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Document Access</label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsShared(true)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                  isShared
+                    ? 'bg-green-500/10 border-green-500/50 text-green-400'
+                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                Shared KB
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsShared(false)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                  !isShared
+                    ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
+                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                Chatbot-Specific
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {isShared
+                ? 'Document will be available to all chatbots via shared knowledge base'
+                : 'Document will only be accessible to specifically assigned chatbots'}
             </p>
           </div>
 
@@ -739,7 +706,8 @@ interface URLModalProps {
   uploading: boolean;
   url: string;
   setUrl: (url: string) => void;
-  
+  isShared: boolean;
+  setIsShared: (value: boolean) => void;
 }
 
 const URLModal: React.FC<URLModalProps> = ({
@@ -748,7 +716,8 @@ const URLModal: React.FC<URLModalProps> = ({
   uploading,
   url,
   setUrl,
-  
+  isShared,
+  setIsShared,
 }) => {
   return (
     <motion.div
@@ -784,9 +753,39 @@ const URLModal: React.FC<URLModalProps> = ({
             />
           </div>
 
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-            <p className="text-xs text-blue-300">
-              <strong>Shared Knowledge Base:</strong> This document will be added to your company's shared knowledge base and automatically classified by AI into scopes, categories, and topics. Each chatbot will access relevant documents based on its scope configuration.
+          {/* Sharing Option */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Document Access</label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsShared(true)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                  isShared
+                    ? 'bg-green-500/10 border-green-500/50 text-green-400'
+                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                Shared KB
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsShared(false)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                  !isShared
+                    ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
+                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                Chatbot-Specific
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {isShared
+                ? 'Document will be available to all chatbots via shared knowledge base'
+                : 'Document will only be accessible to specifically assigned chatbots'}
             </p>
           </div>
 
@@ -833,8 +832,11 @@ interface EditModalProps {
   setTitle: (title: string) => void;
   content: string;
   setContent: (content: string) => void;
+  originalContent: string;
   category: string;
   setCategory: (category: string) => void;
+  isShared: boolean;
+  setIsShared: (value: boolean) => void;
 }
 
 const EditModal: React.FC<EditModalProps> = ({
@@ -847,8 +849,11 @@ const EditModal: React.FC<EditModalProps> = ({
   setTitle,
   content,
   setContent,
+  originalContent,
   category,
   setCategory,
+  isShared,
+  setIsShared,
 }) => {
   return (
     <motion.div
@@ -886,28 +891,6 @@ const EditModal: React.FC<EditModalProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Current Classification Info */}
-            {document.scope && (
-              <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-slate-300 mb-2">Current Classification</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`text-xs px-2 py-1 rounded border ${getScopeColor(document.scope)} flex items-center gap-1`}>
-                        <Tag className="w-3 h-3" />
-                        {SCOPES.find(s => s.value === document.scope)?.label || document.scope}
-                      </span>
-                      {document.auto_classified && document.classification_confidence && (
-                        <span className="text-xs px-2 py-1 rounded border bg-cyan-500/10 text-cyan-400 border-cyan-500/20">
-                          AI: {(document.classification_confidence * 100).toFixed(0)}% confidence
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Title */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -942,6 +925,42 @@ const EditModal: React.FC<EditModalProps> = ({
               </select>
             </div>
 
+            {/* Sharing Option */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Document Access</label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsShared(true)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                    isShared
+                      ? 'bg-green-500/10 border-green-500/50 text-green-400'
+                      : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+                  }`}
+                >
+                  <Globe className="w-4 h-4" />
+                  Shared KB
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsShared(false)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                    !isShared
+                      ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
+                      : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+                  }`}
+                >
+                  <Lock className="w-4 h-4" />
+                  Chatbot-Specific
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {isShared
+                  ? 'Document will be available to all chatbots via shared knowledge base'
+                  : 'Document will only be accessible to specifically assigned chatbots'}
+              </p>
+            </div>
+
             {/* Content Textarea */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -959,10 +978,10 @@ const EditModal: React.FC<EditModalProps> = ({
               </p>
             </div>
 
-            {/* AI Re-classification Info */}
+            {/* Info about content updates */}
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
               <p className="text-xs text-blue-300">
-                <strong>AI Re-classification:</strong> When you update the content, the document will be automatically re-chunked, re-embedded, and re-classified by AI into the appropriate scope, categories, and topics.
+                <strong>Note:</strong> When you update the content, the document will be automatically re-chunked and re-embedded for optimal search performance.
               </p>
             </div>
           </div>
@@ -989,12 +1008,12 @@ const EditModal: React.FC<EditModalProps> = ({
                   transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                   className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full"
                 />
-                Updating & Re-classifying...
+                {content !== originalContent ? 'Updating & Regenerating...' : 'Updating...'}
               </>
             ) : (
               <>
                 <Edit className="w-4 h-4" />
-                Update Document
+                {content !== originalContent ? 'Update & Regenerate Embeddings' : 'Update Document'}
               </>
             )}
           </button>

@@ -21,12 +21,16 @@ class ChatbotBranding:
     brand_website: str
     greeting_message: str
     fallback_response: Optional[str] = None
+    # Extended contact details
+    contact_phone: Optional[str] = None
+    contact_address: Optional[str] = None
+    contact_hours: Optional[str] = None
 
-    # Defaults for Githaf Consulting (legacy)
-    DEFAULT_BRAND_NAME = "Githaf Consulting"
-    DEFAULT_SUPPORT_EMAIL = "support@githafconsulting.com"
-    DEFAULT_BRAND_WEBSITE = "https://githafconsulting.com"
-    DEFAULT_GREETING = "Hello! 👋 I'm here to help. How can I assist you today?"
+    # Generic defaults (used when chatbot and company have no branding set)
+    DEFAULT_BRAND_NAME = "AI Assistant"
+    DEFAULT_SUPPORT_EMAIL = "support@example.com"
+    DEFAULT_BRAND_WEBSITE = "https://example.com"
+    DEFAULT_GREETING = "Hello! How can I help you today?"
 
 
 # Cache for chatbot branding (reduces database queries)
@@ -37,13 +41,18 @@ async def get_chatbot_branding(chatbot_id: Optional[str] = None) -> ChatbotBrand
     """
     Get branding configuration for a chatbot.
 
+    Fallback chain for each field:
+    1. chatbot.field (if set)
+    2. company.field (if chatbot.field is NULL)
+    3. Generic default (if both are NULL)
+
     Args:
-        chatbot_id: Chatbot UUID. If None, returns default Githaf Consulting branding.
+        chatbot_id: Chatbot UUID. If None, returns generic default branding.
 
     Returns:
         ChatbotBranding object with brand_name, support_email, brand_website
     """
-    # Default branding (legacy Githaf Consulting)
+    # Default branding (generic)
     if not chatbot_id:
         return ChatbotBranding(
             brand_name=ChatbotBranding.DEFAULT_BRAND_NAME,
@@ -59,18 +68,50 @@ async def get_chatbot_branding(chatbot_id: Optional[str] = None) -> ChatbotBrand
     try:
         client = get_supabase_client()
 
-        # Fetch chatbot branding
+        # Fetch chatbot branding WITH company info for fallback chain
+        # Include custom contact fields for extended branding
         response = client.table("chatbots").select(
-            "brand_name, support_email, brand_website, greeting_message, fallback_response"
+            "brand_name, support_email, brand_website, greeting_message, fallback_response, "
+            "enable_custom_contact, contact_phone, contact_email, contact_address, contact_hours, "
+            "companies(name, website, support_email)"
         ).eq("id", chatbot_id).single().execute()
 
         if response.data:
+            # Extract company data for fallback
+            company = response.data.get("companies") or {}
+            enable_custom = response.data.get("enable_custom_contact", False)
+
+            # Apply fallback chain: chatbot → company → default
+            # For email: custom contact_email → support_email → company.support_email → default
+            support_email = ChatbotBranding.DEFAULT_SUPPORT_EMAIL
+            if enable_custom and response.data.get("contact_email"):
+                support_email = response.data.get("contact_email")
+            elif response.data.get("support_email"):
+                support_email = response.data.get("support_email")
+            elif company.get("support_email"):
+                support_email = company.get("support_email")
+
             branding = ChatbotBranding(
-                brand_name=response.data.get("brand_name") or ChatbotBranding.DEFAULT_BRAND_NAME,
-                support_email=response.data.get("support_email") or ChatbotBranding.DEFAULT_SUPPORT_EMAIL,
-                brand_website=response.data.get("brand_website") or ChatbotBranding.DEFAULT_BRAND_WEBSITE,
-                greeting_message=response.data.get("greeting_message") or ChatbotBranding.DEFAULT_GREETING,
-                fallback_response=response.data.get("fallback_response")
+                brand_name=(
+                    response.data.get("brand_name")
+                    or company.get("name")
+                    or ChatbotBranding.DEFAULT_BRAND_NAME
+                ),
+                support_email=support_email,
+                brand_website=(
+                    response.data.get("brand_website")
+                    or company.get("website")
+                    or ChatbotBranding.DEFAULT_BRAND_WEBSITE
+                ),
+                greeting_message=(
+                    response.data.get("greeting_message")
+                    or ChatbotBranding.DEFAULT_GREETING
+                ),
+                fallback_response=response.data.get("fallback_response"),
+                # Extended contact details (only if custom contact is enabled)
+                contact_phone=response.data.get("contact_phone") if enable_custom else None,
+                contact_address=response.data.get("contact_address") if enable_custom else None,
+                contact_hours=response.data.get("contact_hours") if enable_custom else None
             )
 
             # Cache the branding
@@ -149,12 +190,26 @@ def generate_fallback_response(branding: ChatbotBranding) -> str:
     if branding.fallback_response:
         return branding.fallback_response
 
+    # Build contact options dynamically based on available info
+    contact_options = []
+    contact_options.append(f"- Contact our support team at {branding.support_email}")
+    contact_options.append(f"- Visit our website at {branding.brand_website}")
+
+    if branding.contact_phone:
+        contact_options.append(f"- Call us at {branding.contact_phone}")
+    else:
+        contact_options.append("- Call us during business hours")
+
+    if branding.contact_hours:
+        contact_options.append(f"- Our hours: {branding.contact_hours}")
+
+    if branding.contact_address:
+        contact_options.append(f"- Visit us at: {branding.contact_address}")
+
     return f"""I don't have enough information to answer that question accurately.
 
 For the best assistance, please:
-- Contact our support team at {branding.support_email}
-- Visit our website at {branding.brand_website}
-- Call us during business hours
+{chr(10).join(contact_options)}
 
 Is there anything else I can help you with?"""
 

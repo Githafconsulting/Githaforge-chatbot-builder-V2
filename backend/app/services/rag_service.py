@@ -6,6 +6,7 @@ Includes intent classification for conversational queries
 from typing import List, Dict, Optional, Any
 import random
 import time
+import re
 from app.services.embedding_service import get_embedding
 from app.services.vectorstore_service import similarity_search
 from app.services.llm_service import generate_response
@@ -17,7 +18,8 @@ from app.services.intent_service import (
     get_intent_metadata
 )
 from app.utils.prompts import (
-    CLARIFICATION_RESPONSES
+    CLARIFICATION_RESPONSES,
+    RESPONSE_STYLE_INSTRUCTIONS
 )
 # Import branding service for chatbot-specific prompts
 from app.services.branding_service import (
@@ -41,11 +43,55 @@ from app.services.metrics_service import MetricsContext, record_metric, MetricTy
 logger = get_logger(__name__)
 
 
+def clean_response_formatting(text: str) -> str:
+    """
+    Clean up LLM response formatting for better user readability.
+    Removes markdown headers, excessive formatting, etc.
+
+    Args:
+        text: Raw LLM response text
+
+    Returns:
+        Cleaned text suitable for chat display
+    """
+    if not text:
+        return text
+
+    cleaned = text
+
+    # Remove markdown headers (## Header, ### Header, etc.)
+    cleaned = re.sub(r'^#{1,6}\s+', '', cleaned, flags=re.MULTILINE)
+
+    # Convert **bold** to plain text
+    cleaned = re.sub(r'\*\*([^*]+)\*\*', r'\1', cleaned)
+
+    # Convert *italic* to plain text
+    cleaned = re.sub(r'\*([^*]+)\*', r'\1', cleaned)
+
+    # Convert __bold__ to plain text
+    cleaned = re.sub(r'__([^_]+)__', r'\1', cleaned)
+
+    # Convert _italic_ to plain text
+    cleaned = re.sub(r'_([^_]+)_', r'\1', cleaned)
+
+    # Remove code blocks but keep content
+    cleaned = re.sub(r'```[a-z]*\n?', '', cleaned)
+    cleaned = re.sub(r'```', '', cleaned)
+
+    # Remove inline code backticks
+    cleaned = re.sub(r'`([^`]+)`', r'\1', cleaned)
+
+    # Clean up extra whitespace
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    cleaned = cleaned.strip()
+
+    return cleaned
+
+
 def preprocess_query(query: str) -> str:
     """
     Preprocess query to handle common issues:
-    1. Normalize company name variations (Githaf → Githaf Consulting)
-    2. Fix common misspellings
+    1. Fix common misspellings
 
     Args:
         query: Original user query
@@ -58,13 +104,7 @@ def preprocess_query(query: str) -> str:
 
     processed = query
 
-    # 1. Normalize company name variations
-    # Replace standalone "Githaf" with "Githaf Consulting" (but not if already "Githaf Consulting")
-    import re
-    # Match "Githaf" but not "Githaf Consulting" (case insensitive)
-    processed = re.sub(r'\b(Githaf)(?!\s+Consulting)\b', r'Githaf Consulting', processed, flags=re.IGNORECASE)
-
-    # 2. Fix common misspellings (case-insensitive replacements)
+    # 1. Fix common misspellings (case-insensitive replacements)
     misspelling_map = {
         # Contact-related
         r'\b(emial|emal|e-mail)\b': 'email',
@@ -219,6 +259,9 @@ async def get_conversational_response(
     # Translate conversational response if enabled (Phase 7: Translation)
     from app.services.translation_service import translate_ai_response
     response_text = await translate_ai_response(response_text, session_id=session_id)
+
+    # Clean up response formatting for better readability
+    response_text = clean_response_formatting(response_text)
 
     result = {
         "response": response_text,
@@ -377,6 +420,10 @@ async def get_rag_response(
 
         # 4. Fetch chatbot configuration for scope filtering (MULTITENANCY) and branding
         allowed_scopes = None
+        scope_system_prompt = None  # NEW: Scope-specific system prompt
+        use_shared_kb = True  # NEW: KB mode flag
+        selected_document_ids = None  # NEW: Selected documents for non-shared KB mode
+        response_style = "standard"  # NEW: Response verbosity style
         branding = await get_chatbot_branding(chatbot_id)  # Get branding for prompts
         logger.info(f"Using branding for chatbot: {branding.brand_name}")
 
@@ -385,11 +432,18 @@ async def get_rag_response(
                 from app.core.database import get_supabase_client
                 client = get_supabase_client()
 
-                # Fetch chatbot's allowed_scopes
-                chatbot_response = client.table("chatbots").select("allowed_scopes, company_id").eq("id", chatbot_id).single().execute()
+                # Fetch chatbot config with scope join for scope-specific prompt
+                chatbot_response = client.table("chatbots").select(
+                    "allowed_scopes, company_id, scope_id, use_shared_kb, selected_document_ids, response_style, "
+                    "scopes(name, system_prompt)"
+                ).eq("id", chatbot_id).single().execute()
 
                 if chatbot_response.data:
                     allowed_scopes = chatbot_response.data.get("allowed_scopes")
+                    use_shared_kb = chatbot_response.data.get("use_shared_kb", True)
+                    selected_document_ids = chatbot_response.data.get("selected_document_ids")
+                    response_style = chatbot_response.data.get("response_style", "standard")
+
                     # Extract company_id from chatbot if not provided
                     if not company_id:
                         company_id = chatbot_response.data.get("company_id")
@@ -397,7 +451,14 @@ async def get_rag_response(
                     else:
                         logger.info(f"[ISOLATION] company_id already provided: {company_id}")
 
-                    logger.info(f"[ISOLATION] Chatbot {chatbot_id[:8] if chatbot_id else 'None'}...: allowed_scopes={allowed_scopes}, company_id={company_id[:8] if company_id else 'None'}...")
+                    # NEW: Get scope's system prompt if chatbot has a scope assigned
+                    scope_data = chatbot_response.data.get("scopes")
+                    if scope_data:
+                        scope_system_prompt = scope_data.get("system_prompt")
+                        scope_name = scope_data.get("name")
+                        logger.info(f"[SCOPE] Using scope '{scope_name}' system prompt for chatbot")
+
+                    logger.info(f"[ISOLATION] Chatbot {chatbot_id[:8] if chatbot_id else 'None'}...: allowed_scopes={allowed_scopes}, company_id={company_id[:8] if company_id else 'None'}..., use_shared_kb={use_shared_kb}, response_style={response_style}")
 
             except Exception as e:
                 logger.warning(f"Failed to fetch chatbot config: {e}")
@@ -449,14 +510,16 @@ async def get_rag_response(
 
         # Phase 6: Track search latency
         async with MetricsContext("search", session_id=session_id) as ctx:
-            logger.info(f"[ISOLATION] Calling similarity_search with: company_id={company_id[:8] if company_id else 'None'}..., chatbot_id={chatbot_id[:8] if chatbot_id else 'None'}..., scopes={allowed_scopes}")
+            logger.info(f"[ISOLATION] Calling similarity_search with: company_id={company_id[:8] if company_id else 'None'}..., chatbot_id={chatbot_id[:8] if chatbot_id else 'None'}..., scopes={allowed_scopes}, use_shared_kb={use_shared_kb}")
             relevant_docs = await similarity_search(
                 query_embedding,
                 top_k=top_k,
                 threshold=threshold,
                 company_id=company_id,  # MULTITENANCY: Isolate by company
                 allowed_scopes=allowed_scopes,  # MULTITENANCY: Filter by chatbot scopes
-                chatbot_id=chatbot_id  # MULTITENANCY: Filter by chatbot assignment
+                chatbot_id=chatbot_id,  # MULTITENANCY: Filter by chatbot assignment
+                use_shared_kb=use_shared_kb,  # NEW: KB mode (shared vs specific)
+                selected_document_ids=selected_document_ids  # NEW: Specific docs when not using shared KB
             )
             ctx.add_context({"docs_found": len(relevant_docs) if relevant_docs else 0})
 
@@ -546,16 +609,44 @@ async def get_rag_response(
             logger.info(f"Including {len(memories)} semantic facts in prompt")
 
         # 12. Build prompt with chatbot branding (use original query so user sees their question)
-        # Generate branded RAG system prompt
-        rag_system_prompt = generate_rag_system_prompt(branding)
+        # Use scope-specific system prompt if available, otherwise fall back to branded default
+        if scope_system_prompt:
+            # Use scope's custom prompt with safe variable substitution
+            # NOTE: We use string replace instead of .format() because LLM-generated prompts
+            # may contain unescaped curly braces (JSON examples, etc.) that would break .format()
+            rag_system_prompt = scope_system_prompt
+            rag_system_prompt = rag_system_prompt.replace("{brand_name}", branding.brand_name)
+            rag_system_prompt = rag_system_prompt.replace("{support_email}", branding.support_email)
+            rag_system_prompt = rag_system_prompt.replace("{brand_website}", branding.brand_website)
+            # Keep the context/history/query placeholders for final formatting
+            logger.info(f"[SCOPE] Using scope-specific system prompt (length: {len(rag_system_prompt)})")
+        else:
+            # Fall back to generic branded prompt
+            rag_system_prompt = generate_rag_system_prompt(branding)
+            logger.debug("Using default branded system prompt")
+
+        # 12b. Inject response style instructions
+        style_instruction = RESPONSE_STYLE_INSTRUCTIONS.get(response_style, RESPONSE_STYLE_INSTRUCTIONS["standard"])
+        rag_system_prompt = f"{rag_system_prompt}\n\n{style_instruction}"
+        logger.info(f"[STYLE] Using response_style={response_style}")
+
+        # Helper function for safe string substitution (avoids .format() issues with LLM-generated prompts)
+        def safe_substitute(template: str, **kwargs) -> str:
+            """Replace placeholders without breaking on unescaped braces"""
+            result = template
+            for key, value in kwargs.items():
+                result = result.replace("{" + key + "}", str(value))
+            return result
 
         if memory_text:
             # Include semantic memory in prompt for personalization
-            prompt = f"""{rag_system_prompt.format(
+            base_prompt = safe_substitute(
+                rag_system_prompt,
                 context=context,
                 history=history_text,
                 query=query
-            )}
+            )
+            prompt = f"""{base_prompt}
 
 IMPORTANT - User Facts from Earlier in Conversation:
 {memory_text}
@@ -569,7 +660,8 @@ Use these facts to personalize your response. For example:
 Generate your personalized response now:"""
         else:
             # No memories, use standard branded prompt
-            prompt = rag_system_prompt.format(
+            prompt = safe_substitute(
+                rag_system_prompt,
                 context=context,
                 history=history_text,
                 query=query  # Use original query in prompt for natural response
@@ -649,6 +741,9 @@ Generate your personalized response now:"""
         # 16.5. Translate AI response if enabled (Phase 7: Translation)
         from app.services.translation_service import translate_ai_response
         response_text = await translate_ai_response(response_text, session_id=session_id)
+
+        # 16.6. Clean up response formatting for better readability
+        response_text = clean_response_formatting(response_text)
 
         # 17. Return with validation metadata
         result = {

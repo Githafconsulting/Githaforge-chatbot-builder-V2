@@ -346,12 +346,14 @@ async def retry_with_adjustment(
 
     try:
         # Retry RAG with isolation parameters (CRITICAL: preserve company_id and chatbot_id)
+        # CRITICAL: Set max_retries=0 to prevent nested retry loops!
         response = await get_rag_response(
             query,
             session_id=session_id,
             include_history=False,
             chatbot_id=chatbot_id,
-            company_id=company_id
+            company_id=company_id,
+            max_retries=0  # Prevent nested retries
         )
 
         return response

@@ -15,7 +15,9 @@ async def similarity_search(
     threshold: float = None,
     company_id: str = None,
     allowed_scopes: List[str] = None,
-    chatbot_id: str = None
+    chatbot_id: str = None,
+    use_shared_kb: bool = True,
+    selected_document_ids: List[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Perform cosine similarity search using pgvector with company and scope filtering
@@ -27,6 +29,8 @@ async def similarity_search(
         company_id: Optional company ID to filter documents (multitenancy)
         allowed_scopes: Optional list of scopes to filter documents (e.g., ['sales', 'support'])
         chatbot_id: Optional chatbot ID to filter documents assigned to specific bot
+        use_shared_kb: If True, use shared KB with scope filtering; if False, use only selected documents
+        selected_document_ids: When use_shared_kb=False, only these documents are searched
 
     Returns:
         List[Dict]: List of matching documents with metadata
@@ -59,19 +63,21 @@ async def similarity_search(
 
             logger.info(f"Found {len(results)} matching embeddings (before filtering)")
 
-            # MULTITENANCY: Filter by company_id and scope
-            if company_id or allowed_scopes or chatbot_id:
+            # MULTITENANCY: Filter by company_id, scope, and KB mode
+            if company_id or allowed_scopes or chatbot_id or not use_shared_kb:
                 filtered_results = await _apply_document_filters(
                     results,
                     company_id,
                     allowed_scopes,
-                    chatbot_id
+                    chatbot_id,
+                    use_shared_kb,
+                    selected_document_ids
                 )
 
                 # Limit to requested top_k after filtering
                 filtered_results = filtered_results[:top_k]
 
-                logger.info(f"After filtering: {len(filtered_results)} results (company_id={company_id}, scopes={allowed_scopes}, chatbot_id={chatbot_id})")
+                logger.info(f"After filtering: {len(filtered_results)} results (company_id={company_id}, scopes={allowed_scopes}, chatbot_id={chatbot_id}, use_shared_kb={use_shared_kb})")
 
                 return filtered_results
 
@@ -183,16 +189,20 @@ async def _apply_document_filters(
     embedding_results: List[Dict[str, Any]],
     company_id: Optional[str] = None,
     allowed_scopes: Optional[List[str]] = None,
-    chatbot_id: Optional[str] = None
+    chatbot_id: Optional[str] = None,
+    use_shared_kb: bool = True,
+    selected_document_ids: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
-    Filter embedding search results by document metadata (company_id, scope, chatbot_id)
+    Filter embedding search results by document metadata (company_id, scope, chatbot_id, KB mode)
 
     Args:
         embedding_results: List of embedding matches from similarity search
         company_id: Filter to specific company
         allowed_scopes: Filter to specific scopes (e.g., ['sales', 'support'])
         chatbot_id: Filter to documents assigned to specific chatbot
+        use_shared_kb: If True, use shared KB filtering; if False, use only selected documents
+        selected_document_ids: When use_shared_kb=False, only these documents are allowed
 
     Returns:
         Filtered list of embeddings
@@ -210,12 +220,27 @@ async def _apply_document_filters(
 
         client = get_supabase_client()
 
-        # Fetch document metadata with filters
-        query = client.table("documents").select("id, company_id, scope, chatbot_id").in_("id", document_ids)
+        # Handle non-shared KB mode: only use selected documents
+        if not use_shared_kb and selected_document_ids:
+            # Filter embeddings to only those from selected documents
+            selected_set = set(selected_document_ids)
+            filtered_embeddings = [
+                emb for emb in embedding_results
+                if emb.get("document_id") in selected_set
+            ]
+            logger.info(f"Non-shared KB mode: filtered to {len(filtered_embeddings)} embeddings from {len(selected_document_ids)} selected documents")
+            return filtered_embeddings
+
+        # Shared KB mode: Fetch document metadata with filters
+        query = client.table("documents").select("id, company_id, scope, chatbot_id, is_shared").in_("id", document_ids)
 
         # Apply company filter (CRITICAL for multitenancy isolation)
         if company_id:
             query = query.eq("company_id", company_id)
+
+        # In shared KB mode, only include shared documents (is_shared=TRUE)
+        if use_shared_kb:
+            query = query.eq("is_shared", True)
 
         # Apply chatbot filter (chatbot_id NULL means available to all bots in company)
         if chatbot_id:
@@ -232,7 +257,7 @@ async def _apply_document_filters(
         allowed_documents = response.data if response.data else []
 
         if not allowed_documents:
-            logger.info(f"No documents matched filters (company_id={company_id}, scopes={allowed_scopes}, chatbot_id={chatbot_id})")
+            logger.info(f"No documents matched filters (company_id={company_id}, scopes={allowed_scopes}, chatbot_id={chatbot_id}, use_shared_kb={use_shared_kb})")
             return []
 
         # Create set of allowed document IDs for fast lookup

@@ -69,6 +69,7 @@ export interface Document {
   // Multi-tenancy fields
   company_id?: string;  // Company owner
   chatbot_id?: string | null;  // Optional chatbot assignment (NULL = shared)
+  is_shared?: boolean;  // True = available to all chatbots via shared KB
 
   // AI Classification fields
   scope?: string;  // Primary scope: sales, support, product, billing, hr, legal, marketing, general
@@ -473,6 +474,11 @@ export interface Chatbot {
   secondary_color?: string;
   logo_url?: string;
 
+  // Scope and KB Mode
+  scope_id?: string;  // UUID of assigned scope
+  use_shared_kb: boolean;  // True = shared KB, False = selected docs only
+  selected_document_ids?: string[];  // Doc IDs when use_shared_kb=False
+
   // Widget Appearance
   widget_theme?: 'modern' | 'minimal' | 'classic';
   widget_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -491,9 +497,19 @@ export interface Chatbot {
   top_k: number;
   similarity_threshold: number;
 
+  // Response Style
+  response_style: 'concise' | 'standard' | 'detailed';
+
   // Access Control
   allowed_domains: string[];
   rate_limit_per_ip: number;
+
+  // Custom Contact Details
+  enable_custom_contact?: boolean;
+  contact_phone?: string;
+  contact_email?: string;
+  contact_address?: string;
+  contact_hours?: string;
 
   // Status
   is_active: boolean;
@@ -540,6 +556,11 @@ export interface ChatbotUpdate {
   primary_color?: string;
   secondary_color?: string;
   logo_url?: string;
+  // Scope and KB Mode
+  scope_id?: string;
+  use_shared_kb?: boolean;
+  selected_document_ids?: string[];
+  // Widget Appearance
   widget_theme?: 'modern' | 'minimal' | 'classic';
   widget_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   button_size?: 'small' | 'medium' | 'large';
@@ -556,6 +577,14 @@ export interface ChatbotUpdate {
   similarity_threshold?: number;
   allowed_domains?: string[];
   rate_limit_per_ip?: number;
+  // Custom Contact Details
+  enable_custom_contact?: boolean;
+  contact_phone?: string;
+  contact_email?: string;
+  contact_address?: string;
+  contact_hours?: string;
+  // Response Style
+  response_style?: 'concise' | 'standard' | 'detailed';
 }
 
 export interface ChatbotDeploy {
@@ -575,6 +604,43 @@ export interface ChatbotStats {
 
 export interface ChatbotWithEmbedCode extends Chatbot {
   embed_code: string;
+}
+
+// Scope Types (Role-based chatbot prompt configurations)
+export interface PromptHistoryEntry {
+  prompt: string;
+  saved_at: string;
+  saved_by?: string;
+}
+
+export interface Scope {
+  id: string;
+  company_id: string;
+  name: string;
+  description?: string;
+  system_prompt: string;
+  is_default: boolean;
+  default_prompt?: string;
+  prompt_history: PromptHistoryEntry[];
+  regenerate_context?: string;
+  created_at: string;
+  updated_at: string;
+  chatbot_count?: number;  // Optional - included when listing with counts
+}
+
+export interface ScopeCreate {
+  name: string;
+  description?: string;
+}
+
+export interface ScopeUpdate {
+  name?: string;
+  description?: string;
+  system_prompt?: string;
+}
+
+export interface ScopeRegenerateRequest {
+  context?: string;  // Additional instructions for prompt regeneration
 }
 
 // Signup Types

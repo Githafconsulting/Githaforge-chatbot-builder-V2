@@ -118,7 +118,16 @@ class ChatbotService:
             if not response.data:
                 return None
 
-            logger.info(f"Updated chatbot: {chatbot_id}")
+            # CRITICAL: Clear caches after update to ensure fresh data
+            from app.services.branding_service import clear_branding_cache
+            from app.services.scope_service import clear_scope_cache
+            clear_branding_cache(chatbot_id)
+
+            # If scope was updated, clear scope cache too
+            if "scope_id" in update_data:
+                clear_scope_cache()  # Clear all scope cache since chatbot-scope relationship changed
+
+            logger.info(f"Updated chatbot: {chatbot_id} (caches cleared)")
             return Chatbot(**response.data[0])
 
         except Exception as e:

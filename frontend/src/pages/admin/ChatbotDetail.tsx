@@ -23,10 +23,18 @@ import {
   X,
   RefreshCw,
   Sparkles,
+  Database,
+  Globe,
+  FileText,
+  Target,
+  Phone,
+  Mail,
+  MapPin,
+  Zap,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
-import type { Chatbot, ChatbotUpdate, ChatbotStats, ChatbotWithEmbedCode, ChatResponse } from '../../types';
+import type { Chatbot, ChatbotUpdate, ChatbotStats, ChatbotWithEmbedCode, ChatResponse, Scope, Document } from '../../types';
 
 type TabType = 'settings' | 'appearance' | 'training' | 'analytics' | 'embed';
 
@@ -40,12 +48,16 @@ export const ChatbotDetailPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('settings');
   const [copied, setCopied] = useState(false);
+  const [scopes, setScopes] = useState<Scope[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
 
   useEffect(() => {
     if (chatbotId) {
       loadChatbot();
       loadStats();
       loadEmbedCode();
+      loadScopes();
+      loadDocuments();
     }
   }, [chatbotId]);
 
@@ -81,6 +93,24 @@ export const ChatbotDetailPage: React.FC = () => {
     }
   };
 
+  const loadScopes = async () => {
+    try {
+      const data = await apiService.getScopes();
+      setScopes(data);
+    } catch (error) {
+      console.error('Failed to load scopes:', error);
+    }
+  };
+
+  const loadDocuments = async () => {
+    try {
+      const data = await apiService.getDocuments();
+      setDocuments(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+    }
+  };
+
   const handleSave = async () => {
     if (!chatbot) return;
 
@@ -108,6 +138,15 @@ export const ChatbotDetailPage: React.FC = () => {
         similarity_threshold: chatbot.similarity_threshold,
         allowed_domains: chatbot.allowed_domains,
         rate_limit_per_ip: chatbot.rate_limit_per_ip,
+        scope_id: chatbot.scope_id,
+        use_shared_kb: chatbot.use_shared_kb,
+        selected_document_ids: chatbot.selected_document_ids,
+        enable_custom_contact: chatbot.enable_custom_contact,
+        contact_phone: chatbot.contact_phone,
+        contact_email: chatbot.contact_email,
+        contact_address: chatbot.contact_address,
+        contact_hours: chatbot.contact_hours,
+        response_style: chatbot.response_style,
       };
       const updated = await apiService.updateChatbot(chatbot.id, updates);
       setChatbot(updated);
@@ -198,78 +237,84 @@ export const ChatbotDetailPage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/admin/chatbots')}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-400" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-white">{chatbot.name}</h1>
-            <p className="text-slate-400 mt-1">
-              {chatbot.description || 'No description'}
-            </p>
+    <div className="flex flex-col -mt-6 lg:-mt-8 -mx-6 lg:-mx-8">
+      {/* Fixed Header and Tabs */}
+      <div className="sticky top-0 z-20 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-900/95 backdrop-blur-sm pb-4 px-6 lg:px-8 pt-6 lg:pt-8">
+        {/* Header */}
+        <div className="flex items-center justify-between py-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/admin/chatbots')}
+              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-400" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-white">{chatbot.name}</h1>
+              <p className="text-slate-400 mt-1">
+                {chatbot.description || 'No description'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {chatbot.deploy_status === 'deployed' ? (
+              <button
+                onClick={handlePause}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors"
+              >
+                <Pause className="w-4 h-4" />
+                Pause
+              </button>
+            ) : (
+              <button
+                onClick={handleDeploy}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Deploy
+              </button>
+            )}
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {chatbot.deploy_status === 'deployed' ? (
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-slate-700 overflow-x-auto">
+          {tabs.map((tab) => (
             <button
-              onClick={handlePause}
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+              }`}
             >
-              <Pause className="w-4 h-4" />
-              Pause
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
             </button>
-          ) : (
-            <button
-              onClick={handleDeploy}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-            >
-              <Play className="w-4 h-4" />
-              Deploy
-            </button>
-          )}
-          <button
-            onClick={handleDelete}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </button>
+          ))}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-700 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
-                : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* Tab Content */}
-      <AnimatePresence mode="wait">
+      <div className="pt-6 px-6 lg:px-8">
+        <AnimatePresence mode="wait">
         {activeTab === 'settings' && (
           <SettingsTab
             chatbot={chatbot}
             setChatbot={setChatbot}
             onSave={handleSave}
             saving={saving}
+            scopes={scopes}
+            documents={documents}
           />
         )}
         {activeTab === 'appearance' && (
@@ -293,7 +338,8 @@ export const ChatbotDetailPage: React.FC = () => {
             copied={copied}
           />
         )}
-      </AnimatePresence>
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
@@ -304,9 +350,24 @@ interface SettingsTabProps {
   setChatbot: (chatbot: Chatbot) => void;
   onSave: () => void;
   saving: boolean;
+  scopes: Scope[];
+  documents: Document[];
 }
 
-const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, saving }) => {
+const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, saving, scopes, documents }) => {
+  // Filter documents for selection (only shared documents)
+  const availableDocuments = documents.filter(d => d.is_shared !== false);
+
+  const toggleDocumentSelection = (docId: string) => {
+    const currentSelected = chatbot.selected_document_ids || [];
+    const newSelected = currentSelected.includes(docId)
+      ? currentSelected.filter(id => id !== docId)
+      : [...currentSelected, docId];
+    setChatbot({ ...chatbot, selected_document_ids: newSelected });
+  };
+
+  const selectedScope = scopes.find(s => s.id === chatbot.scope_id);
+
   return (
     <motion.div
       key="settings"
@@ -315,6 +376,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
+      {/* Basic Information */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
         <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
 
@@ -362,26 +424,330 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
             className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
           />
         </div>
+      </div>
 
-        <div className="pt-4 flex justify-end">
+      {/* Response Style */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Zap className="w-5 h-5 text-yellow-400" />
+          <h3 className="text-lg font-semibold text-white">Response Style</h3>
+        </div>
+
+        <p className="text-sm text-slate-400 mb-4">
+          Control how verbose or detailed the chatbot's responses should be.
+        </p>
+
+        <div className="grid grid-cols-3 gap-3">
           <button
-            onClick={onSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setChatbot({ ...chatbot, response_style: 'concise' })}
+            className={`p-4 rounded-lg border-2 transition-all text-left ${
+              (chatbot.response_style || 'standard') === 'concise'
+                ? 'border-yellow-500 bg-yellow-500/10'
+                : 'border-slate-600 hover:border-slate-500'
+            }`}
           >
-            {saving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Save Changes
-              </>
-            )}
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-yellow-400" />
+              <span className="font-medium text-white">Concise</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              1-2 sentences. Quick, direct answers with no filler.
+            </p>
+          </button>
+
+          <button
+            onClick={() => setChatbot({ ...chatbot, response_style: 'standard' })}
+            className={`p-4 rounded-lg border-2 transition-all text-left ${
+              (chatbot.response_style || 'standard') === 'standard'
+                ? 'border-blue-500 bg-blue-500/10'
+                : 'border-slate-600 hover:border-slate-500'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-blue-400" />
+              <span className="font-medium text-white">Standard</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              2-3 sentences. Balanced responses with context.
+            </p>
+          </button>
+
+          <button
+            onClick={() => setChatbot({ ...chatbot, response_style: 'detailed' })}
+            className={`p-4 rounded-lg border-2 transition-all text-left ${
+              (chatbot.response_style || 'standard') === 'detailed'
+                ? 'border-green-500 bg-green-500/10'
+                : 'border-slate-600 hover:border-slate-500'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-green-400" />
+              <span className="font-medium text-white">Detailed</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              3-5 sentences. Comprehensive answers with examples.
+            </p>
           </button>
         </div>
+      </div>
+
+      {/* Scope Assignment */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Target className="w-5 h-5 text-purple-400" />
+          <h3 className="text-lg font-semibold text-white">Scope Assignment</h3>
+        </div>
+
+        <p className="text-sm text-slate-400 mb-4">
+          Assign a scope to define this chatbot's personality, expertise area, and response style.
+        </p>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Select Scope</label>
+          <select
+            value={chatbot.scope_id || ''}
+            onChange={(e) => setChatbot({ ...chatbot, scope_id: e.target.value || undefined })}
+            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          >
+            <option value="">No Scope (Default behavior)</option>
+            {scopes.map((scope) => (
+              <option key={scope.id} value={scope.id}>
+                {scope.name} - {scope.description || 'No description'}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedScope && (
+          <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+            <p className="text-sm font-medium text-purple-300 mb-2">{selectedScope.name}</p>
+            <p className="text-xs text-slate-400 mb-2">{selectedScope.description}</p>
+            <p className="text-xs text-slate-500 line-clamp-3 font-mono">
+              {selectedScope.system_prompt?.substring(0, 200)}...
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Knowledge Base Mode */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Database className="w-5 h-5 text-blue-400" />
+          <h3 className="text-lg font-semibold text-white">Knowledge Base Access</h3>
+        </div>
+
+        <p className="text-sm text-slate-400 mb-4">
+          Choose whether this chatbot accesses the entire shared knowledge base or only specific documents.
+        </p>
+
+        {/* KB Mode Toggle */}
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => setChatbot({ ...chatbot, use_shared_kb: true, selected_document_ids: [] })}
+            className={`p-4 rounded-lg border-2 transition-all ${
+              chatbot.use_shared_kb
+                ? 'border-blue-500 bg-blue-500/10'
+                : 'border-slate-600 hover:border-slate-500'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <Globe className="w-5 h-5 text-blue-400" />
+              <span className="font-medium text-white">Shared Knowledge Base</span>
+            </div>
+            <p className="text-xs text-slate-400 text-left">
+              Access all shared documents in your company's knowledge base
+            </p>
+          </button>
+
+          <button
+            onClick={() => setChatbot({ ...chatbot, use_shared_kb: false })}
+            className={`p-4 rounded-lg border-2 transition-all ${
+              !chatbot.use_shared_kb
+                ? 'border-amber-500 bg-amber-500/10'
+                : 'border-slate-600 hover:border-slate-500'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <FileText className="w-5 h-5 text-amber-400" />
+              <span className="font-medium text-white">Selected Documents Only</span>
+            </div>
+            <p className="text-xs text-slate-400 text-left">
+              Only access specific documents you choose below
+            </p>
+          </button>
+        </div>
+
+        {/* Document Picker (when not using shared KB) */}
+        {!chatbot.use_shared_kb && (
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-slate-300 mb-3">
+              Select Documents ({chatbot.selected_document_ids?.length || 0} selected)
+            </label>
+
+            {availableDocuments.length === 0 ? (
+              <div className="p-6 text-center bg-slate-900 rounded-lg border border-slate-700">
+                <FileText className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                <p className="text-slate-400">No shared documents available</p>
+                <p className="text-xs text-slate-500 mt-1">Upload documents to your knowledge base first</p>
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto bg-slate-900 rounded-lg border border-slate-700">
+                {availableDocuments.map((doc) => {
+                  const isSelected = chatbot.selected_document_ids?.includes(doc.id) || false;
+                  return (
+                    <label
+                      key={doc.id}
+                      className={`flex items-center gap-3 p-3 border-b border-slate-700 last:border-0 cursor-pointer hover:bg-slate-800 transition-colors ${
+                        isSelected ? 'bg-blue-500/5' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleDocumentSelection(doc.id)}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{doc.title}</p>
+                        <p className="text-xs text-slate-400">
+                          {doc.file_type.toUpperCase()} • {doc.chunk_count || 0} chunks
+                          {doc.scope && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                              {doc.scope}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {(chatbot.selected_document_ids?.length || 0) === 0 && !chatbot.use_shared_kb && (
+              <p className="mt-2 text-xs text-amber-400">
+                Please select at least one document for this chatbot to use.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Custom Contact Details */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Phone className="w-5 h-5 text-green-400" />
+            <h3 className="text-lg font-semibold text-white">Contact Details</h3>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={chatbot.enable_custom_contact ?? false}
+              onChange={(e) => setChatbot({ ...chatbot, enable_custom_contact: e.target.checked })}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-slate-600 peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+            <span className="ml-2 text-sm text-slate-300">Enable Custom</span>
+          </label>
+        </div>
+
+        <p className="text-sm text-slate-400 mb-4">
+          {chatbot.enable_custom_contact
+            ? 'Custom contact details will be used in fallback responses.'
+            : 'Enable to provide custom contact information for this chatbot. Otherwise, company defaults are used.'}
+        </p>
+
+        {chatbot.enable_custom_contact && (
+          <div className="space-y-4 pt-2 border-t border-slate-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-slate-400" />
+                    Phone Number
+                  </div>
+                </label>
+                <input
+                  type="tel"
+                  value={chatbot.contact_phone || ''}
+                  onChange={(e) => setChatbot({ ...chatbot, contact_phone: e.target.value })}
+                  placeholder="+1 (555) 123-4567"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                    Email Address
+                  </div>
+                </label>
+                <input
+                  type="email"
+                  value={chatbot.contact_email || ''}
+                  onChange={(e) => setChatbot({ ...chatbot, contact_email: e.target.value })}
+                  placeholder="support@company.com"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-green-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-slate-400" />
+                  Physical Address
+                </div>
+              </label>
+              <input
+                type="text"
+                value={chatbot.contact_address || ''}
+                onChange={(e) => setChatbot({ ...chatbot, contact_address: e.target.value })}
+                placeholder="123 Main St, City, Country"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-green-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-slate-400" />
+                  Business Hours
+                </div>
+              </label>
+              <input
+                type="text"
+                value={chatbot.contact_hours || ''}
+                onChange={(e) => setChatbot({ ...chatbot, contact_hours: e.target.value })}
+                placeholder="Mon-Fri 9AM-5PM EST"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-green-500"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={onSave}
+          disabled={saving || (!chatbot.use_shared_kb && (chatbot.selected_document_ids?.length || 0) === 0)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              Save Changes
+            </>
+          )}
+        </button>
       </div>
     </motion.div>
   );
@@ -402,7 +768,7 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ chatbot, setChatbot, onSa
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+      className="lg:grid lg:grid-cols-2 gap-6"
     >
       {/* Left Side - Settings */}
       <div className="space-y-6">
@@ -636,17 +1002,35 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ chatbot, setChatbot, onSa
         </div>
       </div>
 
-      {/* Right Side - Preview */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Live Preview</h3>
-        <div className="relative bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg overflow-hidden" style={{ height: '600px' }}>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-slate-400 text-sm text-center">
-              <p>Preview of your website</p>
-              <p className="text-xs mt-1 opacity-70">Click the chat button to interact</p>
+      {/* Right Side - Preview (Fixed position on large screens) */}
+      <div className="hidden lg:block lg:fixed lg:right-8 lg:top-[200px] lg:w-[calc(50%-2rem-144px)]">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Live Preview</h3>
+          <div className="relative bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 280px)', maxHeight: '600px' }}>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-slate-400 text-sm text-center">
+                <p>Preview of your website</p>
+                <p className="text-xs mt-1 opacity-70">Click the chat button to interact</p>
+              </div>
             </div>
+            <WidgetPreview chatbot={chatbot} />
           </div>
-          <WidgetPreview chatbot={chatbot} />
+        </div>
+      </div>
+
+      {/* Mobile Preview (shown below settings on small screens) */}
+      <div className="lg:hidden mt-6">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Live Preview</h3>
+          <div className="relative bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg overflow-hidden" style={{ height: '500px' }}>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-slate-400 text-sm text-center">
+                <p>Preview of your website</p>
+                <p className="text-xs mt-1 opacity-70">Click the chat button to interact</p>
+              </div>
+            </div>
+            <WidgetPreview chatbot={chatbot} />
+          </div>
         </div>
       </div>
     </motion.div>

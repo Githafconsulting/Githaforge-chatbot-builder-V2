@@ -32,10 +32,15 @@ class DocumentUpdateRequest(BaseModel):
     category: Optional[str] = None
 
 
+class DocumentSharingRequest(BaseModel):
+    is_shared: bool
+
+
 @router.get("/", response_model=DocumentList)
 async def list_documents(
     limit: int = 100,
     offset: int = 0,
+    is_shared: Optional[bool] = None,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -43,6 +48,8 @@ async def list_documents(
 
     Returns documents filtered by user's company.
     Super admins see all documents across all companies.
+
+    - **is_shared**: Optional filter for shared/non-shared documents
 
     Requires authentication
     """
@@ -53,7 +60,8 @@ async def list_documents(
         documents = await get_all_documents(
             limit=limit,
             offset=offset,
-            company_id=company_id
+            company_id=company_id,
+            is_shared=is_shared
         )
 
         return DocumentList(
@@ -70,12 +78,15 @@ async def list_documents(
 async def upload_document(
     file: UploadFile = File(...),
     category: Optional[str] = Form(None),
+    is_shared: Optional[bool] = Form(True),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Upload a document file (PDF, TXT, DOCX)
 
     Document is associated with the user's company.
+
+    - **is_shared**: If true, document is available to all chatbots via shared KB (default: true)
 
     Requires authentication
     """
@@ -85,14 +96,15 @@ async def upload_document(
 
         # Read file content
         file_content = await file.read()
-        logger.info(f"[UPLOAD ROUTE] Read file: {file.filename}, size: {len(file_content)} bytes")
+        logger.info(f"[UPLOAD ROUTE] Read file: {file.filename}, size: {len(file_content)} bytes, is_shared: {is_shared}")
 
         # Process file with company_id
         document = await process_file_upload(
             file_content=file_content,
             filename=file.filename,
             category=category,
-            company_id=company_id
+            company_id=company_id,
+            is_shared=is_shared
         )
 
         return {
@@ -110,12 +122,15 @@ async def upload_document(
 async def add_url(
     url: str = Form(...),
     category: Optional[str] = Form(None),
+    is_shared: Optional[bool] = Form(True),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Add a document from URL
 
     Document is associated with the user's company.
+
+    - **is_shared**: If true, document is available to all chatbots via shared KB (default: true)
 
     Requires authentication
     """
@@ -126,7 +141,8 @@ async def add_url(
         document = await process_url(
             url=url,
             category=category,
-            company_id=company_id
+            company_id=company_id,
+            is_shared=is_shared
         )
 
         return {
@@ -348,4 +364,49 @@ async def remove_document(
         raise
     except Exception as e:
         logger.error(f"Error deleting document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{document_id}/sharing")
+async def update_document_sharing(
+    document_id: str,
+    sharing_request: DocumentSharingRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Toggle document sharing status
+
+    - **is_shared=true**: Document available to all chatbots via shared KB
+    - **is_shared=false**: Document only accessible via explicit selection
+
+    Verifies user owns the document before updating.
+
+    Requires authentication
+    """
+    try:
+        from app.services.document_service import update_document_sharing as update_sharing
+
+        # First verify ownership
+        document = await get_document_by_id(document_id)
+        verify_resource_ownership(document, document_id, current_user, "Document")
+
+        # Update sharing status
+        updated_document = await update_sharing(
+            document_id=document_id,
+            is_shared=sharing_request.is_shared
+        )
+
+        if not updated_document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        return {
+            "success": True,
+            "message": f"Document sharing {'enabled' if sharing_request.is_shared else 'disabled'}",
+            "document": updated_document
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating document sharing: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -33,6 +33,10 @@ import type {
   ChatbotWithEmbedCode,
   UnifiedSignupRequest,
   SignupResponse,
+  Scope,
+  ScopeCreate,
+  ScopeUpdate,
+  ScopeRegenerateRequest,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -180,12 +184,13 @@ class ApiService {
     return response.data;
   }
 
-  async uploadDocument(file: File, category?: string): Promise<Document> {
+  async uploadDocument(file: File, category?: string, isShared: boolean = true): Promise<Document> {
     const formData = new FormData();
     formData.append('file', file);  // Field name MUST be 'file'
     if (category) {
       formData.append('category', category);
     }
+    formData.append('is_shared', String(isShared));
 
     const response = await this.api.post('/api/v1/documents/upload', formData, {
       headers: {
@@ -197,13 +202,14 @@ class ApiService {
     return response.data.document || response.data;
   }
 
-  async addDocumentFromUrl(url: string, category?: string): Promise<Document> {
+  async addDocumentFromUrl(url: string, category?: string, isShared: boolean = true): Promise<Document> {
     // URL endpoint expects form-urlencoded, NOT JSON
     const formData = new URLSearchParams();
     formData.append('url', url);
     if (category) {
       formData.append('category', category);
     }
+    formData.append('is_shared', String(isShared));
 
     const response = await this.api.post('/api/v1/documents/url', formData, {
       headers: {
@@ -230,6 +236,22 @@ class ApiService {
 
   async deleteDocument(id: string): Promise<void> {
     await this.api.delete(`/api/v1/documents/${id}`);
+  }
+
+  async updateDocumentSharing(id: string, isShared: boolean): Promise<Document> {
+    const response = await this.api.put(`/api/v1/documents/${id}/sharing`, {
+      is_shared: isShared
+    });
+    return response.data.document || response.data;
+  }
+
+  async getDocumentsFiltered(isShared?: boolean): Promise<Document[]> {
+    const params: Record<string, any> = {};
+    if (isShared !== undefined) {
+      params.is_shared = isShared;
+    }
+    const response = await this.api.get('/api/v1/documents/', { params });
+    return response.data.documents || response.data;
   }
 
   async downloadDocument(id: string): Promise<void> {
@@ -590,6 +612,72 @@ class ApiService {
 
   async getChatbotWithEmbedCode(chatbotId: string): Promise<ChatbotWithEmbedCode> {
     const response = await this.api.get(`/api/v1/chatbots/${chatbotId}/embed-code`);
+    return response.data;
+  }
+
+  async assignChatbotScope(chatbotId: string, scopeId: string | null): Promise<Chatbot> {
+    const response = await this.api.put(`/api/v1/chatbots/${chatbotId}/scope`, {
+      scope_id: scopeId
+    });
+    return response.data;
+  }
+
+  async setChatbotKBMode(
+    chatbotId: string,
+    useSharedKB: boolean,
+    selectedDocumentIds?: string[]
+  ): Promise<Chatbot> {
+    const response = await this.api.put(`/api/v1/chatbots/${chatbotId}/kb-mode`, {
+      use_shared_kb: useSharedKB,
+      selected_document_ids: selectedDocumentIds
+    });
+    return response.data;
+  }
+
+  // Scope APIs (Role-based chatbot prompt configurations)
+  async getScopes(includeChatbotCount: boolean = false): Promise<Scope[]> {
+    const response = await this.api.get('/api/v1/scopes/', {
+      params: { include_chatbot_count: includeChatbotCount }
+    });
+    return response.data;
+  }
+
+  async getScope(scopeId: string): Promise<Scope> {
+    const response = await this.api.get(`/api/v1/scopes/${scopeId}`);
+    return response.data;
+  }
+
+  async createScope(data: ScopeCreate): Promise<Scope> {
+    const response = await this.api.post('/api/v1/scopes/', data);
+    return response.data;
+  }
+
+  async updateScope(scopeId: string, data: ScopeUpdate): Promise<Scope> {
+    const response = await this.api.put(`/api/v1/scopes/${scopeId}`, data);
+    return response.data;
+  }
+
+  async deleteScope(scopeId: string): Promise<void> {
+    await this.api.delete(`/api/v1/scopes/${scopeId}`);
+  }
+
+  async regenerateScopePrompt(scopeId: string, request: ScopeRegenerateRequest): Promise<Scope> {
+    const response = await this.api.post(`/api/v1/scopes/${scopeId}/regenerate`, request);
+    return response.data;
+  }
+
+  async restoreScopeToDefault(scopeId: string): Promise<Scope> {
+    const response = await this.api.post(`/api/v1/scopes/${scopeId}/restore-default`);
+    return response.data;
+  }
+
+  async restoreScopeToLastSaved(scopeId: string): Promise<Scope> {
+    const response = await this.api.post(`/api/v1/scopes/${scopeId}/restore-last-saved`);
+    return response.data;
+  }
+
+  async seedDefaultScopes(): Promise<Scope[]> {
+    const response = await this.api.post('/api/v1/scopes/seed-defaults');
     return response.data;
   }
 

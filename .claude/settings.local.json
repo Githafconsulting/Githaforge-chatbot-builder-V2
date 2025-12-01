@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(python -m uvicorn:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(cd:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

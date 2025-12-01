@@ -77,15 +77,14 @@ export const AdminLayout: React.FC = () => {
 
   const navItems = [
     { path: '/admin', label: t('nav.analytics'), icon: BarChart3, color: 'text-blue-400' },
-    { path: '/admin/chatbots', label: 'My Chatbots', icon: Bot, color: 'text-cyan-400' },
+    { path: '/admin/chatbots', label: 'Chatbots', icon: Bot, color: 'text-cyan-400' },
     { path: '/admin/documents', label: t('nav.knowledgeBase'), icon: FileText, color: 'text-green-400' },
-    { path: '/admin/conversations', label: t('nav.conversations'), icon: MessageSquare, color: 'text-purple-400' },
+    { path: '/admin/conversations', label: t('nav.conversations'), icon: MessageSquare, color: 'text-violet-400' },
     { path: '/admin/flagged', label: t('nav.flaggedQueries'), icon: Flag, color: 'text-red-400' },
     { path: '/admin/learning', label: t('nav.learning'), icon: Brain, color: 'text-emerald-400' },
     { path: '/admin/team', label: 'Team Management', icon: Users, color: 'text-amber-400' },
-    { path: '/admin/company', label: 'Company Settings', icon: Building2, color: 'text-purple-400' },
+    { path: '/admin/company', label: 'Company Settings', icon: Building2, color: 'text-fuchsia-400' },
     ...(canAccessBilling ? [{ path: '/admin/billing', label: 'Billing & Plans', icon: DollarSign, color: 'text-yellow-400' }] : []),
-    { path: '/admin/chatbot', label: 'Chatbot Config', icon: Settings, color: 'text-teal-400' },
     { path: '/admin/integrations', label: 'Integrations', icon: Cloud, color: 'text-sky-400' },
     { path: '/admin/widget', label: t('nav.widgetSettings'), icon: Settings, color: 'text-pink-400' },
     { path: '/admin/settings', label: t('nav.systemSettings'), icon: Settings, color: 'text-indigo-400' },

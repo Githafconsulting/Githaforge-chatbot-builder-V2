@@ -23,6 +23,9 @@ class ChatbotBase(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
     similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
 
+    # Response Style
+    response_style: str = Field(default="standard", pattern=r'^(concise|standard|detailed)$')
+
     # Access Control
     allowed_domains: Optional[List[str]] = Field(default_factory=list)
     rate_limit_per_ip: int = Field(default=10, ge=1, le=100)
@@ -46,6 +49,18 @@ class ChatbotUpdate(BaseModel):
     secondary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     logo_url: Optional[str] = None
 
+    # Scope and KB Mode (NEW)
+    scope_id: Optional[str] = None  # UUID of assigned scope
+    use_shared_kb: Optional[bool] = None  # True = shared KB, False = selected docs only
+    selected_document_ids: Optional[List[str]] = None  # Doc IDs when use_shared_kb=False
+
+    # Custom Contact Details
+    enable_custom_contact: Optional[bool] = None  # Toggle for custom contact info
+    contact_phone: Optional[str] = Field(None, max_length=50)
+    contact_email: Optional[str] = Field(None, max_length=255)
+    contact_address: Optional[str] = None
+    contact_hours: Optional[str] = None  # e.g., "Mon-Fri 9AM-5PM"
+
     # Widget Appearance
     widget_theme: Optional[str] = Field(None, pattern=r'^(modern|minimal|classic)$')
     widget_position: Optional[str] = Field(None, pattern=r'^(bottom-right|bottom-left|top-right|top-left)$')
@@ -65,6 +80,9 @@ class ChatbotUpdate(BaseModel):
     allowed_domains: Optional[List[str]] = None
     rate_limit_per_ip: Optional[int] = Field(None, ge=1, le=100)
 
+    # Response Style
+    response_style: Optional[str] = Field(None, pattern=r'^(concise|standard|detailed)$')
+
 
 class Chatbot(ChatbotBase):
     """Chatbot model with database fields"""
@@ -72,6 +90,21 @@ class Chatbot(ChatbotBase):
     company_id: str
     is_active: bool = True
     deploy_status: str = "draft"  # draft, deployed, paused
+
+    # Scope and KB Mode (NEW)
+    scope_id: Optional[str] = None  # UUID of assigned scope
+    use_shared_kb: bool = True  # True = shared KB, False = selected docs only
+    selected_document_ids: Optional[List[str]] = None  # Doc IDs when use_shared_kb=False
+
+    # Custom Contact Details
+    enable_custom_contact: bool = False
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_address: Optional[str] = None
+    contact_hours: Optional[str] = None
+
+    # Response Style (overrides base default if set in DB)
+    response_style: str = "standard"
 
     # Metrics
     total_conversations: int = 0

@@ -3,6 +3,7 @@ Chatbot CRUD API routes for multi-bot management
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional
+from pydantic import BaseModel
 from app.models.chatbot import (
     ChatbotCreate,
     ChatbotUpdate,
@@ -16,6 +17,17 @@ from app.core.dependencies import get_current_user, require_permission, require_
 from app.models.user import User
 
 router = APIRouter()
+
+
+class ScopeAssignRequest(BaseModel):
+    """Request to assign a scope to a chatbot"""
+    scope_id: Optional[str] = None  # None to remove scope assignment
+
+
+class KBModeRequest(BaseModel):
+    """Request to set knowledge base mode for a chatbot"""
+    use_shared_kb: bool
+    selected_document_ids: Optional[List[str]] = None  # Required if use_shared_kb=False
 
 
 @router.post("/", response_model=Chatbot, status_code=status.HTTP_201_CREATED)
@@ -338,3 +350,110 @@ async def get_embed_code(
         )
 
     return chatbot_with_code
+
+
+@router.put("/{chatbot_id}/scope", response_model=Chatbot)
+async def assign_scope(
+    chatbot_id: str,
+    scope_request: ScopeAssignRequest,
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("edit_chatbots"))
+):
+    """
+    Assign a scope to a chatbot
+
+    - **chatbot_id**: UUID of the chatbot
+    - **scope_id**: UUID of the scope to assign (null to remove)
+
+    The scope determines the chatbot's system prompt behavior.
+    Setting scope_id to null removes scope assignment (uses default prompt).
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
+
+    # Verify scope belongs to company if provided
+    if scope_request.scope_id:
+        from app.services.scope_service import get_scope_service
+        scope_service = get_scope_service()
+        scope = await scope_service.get_scope(scope_request.scope_id, str(company_id))
+        if not scope:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scope {scope_request.scope_id} not found"
+            )
+
+    # Update chatbot with new scope
+    service = ChatbotService()
+    chatbot_update = ChatbotUpdate(scope_id=scope_request.scope_id)
+    chatbot = await service.update_chatbot(chatbot_id, chatbot_update, str(company_id))
+
+    if not chatbot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chatbot {chatbot_id} not found"
+        )
+
+    return chatbot
+
+
+@router.put("/{chatbot_id}/kb-mode", response_model=Chatbot)
+async def set_kb_mode(
+    chatbot_id: str,
+    kb_request: KBModeRequest,
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("edit_chatbots"))
+):
+    """
+    Set knowledge base access mode for a chatbot
+
+    - **chatbot_id**: UUID of the chatbot
+    - **use_shared_kb**: True = use shared KB, False = use selected documents only
+    - **selected_document_ids**: Required if use_shared_kb=False
+
+    Shared KB mode: Chatbot searches all shared documents in the company's KB
+    Selected mode: Chatbot only searches the explicitly selected documents
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
+
+    # Validate: if not using shared KB, must have selected documents
+    if not kb_request.use_shared_kb and not kb_request.selected_document_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="selected_document_ids is required when use_shared_kb=false"
+        )
+
+    # Verify selected documents exist and belong to company
+    if kb_request.selected_document_ids:
+        from app.services.document_service import get_document_by_id
+        for doc_id in kb_request.selected_document_ids:
+            doc = await get_document_by_id(doc_id)
+            if not doc or doc.get("company_id") != str(company_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document {doc_id} not found or doesn't belong to your company"
+                )
+
+    # Update chatbot with KB mode settings
+    service = ChatbotService()
+    chatbot_update = ChatbotUpdate(
+        use_shared_kb=kb_request.use_shared_kb,
+        selected_document_ids=kb_request.selected_document_ids
+    )
+    chatbot = await service.update_chatbot(chatbot_id, chatbot_update, str(company_id))
+
+    if not chatbot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chatbot {chatbot_id} not found"
+        )
+
+    return chatbot

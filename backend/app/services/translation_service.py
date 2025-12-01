@@ -72,17 +72,18 @@ async def translate_text(text: str, target_language: str, source_language: str =
 async def should_translate_response(session_id: Optional[str] = None) -> bool:
     """
     Check if AI responses should be translated based on system settings
-    
+
     Args:
         session_id: Optional session ID
-    
+
     Returns:
         Boolean indicating if translation is enabled
     """
     try:
         from app.services.settings_service import get_settings
         settings = await get_settings()
-        return settings.get("translate_ai_responses", False)
+        # Settings is a Pydantic model, use attribute access not .get()
+        return getattr(settings, "translate_ai_responses", False) if settings else False
     except Exception as e:
         logger.error(f"Error checking translation settings: {e}")
         return False
@@ -91,10 +92,10 @@ async def should_translate_response(session_id: Optional[str] = None) -> bool:
 async def get_user_language(session_id: Optional[str] = None) -> str:
     """
     Get user's preferred language
-    
+
     Args:
         session_id: Optional session ID
-    
+
     Returns:
         Language code (default: en)
     """
@@ -103,7 +104,8 @@ async def get_user_language(session_id: Optional[str] = None) -> str:
     try:
         from app.services.settings_service import get_settings
         settings = await get_settings()
-        return settings.get("default_language", "en")
+        # Settings is a Pydantic model, use attribute access not .get()
+        return getattr(settings, "default_language", "en") if settings else "en"
     except Exception as e:
         logger.error(f"Error getting user language: {e}")
         return "en"

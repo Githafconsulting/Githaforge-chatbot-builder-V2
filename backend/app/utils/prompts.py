@@ -60,6 +60,33 @@ I'm here to help answer your questions about our services, operations, and how w
 What would you like to know?"""
 
 
+# ========================================
+# RESPONSE STYLE INSTRUCTIONS
+# ========================================
+
+# Style instructions injected into prompts based on chatbot's response_style setting
+RESPONSE_STYLE_INSTRUCTIONS = {
+    "concise": """
+RESPONSE LENGTH: STRICT 1-2 sentences maximum.
+- Give ONLY the essential answer, nothing more
+- NO introductions, NO follow-up questions, NO "let me know if you need more"
+- If a simple yes/no or single fact answers the question, use that
+- Trim all filler words and pleasantries""",
+
+    "standard": """
+RESPONSE LENGTH: 2-3 sentences maximum.
+- Be direct and helpful without being curt
+- Include essential context but avoid elaboration
+- One brief follow-up question is acceptable if relevant""",
+
+    "detailed": """
+RESPONSE LENGTH: 3-5 sentences allowed.
+- Provide comprehensive answers with helpful context
+- Include relevant details that add value
+- May include brief examples or explanations
+- Follow-up questions encouraged to ensure user satisfaction"""
+}
+
 # Query clarification prompt
 CLARIFICATION_PROMPT = """The user's query seems unclear or incomplete: "{query}"
 

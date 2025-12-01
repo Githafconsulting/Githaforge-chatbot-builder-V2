@@ -16,7 +16,8 @@ from app.services.vectorstore_service import store_embeddings_batch, delete_embe
 from app.services.storage_service import (
     upload_file_to_storage,
     delete_file_from_storage,
-    get_signed_download_url
+    get_signed_download_url,
+    get_file_from_storage
 )
 from app.utils.logger import get_logger
 
@@ -34,7 +35,8 @@ async def create_document_metadata(
     category: Optional[str] = None,
     summary: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    company_id: Optional[str] = None
+    company_id: Optional[str] = None,
+    is_shared: bool = True
 ) -> Dict[str, Any]:
     """
     Create document metadata record (Layer 2)
@@ -51,6 +53,7 @@ async def create_document_metadata(
         summary: Optional summary
         metadata: Additional metadata
         company_id: Company ID for multi-tenant isolation
+        is_shared: If true, document is available to all chatbots via shared KB
 
     Returns:
         Dict: Created document record
@@ -70,6 +73,7 @@ async def create_document_metadata(
             "summary": summary[:500] if summary else None,  # Limit summary to 500 chars
             "chunk_count": 0,  # Will be updated after embeddings created
             "metadata": metadata or {},
+            "is_shared": is_shared,
             "created_at": datetime.utcnow().isoformat()
         }
 
@@ -123,7 +127,8 @@ async def process_and_store_document(
     source_type: str,
     category: Optional[str] = None,
     source_url: Optional[str] = None,
-    company_id: Optional[str] = None
+    company_id: Optional[str] = None,
+    is_shared: bool = True
 ) -> Dict[str, Any]:
     """
     Complete document processing pipeline:
@@ -138,6 +143,7 @@ async def process_and_store_document(
         category: Optional category
         source_url: Original URL if from web
         company_id: Company ID for multi-tenant isolation
+        is_shared: If true, document is available to all chatbots via shared KB
 
     Returns:
         Dict: Created document with all metadata
@@ -179,7 +185,8 @@ async def process_and_store_document(
             source_url=source_url,
             category=category,
             summary=summary,
-            company_id=company_id
+            company_id=company_id,
+            is_shared=is_shared
         )
 
         document_id = document["id"]
@@ -230,7 +237,8 @@ async def process_file_upload(
     file_content: bytes,
     filename: str,
     category: Optional[str] = None,
-    company_id: Optional[str] = None
+    company_id: Optional[str] = None,
+    is_shared: bool = True
 ) -> Dict[str, Any]:
     """
     Process uploaded file
@@ -240,19 +248,21 @@ async def process_file_upload(
         filename: Original filename
         category: Optional category
         company_id: Company ID for multi-tenant isolation
+        is_shared: If true, document is available to all chatbots via shared KB
 
     Returns:
         Dict: Created document
     """
     try:
-        logger.info(f"[PROCESS_FILE_UPLOAD] Processing file: {filename}, size: {len(file_content)} bytes")
+        logger.info(f"[PROCESS_FILE_UPLOAD] Processing file: {filename}, size: {len(file_content)} bytes, is_shared: {is_shared}")
 
         document = await process_and_store_document(
             file_content=file_content,
             filename=filename,
             source_type="upload",
             category=category,
-            company_id=company_id
+            company_id=company_id,
+            is_shared=is_shared
         )
 
         return document
@@ -265,7 +275,8 @@ async def process_file_upload(
 async def process_url(
     url: str,
     category: Optional[str] = None,
-    company_id: Optional[str] = None
+    company_id: Optional[str] = None,
+    is_shared: bool = True
 ) -> Dict[str, Any]:
     """
     Process URL by scraping content and creating PDF
@@ -274,6 +285,7 @@ async def process_url(
         url: URL to scrape
         category: Optional category
         company_id: Company ID for multi-tenant isolation
+        is_shared: If true, document is available to all chatbots via shared KB
 
     Returns:
         Dict: Created document
@@ -283,7 +295,7 @@ async def process_url(
         if not is_valid_url(url):
             raise ValueError(f"Invalid URL: {url}")
 
-        logger.info(f"Processing URL: {url}")
+        logger.info(f"Processing URL: {url}, is_shared: {is_shared}")
 
         # Scrape content (async)
         scraped_data = await scrape_url_async(url)
@@ -302,7 +314,8 @@ async def process_url(
             source_type="url",
             category=category,
             source_url=url,
-            company_id=company_id
+            company_id=company_id,
+            is_shared=is_shared
         )
 
         return document
@@ -312,7 +325,12 @@ async def process_url(
         raise
 
 
-async def get_all_documents(limit: int = 100, offset: int = 0, company_id: str = None) -> List[Dict[str, Any]]:
+async def get_all_documents(
+    limit: int = 100,
+    offset: int = 0,
+    company_id: str = None,
+    is_shared: Optional[bool] = None
+) -> List[Dict[str, Any]]:
     """
     Get all documents from knowledge base (metadata only)
 
@@ -320,6 +338,7 @@ async def get_all_documents(limit: int = 100, offset: int = 0, company_id: str =
         limit: Maximum number of documents
         offset: Offset for pagination
         company_id: Optional company ID to filter documents (None for super admin)
+        is_shared: Optional filter for shared/non-shared documents
 
     Returns:
         List[Dict]: List of documents
@@ -332,6 +351,10 @@ async def get_all_documents(limit: int = 100, offset: int = 0, company_id: str =
         # Filter by company if provided (regular users)
         if company_id:
             query = query.eq("company_id", company_id)
+
+        # Filter by sharing status if provided
+        if is_shared is not None:
+            query = query.eq("is_shared", is_shared)
 
         response = query.range(offset, offset + limit - 1).execute()
 
@@ -353,6 +376,46 @@ async def get_all_documents(limit: int = 100, offset: int = 0, company_id: str =
     except Exception as e:
         logger.error(f"Error getting documents: {e}")
         return []
+
+
+async def update_document_sharing(document_id: str, is_shared: bool) -> Optional[Dict[str, Any]]:
+    """
+    Update document sharing status
+
+    Args:
+        document_id: Document ID
+        is_shared: True = shared KB, False = chatbot-specific only
+
+    Returns:
+        Dict: Updated document or None if not found
+    """
+    try:
+        client = get_supabase_client()
+
+        response = client.table("documents").update({
+            "is_shared": is_shared,
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", document_id).execute()
+
+        if not response.data:
+            return None
+
+        document = response.data[0]
+        logger.info(f"Updated document {document_id} sharing status to {is_shared}")
+
+        # Generate fresh signed download URL
+        if document.get("storage_path"):
+            try:
+                signed_url = await get_signed_download_url(document["storage_path"])
+                document["download_url"] = signed_url
+            except Exception as e:
+                logger.warning(f"Could not generate signed URL: {e}")
+
+        return document
+
+    except Exception as e:
+        logger.error(f"Error updating document sharing: {e}")
+        raise
 
 
 async def delete_document(document_id: str) -> bool:
@@ -457,13 +520,60 @@ async def get_document_by_id(document_id: str) -> Optional[Dict[str, Any]]:
 
 async def get_document_full_content(document_id: str) -> Optional[str]:
     """
-    Reconstruct full document content from embedding chunks
+    Get full document content by downloading from storage and extracting text.
+    Falls back to chunk reconstruction only if storage download fails.
 
     Args:
         document_id: Document ID
 
     Returns:
         str: Full document content or None
+    """
+    try:
+        # First, get document metadata to find storage path
+        document = await get_document_by_id(document_id)
+
+        if not document:
+            logger.warning(f"Document not found: {document_id}")
+            return None
+
+        storage_path = document.get("storage_path")
+
+        # Try to get content from original file in storage
+        if storage_path:
+            try:
+                logger.info(f"Downloading original file from storage: {storage_path}")
+                file_content = await get_file_from_storage(storage_path)
+
+                # Extract text from file
+                filename = document.get("title", "document.txt")
+                text_content = parse_file(file_content, filename)
+
+                logger.info(f"Extracted {len(text_content)} characters from original file: {document_id}")
+                return text_content
+
+            except Exception as e:
+                logger.warning(f"Could not download from storage: {e}. Falling back to chunk reconstruction.")
+
+        # Fallback: Reconstruct from chunks (lossy, but better than nothing)
+        logger.info(f"Falling back to chunk reconstruction for document: {document_id}")
+        return await _reconstruct_content_from_chunks(document_id)
+
+    except Exception as e:
+        logger.error(f"Error getting document full content: {e}")
+        return None
+
+
+async def _reconstruct_content_from_chunks(document_id: str) -> Optional[str]:
+    """
+    Reconstruct document content from embedding chunks (fallback method).
+    Note: This may lose some content due to chunking/overlap.
+
+    Args:
+        document_id: Document ID
+
+    Returns:
+        str: Reconstructed content or None
     """
     try:
         client = get_supabase_client()
@@ -480,37 +590,32 @@ async def get_document_full_content(document_id: str) -> Optional[str]:
         chunks = chunks_response.data
 
         # Reconstruct full text from chunks
-        # Note: Chunks may have overlap, so we need to be smart about reassembly
         full_content = ""
 
         for i, chunk_data in enumerate(chunks):
             content = chunk_data.get("chunk_text", "")
 
             if i == 0:
-                # First chunk - add in full
                 full_content = content
             else:
-                # Subsequent chunks - try to remove overlap
-                # Look for overlap with end of existing content
+                # Try to remove overlap
                 overlap_found = False
                 for overlap_size in range(min(100, len(content)), 0, -1):
                     chunk_start = content[:overlap_size]
                     if full_content.endswith(chunk_start):
-                        # Found overlap, add only the non-overlapping part
                         full_content += content[overlap_size:]
                         overlap_found = True
                         break
 
                 if not overlap_found:
-                    # No overlap found, add with separator
                     full_content += "\n\n" + content
 
-        logger.info(f"Reconstructed content for document {document_id}: {len(full_content)} characters from {len(chunks)} chunks")
+        logger.info(f"Reconstructed content from {len(chunks)} chunks: {len(full_content)} characters (fallback)")
 
         return full_content
 
     except Exception as e:
-        logger.error(f"Error getting document full content: {e}")
+        logger.error(f"Error reconstructing content from chunks: {e}")
         return None
 
 

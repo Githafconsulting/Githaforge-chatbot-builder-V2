@@ -18,7 +18,7 @@ import { SuperAdminLogin } from './pages/SuperAdminLogin';
 import { Companies } from './pages/superAdmin/Companies';
 import { PlatformChatbot } from './pages/superAdmin/PlatformChatbot';
 import { AnalyticsPage } from './pages/admin/Analytics';
-import { ChatbotsPage } from './pages/admin/Chatbots';
+import { ChatbotsUnifiedPage } from './pages/admin/ChatbotsUnified';
 import { ChatbotDetailPage } from './pages/admin/ChatbotDetail';
 import { DocumentsPage } from './pages/admin/Documents';
 import { ConversationsPage } from './pages/admin/Conversations';
@@ -30,7 +30,6 @@ import { WidgetSettingsPage } from './pages/admin/WidgetSettings';
 import { SystemSettingsPage } from './pages/admin/SystemSettings';
 import { DeletedItemsPage } from './pages/admin/DeletedItems';
 import { LearningPage } from './pages/admin/Learning';
-import { ChatbotSettings } from './pages/admin/ChatbotSettings';
 import { IntegrationsPage } from './pages/admin/Integrations';
 import { EmbedPage } from './pages/Embed';
 import { GlowComponentsShowcase } from './pages/GlowComponentsShowcase';
@@ -73,7 +72,7 @@ function App() {
           >
             <Route index element={<AnalyticsPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="chatbots" element={<ChatbotsPage />} />
+            <Route path="chatbots" element={<ChatbotsUnifiedPage />} />
             <Route path="chatbots/:chatbotId" element={<ChatbotDetailPage />} />
             <Route path="documents" element={<DocumentsPage />} />
             <Route path="conversations" element={<ConversationsPage />} />
@@ -85,9 +84,11 @@ function App() {
             <Route path="company" element={<CompanySettingsPage />} />
             <Route path="billing" element={<div className="text-white p-8">Billing & Plans - Coming Soon</div>} />
             <Route path="widget" element={<WidgetSettingsPage />} />
-            <Route path="chatbot" element={<ChatbotSettings />} />
             <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="settings" element={<SystemSettingsPage />} />
+            {/* Redirects for old routes */}
+            <Route path="chatbot" element={<Navigate to="/admin/chatbots" replace />} />
+            <Route path="scopes" element={<Navigate to="/admin/chatbots" replace />} />
           </Route>
 
           {/* Super Admin Routes */}
