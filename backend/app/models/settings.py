@@ -33,6 +33,9 @@ class SystemSettings(BaseModel):
     anonymize_ips: bool = Field(default=True, alias="anonymizeIPs")
     store_ip_addresses: bool = Field(default=False, alias="storeIPAddresses")
 
+    # AI Settings
+    history_limit: int = Field(default=10, ge=3, le=50, alias="historyLimit")
+
     class Config:
         populate_by_name = True  # Allow both snake_case and camelCase
         alias_generator = to_camel  # Auto-convert to camelCase for JSON
@@ -49,7 +52,8 @@ class SystemSettings(BaseModel):
                 "defaultDateRange": "30d",
                 "enableWorldMap": True,
                 "anonymizeIPs": True,
-                "storeIPAddresses": False
+                "storeIPAddresses": False,
+                "historyLimit": 10
             }
         }
 

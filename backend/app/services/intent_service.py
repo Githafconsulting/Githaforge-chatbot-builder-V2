@@ -60,6 +60,17 @@ INTENT_PATTERNS = {
         r"^adios\b",  # Spanish
         r"^tschüss\b",  # German
         r"^ma'?a?\s+salama\b",  # Arabic
+        # "I'll come back" / "I'll be back" variations
+        r"i'?ll\s+(come\s+back|be\s+back|return)",
+        r"(come|be)\s+back\s+later",
+        r"will\s+(come|be)\s+back",
+        r"gotta\s+go",
+        r"got\s+to\s+go",
+        r"have\s+to\s+go",
+        r"need\s+to\s+go",
+        r"leaving\s+now",
+        r"that'?s\s+all",
+        r"that\s+is\s+all",
         # Simple negative responses (after "anything else?" type questions)
         r"^no\b",
         r"^nope\b",
@@ -116,12 +127,13 @@ INTENT_PATTERNS = {
 }
 
 
-async def classify_intent_with_llm(query: str) -> Tuple[str, float]:
+async def classify_intent_with_llm(query: str, brand_name: str = "the company") -> Tuple[str, float]:
     """
     Use LLM to classify ambiguous queries
 
     Args:
         query: User input text
+        brand_name: Name of the company/brand for context-aware classification
 
     Returns:
         Tuple of (classification, confidence)
@@ -132,8 +144,8 @@ async def classify_intent_with_llm(query: str) -> Tuple[str, float]:
         from app.services.llm_service import generate_response
         from app.utils.prompts import INTENT_CLASSIFICATION_PROMPT
 
-        # Build classification prompt
-        prompt = INTENT_CLASSIFICATION_PROMPT.format(query=query)
+        # Build classification prompt with brand context
+        prompt = INTENT_CLASSIFICATION_PROMPT.format(query=query, brand_name=brand_name)
 
         # Get LLM classification (should be one word)
         response = await generate_response(prompt, max_tokens=10, temperature=0.1)
@@ -263,11 +275,21 @@ def classify_intent(query: str) -> Intent:
     # Remove punctuation for matching
     clean_query = re.sub(r'[!?.,:;]+$', '', normalized)
 
-    # Check for vague queries first (before pattern matching)
+    # PRIORITY 1: Check GREETING, FAREWELL, GRATITUDE patterns FIRST
+    # These are high-confidence conversational intents that should NEVER be overridden
+    priority_intents = [Intent.GREETING, Intent.FAREWELL, Intent.GRATITUDE]
+    for intent in priority_intents:
+        if intent in INTENT_PATTERNS:
+            for pattern in INTENT_PATTERNS[intent]:
+                if re.search(pattern, clean_query, re.IGNORECASE):
+                    logger.debug(f"Priority intent match: {intent.value} for query '{clean_query}'")
+                    return intent
+
+    # PRIORITY 2: Check for vague queries (single keywords like "email", "pricing")
     if is_vague_query(query):
         return Intent.UNCLEAR
 
-    # BEFORE pattern matching: Check if HELP-like pattern but about company
+    # PRIORITY 3: Check if HELP-like pattern but actually about company
     # Example: "What are your response times?" should NOT be HELP
     if re.search(r"^what\s+are\s+you", clean_query):
         if not is_about_chatbot(query):
@@ -279,13 +301,16 @@ def classify_intent(query: str) -> Intent:
             # It's a "who are your X" question about company → QUESTION
             return Intent.QUESTION
 
-    # Check each intent pattern
+    # PRIORITY 4: Check remaining intent patterns (HELP, CHIT_CHAT, etc.)
     for intent, patterns in INTENT_PATTERNS.items():
+        # Skip priority intents (already checked above)
+        if intent in priority_intents:
+            continue
         for pattern in patterns:
             if re.search(pattern, clean_query, re.IGNORECASE):
                 return intent
 
-    # Check if it's a question (fallback heuristic)
+    # PRIORITY 5: Check if it's a question (fallback heuristic)
     if is_question(query):
         return Intent.QUESTION
 
@@ -390,7 +415,8 @@ def get_intent_metadata(intent: Intent, query: str) -> Dict:
 async def classify_intent_hybrid(
     query: str,
     use_llm_fallback: bool = True,
-    session_id: Optional[str] = None  # NEW: Session ID for context awareness
+    session_id: Optional[str] = None,  # Session ID for context awareness
+    brand_name: str = "the company"  # Brand name for context-aware LLM classification
 ) -> Tuple[Intent, float]:
     """
     Hybrid intent classification: pattern matching + LLM fallback + context awareness
@@ -405,6 +431,7 @@ async def classify_intent_hybrid(
         query: User input text
         use_llm_fallback: Whether to use LLM for ambiguous cases (default: True)
         session_id: Session ID for context-aware classification (optional)
+        brand_name: Company/brand name for LLM classification context
 
     Returns:
         Tuple of (Intent, confidence_score)
@@ -479,10 +506,10 @@ async def classify_intent_hybrid(
             logger.warning(f"Semantic matching failed: {e}")
 
         # If semantic matching didn't work, fall back to LLM
-        logger.info(f"Pattern unclear ({pattern_intent.value}), using LLM classification...")
+        logger.info(f"Pattern unclear ({pattern_intent.value}), using LLM classification for brand '{brand_name}'...")
 
         try:
-            llm_classification, llm_confidence = await classify_intent_with_llm(query)
+            llm_classification, llm_confidence = await classify_intent_with_llm(query, brand_name)
 
             # Map LLM classification to Intent enum
             if llm_classification == "CONVERSATIONAL":

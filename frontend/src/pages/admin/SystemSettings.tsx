@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Save, Globe, Palette, BarChart3, Shield, CheckCircle, AlertCircle, ChevronDown, X } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Globe, Palette, BarChart3, Shield, CheckCircle, AlertCircle, ChevronDown, X, Bot, HelpCircle } from 'lucide-react';
 import type { SystemSettings } from '../../types';
 import { staggerContainer, staggerItem } from '../../utils/animations';
 import { apiService } from '../../services/api';
@@ -30,6 +30,9 @@ export const SystemSettingsPage: React.FC = () => {
     // Privacy Settings
     anonymizeIPs: true,
     storeIPAddresses: false,
+
+    // AI Settings
+    historyLimit: 10,
   });
 
   const [saved, setSaved] = useState(false);
@@ -599,6 +602,65 @@ export const SystemSettingsPage: React.FC = () => {
               <p className="text-xs text-slate-400">
                 We recommend enabling IP anonymization and disabling IP storage for GDPR compliance.
                 Only country-level data will be tracked.
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* AI Settings */}
+        <motion.div variants={staggerItem} className="card-hover rounded-2xl shadow-soft p-6">
+          <h2 className="text-xl font-semibold text-slate-50 mb-4 flex items-center gap-2">
+            <Bot size={24} className="text-cyan-400" />
+            AI Settings
+          </h2>
+
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium text-slate-200">
+                  Conversation History Limit
+                </label>
+                <div className="relative group">
+                  <HelpCircle className="w-4 h-4 text-slate-400 cursor-help" />
+                  <div className="absolute left-6 top-0 w-72 p-3 bg-slate-900 border border-slate-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      <strong className="text-cyan-400">History Limit</strong> controls how many previous messages are included in conversation context sent to the AI.
+                    </p>
+                    <ul className="mt-2 text-xs text-slate-400 space-y-1">
+                      <li>• <strong>Lower (3-5):</strong> Faster, cheaper, less context</li>
+                      <li>• <strong>Default (10):</strong> Balanced performance</li>
+                      <li>• <strong>Higher (20-50):</strong> Better memory, slower, costlier</li>
+                    </ul>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Applies globally to all chatbots in your company.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min="3"
+                  max="50"
+                  value={settings.historyLimit}
+                  onChange={(e) => setSettings({ ...settings, historyLimit: parseInt(e.target.value) })}
+                  className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                />
+                <span className="w-12 text-center text-lg font-semibold text-white">
+                  {settings.historyLimit}
+                </span>
+              </div>
+              <div className="flex justify-between mt-1 text-xs text-slate-500">
+                <span>3 (minimal)</span>
+                <span>10 (default)</span>
+                <span>50 (maximum)</span>
+              </div>
+            </div>
+
+            <div className="bg-cyan-900/20 border border-cyan-700/50 rounded-lg p-3">
+              <p className="text-xs text-cyan-300 font-medium mb-1">How it works</p>
+              <p className="text-xs text-slate-400">
+                Higher values let the AI remember more of the conversation, improving context-aware responses but using more tokens per request.
               </p>
             </div>
           </div>

@@ -241,6 +241,9 @@ export interface SystemSettings {
   anonymizeIPs: boolean;
   storeIPAddresses: boolean;
 
+  // AI Settings
+  historyLimit: number;
+
   created_at?: string;
   updated_at?: string;
 }

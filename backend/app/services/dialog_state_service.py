@@ -285,6 +285,9 @@ def determine_state_from_intent(
             # If we just answered, treat as acknowledgment
             elif current_context.current_state == DialogState.ANSWERING:
                 return DialogState.ANSWERING
+            # If conversation is closing, stay in closing state (e.g., "okay" after farewell)
+            elif current_context.current_state == DialogState.CLOSING:
+                return DialogState.CLOSING
 
         # Default: idle chit-chat
         return DialogState.IDLE

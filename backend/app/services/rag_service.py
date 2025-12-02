@@ -233,22 +233,59 @@ async def get_conversational_response(
             response_text = random.choice(chit_chat_responses["bot"])
         # Context-dependent responses (yes, okay, sure, etc.)
         elif session_id and query_lower in ["yes", "okay", "ok", "sure", "yep", "yeah", "yup"]:
-            # Get conversation history for context
-            history = await get_conversation_history(session_id, limit=3)
-            if history and len(history) > 0:
-                history_text = await format_history_for_llm(history)
-                # Use LLM with context and branding
-                prompt = conversational_context_prompt.format(
-                    query=query,
-                    history=history_text
-                )
-                try:
-                    response_text = await generate_response(prompt, max_tokens=100, temperature=0.7)
-                except Exception as e:
-                    logger.error(f"Error generating context-aware response: {e}")
+            # Check if we're in CLOSING state (after a farewell) - if so, give a simple acknowledgment
+            try:
+                from app.services.dialog_state_service import get_conversation_context, DialogState
+                context = await get_conversation_context(session_id)
+
+                if context.current_state == DialogState.CLOSING or context.last_intent == "farewell":
+                    # User acknowledged farewell - give a simple closing response
+                    response_text = random.choice([
+                        "Take care! 👋",
+                        "Bye for now! Feel free to come back anytime.",
+                        "See you later! 👋",
+                        "Goodbye! Have a great day!",
+                    ])
+                    logger.info(f"[CONTEXT] User acknowledged farewell, giving closing response")
+                else:
+                    # Not in closing state - use context-aware LLM response
+                    from app.services.settings_service import get_history_limit
+                    main_limit = await get_history_limit()
+                    context_history_limit = max(3, int(main_limit * 0.6))
+                    history = await get_conversation_history(session_id, limit=context_history_limit)
+                    if history and len(history) > 0:
+                        history_text = await format_history_for_llm(history)
+                        prompt = conversational_context_prompt.format(
+                            query=query,
+                            history=history_text
+                        )
+                        try:
+                            response_text = await generate_response(prompt, max_tokens=100, temperature=0.7)
+                        except Exception as e:
+                            logger.error(f"Error generating context-aware response: {e}")
+                            response_text = random.choice(chit_chat_responses["default"])
+                    else:
+                        response_text = random.choice(chit_chat_responses["default"])
+            except Exception as e:
+                logger.warning(f"Error checking dialog state for context response: {e}")
+                # Fallback to original behavior
+                from app.services.settings_service import get_history_limit
+                main_limit = await get_history_limit()
+                context_history_limit = max(3, int(main_limit * 0.6))
+                history = await get_conversation_history(session_id, limit=context_history_limit)
+                if history and len(history) > 0:
+                    history_text = await format_history_for_llm(history)
+                    prompt = conversational_context_prompt.format(
+                        query=query,
+                        history=history_text
+                    )
+                    try:
+                        response_text = await generate_response(prompt, max_tokens=100, temperature=0.7)
+                    except Exception as e2:
+                        logger.error(f"Error generating context-aware response: {e2}")
+                        response_text = random.choice(chit_chat_responses["default"])
+                else:
                     response_text = random.choice(chit_chat_responses["default"])
-            else:
-                response_text = random.choice(chit_chat_responses["default"])
         else:
             # Generic chit-chat default with branding
             response_text = random.choice(chit_chat_responses["default"])
@@ -314,9 +351,17 @@ async def get_rag_response(
         # 0. Preprocess query (fix misspellings, normalize company name)
         processed_query = preprocess_query(query)
 
-        # 1. Classify intent using hybrid approach WITH SESSION CONTEXT (NEW)
+        # 0.5 Get branding early for intent classification context
+        branding = await get_chatbot_branding(chatbot_id)
+        brand_name = branding.brand_name if branding else "the company"
+
+        # 1. Classify intent using hybrid approach WITH SESSION CONTEXT and BRAND (NEW)
         async with MetricsContext("intent", session_id=session_id) as ctx:
-            intent, confidence = await classify_intent_hybrid(processed_query, session_id=session_id)
+            intent, confidence = await classify_intent_hybrid(
+                processed_query,
+                session_id=session_id,
+                brand_name=brand_name
+            )
             ctx.add_context({"intent": intent.value, "confidence": confidence})
 
         metadata = get_intent_metadata(intent, query)
@@ -424,8 +469,13 @@ async def get_rag_response(
         use_shared_kb = True  # NEW: KB mode flag
         selected_document_ids = None  # NEW: Selected documents for non-shared KB mode
         response_style = "standard"  # NEW: Response verbosity style
-        branding = await get_chatbot_branding(chatbot_id)  # Get branding for prompts
+        # branding already fetched at step 0.5 for intent classification
         logger.info(f"Using branding for chatbot: {branding.brand_name}")
+
+        # Get system-wide history_limit from settings
+        from app.services.settings_service import get_history_limit
+        history_limit = await get_history_limit()
+        logger.info(f"[SETTINGS] Using history_limit={history_limit} from system settings")
 
         if chatbot_id:
             try:
@@ -590,11 +640,13 @@ async def get_rag_response(
         context = "\n\n".join(context_parts)
 
         # 11. Get conversation history (if available)
+        # Uses chatbot's configurable history_limit for conversation continuity
         history_text = "No previous conversation."
 
         if include_history and session_id:
-            history = await get_conversation_history(session_id, limit=5)
+            history = await get_conversation_history(session_id, limit=history_limit)
             history_text = await format_history_for_llm(history)
+            logger.debug(f"[HISTORY] Retrieved {len(history) if history else 0} messages (limit: {history_limit})")
 
         # 11.5. Format semantic memories for prompt (Phase 4: Advanced Memory)
         memory_text = ""
