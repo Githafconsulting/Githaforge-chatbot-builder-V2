@@ -103,6 +103,13 @@ class ChatbotConfig(BaseModel):
         le=500,
         description="Overlap between consecutive chunks"
     )
+    historyLimit: int = Field(
+        default=10,
+        alias="history_limit",
+        ge=3,
+        le=50,
+        description="Number of previous messages to include in conversation context"
+    )
 
     # LLM Configuration
     llmModel: str = Field(
@@ -163,6 +170,7 @@ class ChatbotConfigUpdate(BaseModel):
     ragSimilarityThreshold: Optional[float] = Field(None, ge=0.0, le=1.0)
     chunkSize: Optional[int] = Field(None, ge=100, le=2000)
     chunkOverlap: Optional[int] = Field(None, ge=0, le=500)
+    historyLimit: Optional[int] = Field(None, ge=3, le=50)
     llmModel: Optional[str] = None
     llmTemperature: Optional[float] = Field(None, ge=0.0, le=2.0)
     llmMaxTokens: Optional[int] = Field(None, ge=50, le=2000)

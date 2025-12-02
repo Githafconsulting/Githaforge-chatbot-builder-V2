@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bot, Save, RotateCcw, AlertCircle, Settings, Sliders, Brain, Hash, Tag } from 'lucide-react';
+import { Bot, Save, RotateCcw, AlertCircle, Settings, Sliders, Brain, Hash, Tag, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
 import type { ChatbotConfig } from '../../types';
@@ -360,11 +360,14 @@ const ConfidenceTab: React.FC<{ config: ChatbotConfig; updateConfig: (updates: P
 
 // RAG Tab
 const RAGTab: React.FC<{ config: ChatbotConfig; updateConfig: (updates: Partial<ChatbotConfig>) => void }> = ({ config, updateConfig }) => {
+  // Ensure historyLimit has a default value
+  const historyLimit = config.historyLimit ?? 10;
+
   return (
     <div className="space-y-6">
       <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
         <p className="text-blue-400 text-sm">
-          <strong>RAG Configuration:</strong> Settings for Retrieval-Augmented Generation including vector search and text chunking.
+          <strong>RAG Configuration:</strong> Settings for Retrieval-Augmented Generation including vector search, text chunking, and conversation context.
         </p>
       </div>
 
@@ -428,6 +431,46 @@ const RAGTab: React.FC<{ config: ChatbotConfig; updateConfig: (updates: Partial<
             className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-50 focus:outline-none focus:border-blue-500"
           />
           <p className="text-xs text-slate-400 mt-2">Overlap between consecutive chunks (0-500)</p>
+        </div>
+
+        {/* Conversation History Limit - Full width card */}
+        <div className="card p-6 md:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <label className="text-slate-50 font-medium">Conversation History Limit</label>
+            <div className="relative group">
+              <HelpCircle className="w-4 h-4 text-slate-400 cursor-help" />
+              <div className="absolute left-6 top-0 w-72 p-3 bg-slate-900 border border-slate-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  <strong className="text-blue-400">History Limit</strong> controls how many previous messages are included in conversation context sent to the AI.
+                </p>
+                <ul className="mt-2 text-xs text-slate-400 space-y-1">
+                  <li>• <strong>Lower (3-5):</strong> Faster, cheaper, less context</li>
+                  <li>• <strong>Default (10):</strong> Balanced performance</li>
+                  <li>• <strong>Higher (20-50):</strong> Better memory, slower, costlier</li>
+                </ul>
+                <p className="mt-2 text-xs text-slate-500">
+                  Applies globally to all chatbots in your company.
+                </p>
+              </div>
+            </div>
+            <span className="ml-auto text-blue-400 font-mono text-lg">{historyLimit}</span>
+          </div>
+          <input
+            type="range"
+            min="3"
+            max="50"
+            value={historyLimit}
+            onChange={(e) => updateConfig({ historyLimit: parseInt(e.target.value) })}
+            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          />
+          <div className="flex justify-between mt-2 text-xs text-slate-400">
+            <span>3 (minimal)</span>
+            <span>10 (default)</span>
+            <span>50 (maximum)</span>
+          </div>
+          <p className="text-xs text-slate-400 mt-3">
+            Number of previous messages to include in conversation context for the AI. Higher values provide more context but use more tokens.
+          </p>
         </div>
       </div>
     </div>

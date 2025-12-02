@@ -43,8 +43,7 @@ async def get_settings() -> Optional[SystemSettings]:
             default_date_range=settings_data.get("default_date_range", "30d"),
             enable_world_map=settings_data.get("enable_world_map", True),
             anonymize_ips=settings_data.get("anonymize_ips", True),
-            store_ip_addresses=settings_data.get("store_ip_addresses", False),
-            history_limit=settings_data.get("history_limit", 10)
+            store_ip_addresses=settings_data.get("store_ip_addresses", False)
         )
 
     except Exception as e:
@@ -110,12 +109,15 @@ async def get_history_limit() -> int:
     Get the configured history limit for conversation context.
     This is a lightweight helper for the RAG service.
 
+    NOTE: history_limit is now stored in chatbot_config table, not system_settings.
+    This function reads from chatbot_config for company-wide RAG configuration.
+
     Returns:
         int: Number of messages to include in conversation context (default: 10)
     """
     try:
         client = get_supabase_client()
-        response = client.table("system_settings").select("history_limit").limit(1).execute()
+        response = client.table("chatbot_config").select("history_limit").limit(1).execute()
 
         if response.data and len(response.data) > 0:
             return response.data[0].get("history_limit", 10)
@@ -123,5 +125,5 @@ async def get_history_limit() -> int:
         return 10  # Default
 
     except Exception as e:
-        logger.warning(f"Error fetching history_limit, using default: {e}")
+        logger.warning(f"Error fetching history_limit from chatbot_config, using default: {e}")
         return 10

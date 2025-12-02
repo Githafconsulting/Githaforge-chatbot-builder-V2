@@ -281,6 +281,12 @@ def generate_chit_chat_responses(branding: ChatbotBranding) -> dict:
         "default": [
             f"That's an interesting question! However, I'm specifically designed to help with inquiries about {branding.brand_name}'s services. Is there anything about our offerings I can help you with?",
             f"I appreciate the chat, but I'm focused on helping with {branding.brand_name} questions. Is there anything about our services, pricing, or how to get started that I can assist with?",
+        ],
+        "deferral": [
+            "No problem at all! Feel free to come back whenever you're ready. Is there anything else I can help you with in the meantime?",
+            "Of course, take your time! Let me know if you have any other questions I can help with.",
+            "Sure thing! I'll be here whenever you're ready. Is there anything else on your mind?",
+            "No worries! Just let me know when you'd like to continue. Anything else I can assist with right now?",
         ]
     }
 

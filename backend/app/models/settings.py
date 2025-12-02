@@ -33,8 +33,7 @@ class SystemSettings(BaseModel):
     anonymize_ips: bool = Field(default=True, alias="anonymizeIPs")
     store_ip_addresses: bool = Field(default=False, alias="storeIPAddresses")
 
-    # AI Settings
-    history_limit: int = Field(default=10, ge=3, le=50, alias="historyLimit")
+    # NOTE: history_limit has been moved to chatbot_config table (Chatbots > Configuration > RAG Configuration)
 
     class Config:
         populate_by_name = True  # Allow both snake_case and camelCase
@@ -52,8 +51,7 @@ class SystemSettings(BaseModel):
                 "defaultDateRange": "30d",
                 "enableWorldMap": True,
                 "anonymizeIPs": True,
-                "storeIPAddresses": False,
-                "historyLimit": 10
+                "storeIPAddresses": False
             }
         }
 

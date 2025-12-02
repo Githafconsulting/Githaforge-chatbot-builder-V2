@@ -241,9 +241,6 @@ export interface SystemSettings {
   anonymizeIPs: boolean;
   storeIPAddresses: boolean;
 
-  // AI Settings
-  historyLimit: number;
-
   created_at?: string;
   updated_at?: string;
 }
@@ -440,6 +437,7 @@ export interface ChatbotConfig {
   ragSimilarityThreshold: number;
   chunkSize: number;
   chunkOverlap: number;
+  historyLimit: number;  // Number of previous messages to include in conversation context (3-50)
   llmModel: string;
   llmTemperature: number;
   llmMaxTokens: number;
@@ -458,6 +456,7 @@ export interface ChatbotConfigUpdate {
   ragSimilarityThreshold?: number;
   chunkSize?: number;
   chunkOverlap?: number;
+  historyLimit?: number;
   llmModel?: string;
   llmTemperature?: number;
   llmMaxTokens?: number;

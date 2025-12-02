@@ -224,8 +224,25 @@ async def get_conversational_response(
         # For chit-chat, check if we need context-aware response
         query_lower = query.lower().strip()
 
+        # Check for deferral patterns (e.g., "not now", "maybe later", "not at this time")
+        deferral_patterns = [
+            "not now", "not right now", "not at the moment", "not at this time",
+            "maybe later", "perhaps later", "might be later", "might later",
+            "later", "some other time", "another time",
+            "not interested", "not for now", "pass for now",
+            "i'll pass", "i will pass", "skip", "skip that",
+            "no thanks", "no thank you", "nah", "nope",
+        ]
+        is_deferral = any(pattern in query_lower for pattern in deferral_patterns)
+
+        if is_deferral:
+            response_text = random.choice(chit_chat_responses.get("deferral", [
+                "No problem! Let me know if you have any other questions.",
+                "Sure thing! I'm here whenever you're ready.",
+            ]))
+            logger.info(f"[DEFERRAL] User deferred current topic: '{query[:50]}...'")
         # Specific pattern responses with branding
-        if "how are you" in query_lower or "how r u" in query_lower:
+        elif "how are you" in query_lower or "how r u" in query_lower:
             response_text = random.choice(chit_chat_responses["how_are_you"])
         elif "your name" in query_lower or "who are you" in query_lower or "what are you" in query_lower:
             response_text = random.choice(chit_chat_responses["name"])
