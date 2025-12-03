@@ -27,7 +27,6 @@ import { FlaggedPage } from './pages/admin/Flagged';
 import { UsersPage } from './pages/admin/Users';
 import { TeamPage } from './pages/admin/Team';
 import { CompanySettingsPage } from './pages/admin/CompanySettings';
-import { WidgetSettingsPage } from './pages/admin/WidgetSettings';
 import { SystemSettingsPage } from './pages/admin/SystemSettings';
 import { DeletedItemsPage } from './pages/admin/DeletedItems';
 import { LearningPage } from './pages/admin/Learning';
@@ -86,7 +85,6 @@ function App() {
             <Route path="team" element={<TeamPage />} />
             <Route path="company" element={<CompanySettingsPage />} />
             <Route path="billing" element={<div className="text-white p-8">Billing & Plans - Coming Soon</div>} />
-            <Route path="widget" element={<WidgetSettingsPage />} />
             <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="settings" element={<SystemSettingsPage />} />
             {/* Redirects for old routes */}

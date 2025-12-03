@@ -616,6 +616,20 @@ class ApiService {
     return response.data;
   }
 
+  async hideChatbot(chatbotId: string): Promise<Chatbot> {
+    const response = await this.api.put(`/api/v1/chatbots/${chatbotId}`, {
+      is_active: false
+    });
+    return response.data;
+  }
+
+  async showChatbot(chatbotId: string): Promise<Chatbot> {
+    const response = await this.api.put(`/api/v1/chatbots/${chatbotId}`, {
+      is_active: true
+    });
+    return response.data;
+  }
+
   async getChatbotStats(chatbotId: string): Promise<ChatbotStats> {
     const response = await this.api.get(`/api/v1/chatbots/${chatbotId}/stats`);
     return response.data;

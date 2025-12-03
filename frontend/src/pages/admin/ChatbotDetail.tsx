@@ -32,6 +32,8 @@ import {
   MapPin,
   Zap,
   ExternalLink,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -181,6 +183,20 @@ export const ChatbotDetailPage: React.FC = () => {
     try {
       const updated = await apiService.deployChatbot(chatbot.id);
       setChatbot(updated);
+
+      // Broadcast update to any open test pages for live sync
+      try {
+        const channel = new BroadcastChannel('chatbot-settings-sync');
+        channel.postMessage({
+          type: 'CHATBOT_UPDATED',
+          chatbotId: chatbot.id,
+          chatbot: updated
+        });
+        channel.close();
+      } catch (e) {
+        // BroadcastChannel not supported or failed - ignore
+      }
+
       toast.success('Chatbot deployed successfully!');
     } catch (error: any) {
       console.error('Failed to deploy chatbot:', error);
@@ -194,10 +210,78 @@ export const ChatbotDetailPage: React.FC = () => {
     try {
       const updated = await apiService.pauseChatbot(chatbot.id);
       setChatbot(updated);
+
+      // Broadcast update to any open test pages for live sync
+      try {
+        const channel = new BroadcastChannel('chatbot-settings-sync');
+        channel.postMessage({
+          type: 'CHATBOT_UPDATED',
+          chatbotId: chatbot.id,
+          chatbot: updated
+        });
+        channel.close();
+      } catch (e) {
+        // BroadcastChannel not supported or failed - ignore
+      }
+
       toast.success('Chatbot paused successfully!');
     } catch (error: any) {
       console.error('Failed to pause chatbot:', error);
       toast.error(error.response?.data?.detail || 'Failed to pause chatbot');
+    }
+  };
+
+  const handleHide = async () => {
+    if (!chatbot) return;
+
+    try {
+      const updated = await apiService.hideChatbot(chatbot.id);
+      setChatbot(updated);
+
+      // Broadcast update to any open test pages for live sync
+      try {
+        const channel = new BroadcastChannel('chatbot-settings-sync');
+        channel.postMessage({
+          type: 'CHATBOT_UPDATED',
+          chatbotId: chatbot.id,
+          chatbot: updated
+        });
+        channel.close();
+      } catch (e) {
+        // BroadcastChannel not supported or failed - ignore
+      }
+
+      toast.success('Chatbot hidden from website');
+    } catch (error: any) {
+      console.error('Failed to hide chatbot:', error);
+      toast.error(error.response?.data?.detail || 'Failed to hide chatbot');
+    }
+  };
+
+  const handleShow = async () => {
+    if (!chatbot) return;
+
+    try {
+      const updated = await apiService.showChatbot(chatbot.id);
+      setChatbot(updated);
+
+      // Broadcast update to any open test pages for live sync
+      try {
+        const channel = new BroadcastChannel('chatbot-settings-sync');
+        channel.postMessage({
+          type: 'CHATBOT_UPDATED',
+          chatbotId: chatbot.id,
+          chatbot: updated
+        });
+        channel.close();
+      } catch (e) {
+        // BroadcastChannel not supported or failed - ignore
+      }
+
+      toast.success('Chatbot is now visible on website');
+    } catch (error: any) {
+      console.error('Failed to show chatbot:', error);
+      toast.error(error.response?.data?.detail || 'Failed to show chatbot');
     }
   };
 
@@ -309,6 +393,25 @@ export const ChatbotDetailPage: React.FC = () => {
                 Deploy
               </button>
             )}
+            {chatbot.is_active ? (
+              <button
+                onClick={handleHide}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                title="Hide chatbot from website"
+              >
+                <EyeOff className="w-4 h-4" />
+                Hide
+              </button>
+            ) : (
+              <button
+                onClick={handleShow}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                title="Show chatbot on website"
+              >
+                <Eye className="w-4 h-4" />
+                Show
+              </button>
+            )}
             <button
               onClick={handleDelete}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
@@ -414,29 +517,14 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
         <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
-            <input
-              type="text"
-              value={chatbot.name}
-              onChange={(e) => setChatbot({ ...chatbot, name: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Model Preset</label>
-            <select
-              value={chatbot.model_preset}
-              onChange={(e) => setChatbot({ ...chatbot, model_preset: e.target.value as 'fast' | 'balanced' | 'accurate' })}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="fast">Fast (Quick responses)</option>
-              <option value="balanced">Balanced (Recommended)</option>
-              <option value="accurate">Accurate (High quality)</option>
-            </select>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
+          <input
+            type="text"
+            value={chatbot.name}
+            onChange={(e) => setChatbot({ ...chatbot, name: e.target.value })}
+            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          />
         </div>
 
         <div>
@@ -446,28 +534,6 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
             onChange={(e) => setChatbot({ ...chatbot, description: e.target.value })}
             rows={3}
             className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 resize-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Greeting Message</label>
-          <input
-            type="text"
-            value={chatbot.greeting_message}
-            onChange={(e) => setChatbot({ ...chatbot, greeting_message: e.target.value })}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Paused Message</label>
-          <p className="text-xs text-slate-400 mb-2">Message shown to users when the chatbot is paused</p>
-          <textarea
-            value={chatbot.paused_message || 'This chatbot is currently unavailable. Please try again later or contact support.'}
-            onChange={(e) => setChatbot({ ...chatbot, paused_message: e.target.value })}
-            rows={2}
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 resize-none"
-            placeholder="This chatbot is currently unavailable..."
           />
         </div>
       </div>
@@ -1026,6 +1092,30 @@ const AppearanceTab: React.FC<AppearanceTabProps> = ({ chatbot, setChatbot, onSa
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Greeting Message</label>
+            <p className="text-xs text-slate-400 mb-2">Initial message shown when users open the chat</p>
+            <input
+              type="text"
+              value={chatbot.greeting_message}
+              onChange={(e) => setChatbot({ ...chatbot, greeting_message: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+              placeholder="Hi! How can I help you today?"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Paused Message</label>
+            <p className="text-xs text-slate-400 mb-2">Message shown to users when the chatbot is paused</p>
+            <textarea
+              value={chatbot.paused_message || 'This chatbot is currently unavailable. Please try again later or contact support.'}
+              onChange={(e) => setChatbot({ ...chatbot, paused_message: e.target.value })}
+              rows={2}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white resize-none"
+              placeholder="This chatbot is currently unavailable..."
+            />
+          </div>
+
           <div className="pt-4 flex justify-end">
             <button
               onClick={onSave}
@@ -1096,6 +1186,7 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({ chatbot }) => {
   const buttonSize = chatbot.button_size || 'medium';
   const showBadge = chatbot.show_notification_badge ?? true;
   const theme = chatbot.widget_theme || 'modern';
+  const isPaused = chatbot.deploy_status === 'paused';
 
   const buttonSizes = {
     small: { width: '50px', height: '50px', icon: 20 },
@@ -1172,31 +1263,46 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({ chatbot }) => {
 
           {/* Messages area - matches ChatWidget dark theme */}
           <div className="flex-1 p-4 overflow-y-auto bg-slate-900/50">
-            <div className="flex flex-col items-start">
-              <div className="bg-slate-700 rounded-2xl rounded-tl-sm py-2.5 px-4 max-w-[80%] shadow-md border border-slate-600">
-                <p className="text-sm text-white">{chatbot.greeting_message}</p>
+            {isPaused ? (
+              /* Paused state message */
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center mb-3">
+                  <Pause className="w-6 h-6 text-amber-400" />
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  {chatbot.paused_message || 'This chatbot is currently unavailable. Please try again later or contact support.'}
+                </p>
               </div>
-            </div>
+            ) : (
+              /* Normal greeting message */
+              <div className="flex flex-col items-start">
+                <div className="bg-slate-700 rounded-2xl rounded-tl-sm py-2.5 px-4 max-w-[80%] shadow-md border border-slate-600">
+                  <p className="text-sm text-white">{chatbot.greeting_message}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Input area - matches ChatWidget styling */}
-          <div className="p-3 border-t border-slate-700 bg-slate-800">
+          <div className={`p-3 border-t border-slate-700 bg-slate-800 ${isPaused ? 'opacity-50' : ''}`}>
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Type your message..."
+                placeholder={isPaused ? "Chat is currently paused..." : "Type your message..."}
                 className="flex-1 px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled
               />
               <button
                 className="p-2.5 rounded-xl text-white transition-colors"
-                style={{ background: `linear-gradient(to bottom right, ${primaryColor}, ${secondaryColor})` }}
+                style={{ background: isPaused ? '#64748b' : `linear-gradient(to bottom right, ${primaryColor}, ${secondaryColor})` }}
                 disabled
               >
                 <Send className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-slate-500 mt-2 text-center">Visual preview only</p>
+            <p className="text-xs text-slate-500 mt-2 text-center">
+              {isPaused ? 'Chatbot is paused' : 'Visual preview only'}
+            </p>
           </div>
         </motion.div>
       )}

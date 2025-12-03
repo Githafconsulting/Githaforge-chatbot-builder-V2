@@ -12,10 +12,19 @@ import {
   MoreVertical,
   Globe,
   Lock,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Eye,
+  Sparkles,
+  Zap,
+  RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
-import type { Document, Chatbot } from '../../types';
+import type { Document, Chatbot, DraftDocument } from '../../types';
+
+type TabType = 'documents' | 'drafts';
 
 // Utility functions
 const formatFileSize = (bytes?: number): string => {
@@ -28,6 +37,10 @@ const formatFileSize = (bytes?: number): string => {
 };
 
 export const DocumentsPage: React.FC = () => {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('documents');
+
+  // Documents state
   const [documents, setDocuments] = useState<Document[]>([]);
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +53,12 @@ export const DocumentsPage: React.FC = () => {
   const [sharingFilter, setSharingFilter] = useState<string>('all');
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
+
+  // Drafts state
+  const [drafts, setDrafts] = useState<DraftDocument[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const [selectedDraft, setSelectedDraft] = useState<DraftDocument | null>(null);
+  const [showDraftModal, setShowDraftModal] = useState(false);
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -61,6 +80,7 @@ export const DocumentsPage: React.FC = () => {
   useEffect(() => {
     loadDocuments();
     loadChatbots();
+    loadDrafts();
   }, []);
 
   // Close action menu when clicking outside
@@ -96,6 +116,61 @@ export const DocumentsPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load chatbots:', error);
       setChatbots([]);
+    }
+  };
+
+  const loadDrafts = async () => {
+    try {
+      setDraftsLoading(true);
+      const draftsData = await apiService.getPendingDrafts({ status: 'pending', limit: 100 });
+      setDrafts(draftsData.drafts || []);
+    } catch (err: any) {
+      console.error('Failed to load drafts:', err);
+      // Don't show error toast on initial load - drafts may not exist yet
+    } finally {
+      setDraftsLoading(false);
+    }
+  };
+
+  const handleApproveDraft = async (draft: DraftDocument) => {
+    try {
+      await apiService.approveDraft(draft.id, { status: 'approved' });
+      toast.success('Draft approved and published to knowledge base!');
+      await loadDrafts();
+      await loadDocuments();
+      setShowDraftModal(false);
+      setSelectedDraft(null);
+    } catch (error: any) {
+      console.error('Failed to approve draft:', error);
+      toast.error(error.response?.data?.detail || 'Failed to approve draft');
+    }
+  };
+
+  const handleRejectDraft = async (draft: DraftDocument) => {
+    const notes = prompt('Rejection reason (optional):');
+    try {
+      await apiService.rejectDraft(draft.id, { status: 'rejected', review_notes: notes || undefined });
+      toast.success('Draft rejected');
+      await loadDrafts();
+      setShowDraftModal(false);
+      setSelectedDraft(null);
+    } catch (error: any) {
+      console.error('Failed to reject draft:', error);
+      toast.error(error.response?.data?.detail || 'Failed to reject draft');
+    }
+  };
+
+  const handleDeleteDraft = async (draftId: string) => {
+    if (!confirm('Are you sure you want to delete this draft?')) return;
+    try {
+      await apiService.deleteDraft(draftId);
+      toast.success('Draft deleted');
+      await loadDrafts();
+      setShowDraftModal(false);
+      setSelectedDraft(null);
+    } catch (error: any) {
+      console.error('Failed to delete draft:', error);
+      toast.error(error.response?.data?.detail || 'Failed to delete draft');
     }
   };
 
@@ -282,28 +357,75 @@ export const DocumentsPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-white">Knowledge Base</h1>
           <p className="text-slate-400 mt-1">
-            Manage documents with scope and chatbot assignment
+            Manage documents and review AI-generated drafts
           </p>
         </div>
-        <div className="flex gap-2">
+        {activeTab === 'documents' && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowUrlModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            >
+              <LinkIcon className="w-4 h-4" />
+              Add from URL
+            </button>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              Upload Document
+            </button>
+          </div>
+        )}
+        {activeTab === 'drafts' && (
           <button
-            onClick={() => setShowUrlModal(true)}
+            onClick={loadDrafts}
             className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
           >
-            <LinkIcon className="w-4 h-4" />
-            Add from URL
+            <RefreshCw className={`w-4 h-4 ${draftsLoading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <Upload className="w-4 h-4" />
-            Upload Document
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Filters */}
+      {/* Tabs */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-1 inline-flex gap-1 w-fit">
+        <button
+          onClick={() => setActiveTab('documents')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeTab === 'documents'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'text-slate-400 hover:text-white hover:bg-slate-700'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          Documents ({documents.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('drafts')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeTab === 'drafts'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'text-slate-400 hover:text-white hover:bg-slate-700'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          Pending Drafts ({drafts.length})
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      <AnimatePresence mode="wait">
+        {activeTab === 'documents' && (
+          <motion.div
+            key="documents"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex-1 flex flex-col space-y-6"
+          >
+            {/* Filters */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -524,6 +646,147 @@ export const DocumentsPage: React.FC = () => {
           </div>
         )}
       </div>
+          </motion.div>
+        )}
+
+        {/* Pending Drafts Tab */}
+        {activeTab === 'drafts' && (
+          <motion.div
+            key="drafts"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex-1 flex flex-col"
+          >
+            <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden flex-1 flex flex-col min-h-[400px]">
+              {draftsLoading ? (
+                <div className="flex items-center justify-center py-12 flex-1">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <span className="ml-3 text-slate-400">Loading drafts...</span>
+                </div>
+              ) : drafts.length === 0 ? (
+                <div className="text-center py-12 flex-1 flex flex-col items-center justify-center">
+                  <Sparkles className="w-16 h-16 text-slate-600 mb-4" />
+                  <h3 className="text-xl font-semibold text-slate-300 mb-2">No pending drafts</h3>
+                  <p className="text-slate-400">
+                    AI-generated drafts from learning jobs will appear here for review
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto flex-1">
+                  <table className="w-full">
+                    <thead className="bg-slate-900">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider w-12">
+                          #
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Title
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Source
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Category
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Created
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {drafts.map((draft, index) => (
+                        <motion.tr
+                          key={draft.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="hover:bg-slate-700/50 transition-colors"
+                        >
+                          <td className="px-4 py-4 text-sm text-slate-400 font-medium">
+                            {index + 1}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                              <span className="font-medium text-white text-sm truncate max-w-[200px]" title={draft.title}>
+                                {draft.title}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 truncate max-w-[150px] inline-block" title={draft.source_url || 'Unknown'}>
+                              {draft.source_url ? new URL(draft.source_url).hostname : 'AI Generated'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            {draft.category ? (
+                              <span className="text-xs px-2 py-1 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                                {draft.category}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs">
+                              <Clock className="w-3 h-3" />
+                              Pending
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-slate-400">
+                            {draft.created_at ? new Date(draft.created_at).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setSelectedDraft(draft);
+                                  setShowDraftModal(true);
+                                }}
+                                className="p-2 hover:bg-slate-600 rounded transition-colors"
+                                title="View Draft"
+                              >
+                                <Eye className="w-4 h-4 text-slate-400" />
+                              </button>
+                              <button
+                                onClick={() => handleApproveDraft(draft)}
+                                className="p-2 hover:bg-green-500/20 rounded transition-colors"
+                                title="Approve"
+                              >
+                                <CheckCircle className="w-4 h-4 text-green-400" />
+                              </button>
+                              <button
+                                onClick={() => handleRejectDraft(draft)}
+                                className="p-2 hover:bg-red-500/20 rounded transition-colors"
+                                title="Reject"
+                              >
+                                <XCircle className="w-4 h-4 text-red-400" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDraft(draft.id)}
+                                className="p-2 hover:bg-slate-600 rounded transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4 text-slate-400" />
+                              </button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Upload Modal */}
       {showUploadModal && (
@@ -573,6 +836,106 @@ export const DocumentsPage: React.FC = () => {
           isShared={editIsShared}
           setIsShared={setEditIsShared}
         />
+      )}
+
+      {/* Draft Preview Modal */}
+      {showDraftModal && selectedDraft && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowDraftModal(false);
+            setSelectedDraft(null);
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                <h2 className="text-xl font-bold text-white">Draft Preview</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDraftModal(false);
+                  setSelectedDraft(null);
+                }}
+                className="p-1 hover:bg-slate-700 rounded"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Title</label>
+                <p className="text-white">{selectedDraft.title}</p>
+              </div>
+
+              {selectedDraft.source_url && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Source URL</label>
+                  <a
+                    href={selectedDraft.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:underline text-sm"
+                  >
+                    {selectedDraft.source_url}
+                  </a>
+                </div>
+              )}
+
+              {selectedDraft.category && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Category</label>
+                  <span className="text-xs px-2 py-1 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                    {selectedDraft.category}
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Content</label>
+                <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-h-[300px] overflow-y-auto">
+                  <pre className="text-slate-300 text-sm whitespace-pre-wrap font-mono">
+                    {selectedDraft.content}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-700">
+                <button
+                  onClick={() => handleApproveDraft(selectedDraft)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approve & Publish
+                </button>
+                <button
+                  onClick={() => handleRejectDraft(selectedDraft)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Reject
+                </button>
+                <button
+                  onClick={() => handleDeleteDraft(selectedDraft.id)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
+import { MessageCircle, X, Send, ThumbsUp, ThumbsDown, Sparkles, Pause } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast, { Toaster } from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -46,6 +46,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [subtitle, setSubtitle] = useState(subtitleOverride || '');
   const [greeting, setGreeting] = useState(greetingOverride || '');
 
+  // Chatbot status (paused, deployed, etc.)
+  const [isPaused, setIsPaused] = useState(false);
+  const [pausedMessage, setPausedMessage] = useState('');
+
   // Listen for postMessage updates (for live preview)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -66,6 +70,61 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (subtitleOverride !== undefined) setSubtitle(subtitleOverride);
     if (greetingOverride !== undefined) setGreeting(greetingOverride);
   }, [titleOverride, subtitleOverride, greetingOverride]);
+
+  // Fetch chatbot status to check if paused
+  useEffect(() => {
+    if (!chatbotId) return;
+
+    const fetchChatbotStatus = async () => {
+      try {
+        const chatbot = await apiService.getChatbot(chatbotId);
+        if (chatbot.deploy_status === 'paused') {
+          setIsPaused(true);
+          setPausedMessage(chatbot.paused_message || 'This chatbot is currently unavailable. Please try again later or contact support.');
+        } else {
+          setIsPaused(false);
+          setPausedMessage('');
+        }
+      } catch (error) {
+        // If we can't fetch status, assume not paused (will get paused message from API on send)
+        console.error('Failed to fetch chatbot status:', error);
+      }
+    };
+
+    fetchChatbotStatus();
+  }, [chatbotId]);
+
+  // Listen for live updates via BroadcastChannel (for deploy/pause status changes)
+  useEffect(() => {
+    if (!chatbotId) return;
+
+    try {
+      const channel = new BroadcastChannel('chatbot-settings-sync');
+      channel.onmessage = (event) => {
+        const { type, chatbotId: updatedId, chatbot } = event.data;
+        if (type === 'CHATBOT_UPDATED' && updatedId === chatbotId) {
+          // Update paused status
+          if (chatbot.deploy_status === 'paused') {
+            setIsPaused(true);
+            setPausedMessage(chatbot.paused_message || 'This chatbot is currently unavailable. Please try again later or contact support.');
+          } else {
+            setIsPaused(false);
+            setPausedMessage('');
+          }
+          // Update other overrides if available
+          if (chatbot.widget_title) setTitle(chatbot.widget_title);
+          if (chatbot.widget_subtitle) setSubtitle(chatbot.widget_subtitle);
+          if (chatbot.greeting_message) setGreeting(chatbot.greeting_message);
+        }
+      };
+
+      return () => {
+        channel.close();
+      };
+    } catch (e) {
+      // BroadcastChannel not supported - ignore
+    }
+  }, [chatbotId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -347,7 +406,26 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-slate-900/50">
               <AnimatePresence mode="popLayout">
-                {messages.length === 0 && (
+                {/* Paused State */}
+                {isPaused && messages.length === 0 && (
+                  <motion.div
+                    className="flex flex-col items-center justify-center h-full text-center px-4"
+                    variants={fadeInUp}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                  >
+                    <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mb-4">
+                      <Pause size={32} className="text-amber-400" />
+                    </div>
+                    <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-[280px]">
+                      {pausedMessage}
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* Normal greeting state */}
+                {!isPaused && messages.length === 0 && (
                   <motion.div
                     className="text-center text-slate-300 mt-8"
                     variants={fadeInUp}
@@ -508,9 +586,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
             {/* Input */}
             <motion.div
-              className={`border-t border-slate-700 p-3 sm:p-4 bg-slate-800 ${!embedMode ? 'rounded-b-2xl' : ''}`}
+              className={`border-t border-slate-700 p-3 sm:p-4 bg-slate-800 ${!embedMode ? 'rounded-b-2xl' : ''} ${isPaused ? 'opacity-50' : ''}`}
               initial={embedMode ? undefined : { opacity: 0, y: 20 }}
-              animate={embedMode ? undefined : { opacity: 1, y: 0 }}
+              animate={embedMode ? undefined : { opacity: isPaused ? 0.5 : 1, y: 0 }}
               transition={embedMode ? undefined : { delay: 0.2 }}
             >
               <div className="flex gap-2">
@@ -519,16 +597,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder={t('chat.placeholder')}
-                  disabled={loading}
+                  placeholder={isPaused ? t('chat.pausedPlaceholder', 'Chat is currently paused...') : t('chat.placeholder')}
+                  disabled={loading || isPaused}
                   className="flex-1 text-sm sm:text-base py-2.5 sm:py-3 px-4 border border-slate-600 rounded-lg bg-slate-700 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-slate-600 disabled:cursor-not-allowed"
                 />
                 <motion.button
                   onClick={handleSend}
-                  disabled={loading || !input.trim()}
-                  className="btn-primary px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl"
-                  whileHover={{ scale: loading || !input.trim() ? 1 : 1.05 }}
-                  whileTap={{ scale: loading || !input.trim() ? 1 : 0.95 }}
+                  disabled={loading || !input.trim() || isPaused}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl ${isPaused ? 'bg-slate-600' : 'btn-primary'}`}
+                  whileHover={{ scale: loading || !input.trim() || isPaused ? 1 : 1.05 }}
+                  whileTap={{ scale: loading || !input.trim() || isPaused ? 1 : 0.95 }}
                 >
                   <Send size={18} className="sm:w-5 sm:h-5" />
                 </motion.button>

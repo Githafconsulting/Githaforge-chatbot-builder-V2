@@ -180,6 +180,14 @@ export const ChatbotConfiguration: React.FC = () => {
 
     // LLM Configuration
     {
+      key: 'modelPreset',
+      label: 'Model Preset',
+      description: 'AI behavior preset that controls quality vs speed trade-off. Fast = lower temperature, fewer tokens, fewer KB chunks (quick but less thorough). Balanced = default middle-ground settings. Accurate = higher tokens, more KB chunks (slower but more thorough). The individual settings (temperature, max_tokens, top_k, similarity_threshold) should be controlled via this preset. Can be used for tiered service levels (e.g., premium customers get "Accurate" mode).',
+      status: 'not_implemented',
+      category: 'llm',
+      value: 'balanced'
+    },
+    {
       key: 'llmModel',
       label: 'LLM Model',
       description: 'Model for response generation. Uses settings.LLM_MODEL from .env file',
@@ -190,7 +198,7 @@ export const ChatbotConfiguration: React.FC = () => {
     {
       key: 'llmTemperature',
       label: 'LLM Temperature',
-      description: 'Response creativity (0-2). Uses settings.LLM_TEMPERATURE from .env file',
+      description: 'Response creativity (0-2). Uses settings.LLM_TEMPERATURE from .env file. Should be controlled by Model Preset when implemented.',
       status: 'not_implemented',
       category: 'llm',
       value: config?.llmTemperature ?? 0.7
@@ -198,7 +206,7 @@ export const ChatbotConfiguration: React.FC = () => {
     {
       key: 'llmMaxTokens',
       label: 'LLM Max Tokens',
-      description: 'Maximum response length. Uses settings.LLM_MAX_TOKENS from .env file',
+      description: 'Maximum response length. Uses settings.LLM_MAX_TOKENS from .env file. Should be controlled by Model Preset when implemented.',
       status: 'not_implemented',
       category: 'llm',
       value: config?.llmMaxTokens ?? 500
@@ -376,6 +384,10 @@ export const ChatbotConfiguration: React.FC = () => {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-cyan-400">5.</span>
+            <span><strong>Model Preset:</strong> Implement preset system where Fast/Balanced/Accurate controls temperature, max_tokens, top_k, and similarity_threshold. Can be set per-company for tiered service (premium = Accurate mode)</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-cyan-400">6.</span>
             <span><strong>Topic Keywords:</strong> Read from chatbot_config in analytics_service.py</span>
           </li>
         </ul>

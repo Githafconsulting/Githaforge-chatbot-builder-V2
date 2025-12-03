@@ -86,6 +86,8 @@ class ChatbotService:
         """
         # Frontend URL where the embed page is hosted
         frontend_url = settings.FRONTEND_URL or "http://localhost:5173"
+        # Backend URL for API calls (status check, chat, etc.)
+        backend_url = settings.API_BASE_URL or "http://localhost:8000"
 
         # Widget configuration
         primary_color = chatbot.primary_color or '#1e40af'
@@ -106,6 +108,7 @@ class ChatbotService:
   window.GithafChatConfig = {{
     chatbotId: "{chatbot.id}",
     apiUrl: "{frontend_url}",
+    backendUrl: "{backend_url}",
     primaryColor: "{primary_color}",
     accentColor: "{accent_color}",
     greeting: "{greeting}",

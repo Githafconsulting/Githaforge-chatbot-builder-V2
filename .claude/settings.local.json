@@ -6,7 +6,8 @@
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
       "Bash(cd:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(copy:*)"
     ],
     "deny": [],
     "ask": []

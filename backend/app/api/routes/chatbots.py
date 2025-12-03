@@ -19,6 +19,54 @@ from app.models.user import User
 router = APIRouter()
 
 
+class ChatbotPublicStatus(BaseModel):
+    """Public chatbot status for embed widget"""
+    is_active: bool
+    deploy_status: str
+
+
+@router.get("/{chatbot_id}/public", response_model=ChatbotPublicStatus)
+async def get_chatbot_public_status(chatbot_id: str):
+    """
+    Get public chatbot status (no authentication required)
+
+    This endpoint is used by the embed widget to check if a chatbot
+    should be displayed on a website.
+
+    - **chatbot_id**: UUID of the chatbot
+
+    Returns:
+    - **is_active**: Whether the chatbot is visible on websites
+    - **deploy_status**: Current deployment status (deployed/paused/draft)
+    """
+    # Use direct database query to get minimal status info
+    try:
+        from app.core.database import get_supabase_client
+        client = get_supabase_client()
+
+        response = client.table("chatbots").select(
+            "is_active, deploy_status"
+        ).eq("id", chatbot_id).single().execute()
+
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Chatbot {chatbot_id} not found"
+            )
+
+        return ChatbotPublicStatus(
+            is_active=response.data.get("is_active", True),
+            deploy_status=response.data.get("deploy_status", "draft")
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch chatbot status: {str(e)}"
+        )
+
+
 class ScopeAssignRequest(BaseModel):
     """Request to assign a scope to a chatbot"""
     scope_id: Optional[str] = None  # None to remove scope assignment

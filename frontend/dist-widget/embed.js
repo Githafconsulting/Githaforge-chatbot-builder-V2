@@ -4,6 +4,7 @@
   // Default configuration - matches current ChatWidget design
   const defaultConfig = {
     apiUrl: 'http://localhost:5173',
+    backendUrl: 'http://localhost:8000', // Backend API URL for status checks
     position: 'bottom-right',
     primaryColor: '#1e40af',
     accentColor: '#0ea5e9',
@@ -18,63 +19,47 @@
     paddingY: 20
   };
 
-  // Function to map backend field names to frontend format
-  function mapBackendToFrontend(backendSettings) {
-    return {
-      position: backendSettings.widgetPosition || backendSettings.position,
-      primaryColor: backendSettings.primaryColor,
-      accentColor: backendSettings.accentColor,
-      buttonSize: backendSettings.buttonSize,
-      greeting: backendSettings.greetingMessage || backendSettings.greeting,
-      title: backendSettings.widgetTitle || backendSettings.title,
-      subtitle: backendSettings.widgetSubtitle || backendSettings.subtitle,
-      zIndex: backendSettings.zIndex,
-      theme: backendSettings.widgetTheme || backendSettings.theme,
-      showNotificationBadge: backendSettings.showNotificationBadge,
-      paddingX: backendSettings.horizontalPadding || backendSettings.paddingX,
-      paddingY: backendSettings.verticalPadding || backendSettings.paddingY,
-      apiUrl: backendSettings.apiUrl
-    };
-  }
+  // Merge user config with defaults
+  const config = Object.assign({}, defaultConfig, window.GithafChatConfig || {});
 
-  // Async function to initialize widget with settings from backend
-  async function initializeWidget() {
-    let config = Object.assign({}, defaultConfig);
-
-    // Try to fetch settings from backend API
-    try {
-      const apiUrl = (window.GithafChatConfig && window.GithafChatConfig.apiUrl) || defaultConfig.apiUrl;
-      const response = await fetch(`${apiUrl}/api/v1/widget/`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const backendSettings = await response.json();
-        const mappedSettings = mapBackendToFrontend(backendSettings);
-
-        // Merge: defaults < backend settings < local window.GithafChatConfig
-        config = Object.assign({}, defaultConfig, mappedSettings, window.GithafChatConfig || {});
-        console.log('[Githaf Widget] Settings loaded from backend');
-      } else {
-        // Fallback to local config if backend fails
-        config = Object.assign({}, defaultConfig, window.GithafChatConfig || {});
-        console.log('[Githaf Widget] Using local config (backend unavailable)');
-      }
-    } catch (error) {
-      // Fallback to local config if fetch fails
-      config = Object.assign({}, defaultConfig, window.GithafChatConfig || {});
-      console.log('[Githaf Widget] Using local config (fetch failed):', error.message);
+  // Check if chatbot is active before rendering
+  async function checkChatbotStatus() {
+    if (!config.chatbotId) {
+      console.warn('[Githaf Chat] No chatbotId provided, rendering widget anyway');
+      return { is_active: true, deploy_status: 'deployed' };
     }
 
-    // Now initialize the widget with the final config
-    renderWidget(config);
+    try {
+      const response = await fetch(`${config.backendUrl}/api/v1/chatbots/${config.chatbotId}/public`);
+      if (!response.ok) {
+        console.error('[Githaf Chat] Failed to fetch chatbot status:', response.status);
+        return { is_active: true, deploy_status: 'deployed' }; // Default to showing on error
+      }
+      const data = await response.json();
+      return {
+        is_active: data.is_active !== false, // Default to true if not set
+        deploy_status: data.deploy_status || 'deployed'
+      };
+    } catch (error) {
+      console.error('[Githaf Chat] Error checking chatbot status:', error);
+      return { is_active: true, deploy_status: 'deployed' }; // Default to showing on error
+    }
   }
 
-  // Widget rendering function
-  function renderWidget(config) {
+  // Initialize widget after status check
+  async function initWidget() {
+    const status = await checkChatbotStatus();
+
+    // Don't render widget if chatbot is hidden (is_active = false)
+    if (!status.is_active) {
+      console.log('[Githaf Chat] Chatbot is hidden (is_active=false), not rendering widget');
+      return;
+    }
+
+    renderWidget();
+  }
+
+  function renderWidget() {
 
   // Position styles - use custom padding
   const positions = {
@@ -153,16 +138,15 @@
 
   // Build iframe URL pointing to dedicated /embed route
   const iframeUrl = new URL(config.apiUrl + '/embed');
+  // CRITICAL: Pass chatbotId to iframe so it uses the correct chatbot's knowledge base
+  if (config.chatbotId) {
+    iframeUrl.searchParams.set('chatbotId', config.chatbotId);
+  }
   iframeUrl.searchParams.set('primaryColor', config.primaryColor);
   iframeUrl.searchParams.set('accentColor', config.accentColor);
   iframeUrl.searchParams.set('title', config.title);
   iframeUrl.searchParams.set('subtitle', config.subtitle);
   iframeUrl.searchParams.set('greeting', config.greeting);
-
-  // Pass adminPreview flag for showing sources in admin panel
-  if (config.adminPreview === true || config.adminPreview === 'true') {
-    iframeUrl.searchParams.set('adminPreview', 'true');
-  }
 
   iframe.src = iframeUrl.toString();
 
@@ -284,7 +268,6 @@
   // Button hover effect
   button.addEventListener('mouseenter', function() {
     this.style.transform = 'scale(1.1)';
-    this.style.borderRadius = '50%'; // Explicitly maintain rounded borders
     if (config.theme === 'modern') {
       this.style.boxShadow = '0 15px 40px rgba(0, 0, 0, 0.3)';
     }
@@ -292,7 +275,6 @@
 
   button.addEventListener('mouseleave', function() {
     this.style.transform = 'scale(1)';
-    this.style.borderRadius = '50%'; // Explicitly maintain rounded borders
     if (config.theme === 'modern') {
       this.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.2)';
     }
@@ -304,12 +286,13 @@
     isOpen = !isOpen;
     if (isOpen) {
       iframe.style.display = 'block';
-      button.innerHTML = closeIcon;
+      button.style.display = 'none'; // Hide button when chat is open - use X in chat header to close
       // Remove badge when opened
       const badge = document.getElementById('githaf-chat-badge');
       if (badge) badge.remove();
     } else {
       iframe.style.display = 'none';
+      button.style.display = 'flex';
       button.innerHTML = chatIcon;
     }
   });
@@ -321,59 +304,16 @@
 
   // Listen for close messages from iframe
   window.addEventListener('message', function(event) {
+    // Handle both string and object formats for closeChat message
     if (event.data === 'closeChat' || (event.data && event.data.type === 'closeChat')) {
       isOpen = false;
       iframe.style.display = 'none';
-      button.style.display = 'flex'; // Show button when chat closes from inside
+      button.style.display = 'flex'; // Show button again
+      button.innerHTML = chatIcon;
     }
   });
-  }
+  } // End of renderWidget function
 
-  // Poll for settings updates every 30 seconds
-  let currentSettingsHash = null;
-
-  function getSettingsHash(settings) {
-    return JSON.stringify(settings);
-  }
-
-  async function checkForUpdates(apiUrl) {
-    try {
-      const response = await fetch(`${apiUrl}/api/v1/widget/`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (response.ok) {
-        const backendSettings = await response.json();
-        const newHash = getSettingsHash(backendSettings);
-
-        // If settings changed, reload widget
-        if (currentSettingsHash && currentSettingsHash !== newHash) {
-          console.log('[Githaf Widget] Settings updated - reloading widget...');
-
-          // Remove old widget
-          const oldContainer = document.getElementById('githaf-chat-widget-container');
-          if (oldContainer) {
-            oldContainer.remove();
-          }
-
-          // Re-render with new settings
-          const mappedSettings = mapBackendToFrontend(backendSettings);
-          const newConfig = Object.assign({}, defaultConfig, mappedSettings, window.GithafChatConfig || {});
-          renderWidget(newConfig);
-        }
-
-        currentSettingsHash = newHash;
-      }
-    } catch (error) {
-      // Silently fail - don't spam console on network errors
-    }
-  }
-
-  // Initialize widget on page load
-  initializeWidget();
-
-  // Start polling for updates every 30 seconds
-  const apiUrl = (window.GithafChatConfig && window.GithafChatConfig.apiUrl) || defaultConfig.apiUrl;
-  setInterval(() => checkForUpdates(apiUrl), 30000); // 30 seconds
+  // Start widget initialization (checks status before rendering)
+  initWidget();
 })();

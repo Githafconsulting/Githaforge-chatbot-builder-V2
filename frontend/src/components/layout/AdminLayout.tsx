@@ -86,7 +86,6 @@ export const AdminLayout: React.FC = () => {
     { path: '/admin/company', label: 'Company Settings', icon: Building2, color: 'text-fuchsia-400' },
     ...(canAccessBilling ? [{ path: '/admin/billing', label: 'Billing & Plans', icon: DollarSign, color: 'text-yellow-400' }] : []),
     { path: '/admin/integrations', label: 'Integrations', icon: Cloud, color: 'text-sky-400' },
-    { path: '/admin/widget', label: t('nav.widgetSettings'), icon: Settings, color: 'text-pink-400' },
     { path: '/admin/settings', label: t('nav.systemSettings'), icon: Settings, color: 'text-indigo-400' },
     { path: '/admin/deleted', label: t('nav.trash'), icon: Trash2, color: 'text-orange-400' },
   ];

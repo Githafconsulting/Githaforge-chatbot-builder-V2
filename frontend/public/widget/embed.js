@@ -4,6 +4,7 @@
   // Default configuration - matches current ChatWidget design
   const defaultConfig = {
     apiUrl: 'http://localhost:5173',
+    backendUrl: 'http://localhost:8000', // Backend API URL for status checks
     position: 'bottom-right',
     primaryColor: '#1e40af',
     accentColor: '#0ea5e9',
@@ -20,6 +21,45 @@
 
   // Merge user config with defaults
   const config = Object.assign({}, defaultConfig, window.GithafChatConfig || {});
+
+  // Check if chatbot is active before rendering
+  async function checkChatbotStatus() {
+    if (!config.chatbotId) {
+      console.warn('[Githaf Chat] No chatbotId provided, rendering widget anyway');
+      return { is_active: true, deploy_status: 'deployed' };
+    }
+
+    try {
+      const response = await fetch(`${config.backendUrl}/api/v1/chatbots/${config.chatbotId}/public`);
+      if (!response.ok) {
+        console.error('[Githaf Chat] Failed to fetch chatbot status:', response.status);
+        return { is_active: true, deploy_status: 'deployed' }; // Default to showing on error
+      }
+      const data = await response.json();
+      return {
+        is_active: data.is_active !== false, // Default to true if not set
+        deploy_status: data.deploy_status || 'deployed'
+      };
+    } catch (error) {
+      console.error('[Githaf Chat] Error checking chatbot status:', error);
+      return { is_active: true, deploy_status: 'deployed' }; // Default to showing on error
+    }
+  }
+
+  // Initialize widget after status check
+  async function initWidget() {
+    const status = await checkChatbotStatus();
+
+    // Don't render widget if chatbot is hidden (is_active = false)
+    if (!status.is_active) {
+      console.log('[Githaf Chat] Chatbot is hidden (is_active=false), not rendering widget');
+      return;
+    }
+
+    renderWidget();
+  }
+
+  function renderWidget() {
 
   // Position styles - use custom padding
   const positions = {
@@ -272,4 +312,8 @@
       button.innerHTML = chatIcon;
     }
   });
+  } // End of renderWidget function
+
+  // Start widget initialization (checks status before rendering)
+  initWidget();
 })();

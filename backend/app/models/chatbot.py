@@ -84,6 +84,9 @@ class ChatbotUpdate(BaseModel):
     # Response Style
     response_style: Optional[str] = Field(None, pattern=r'^(concise|standard|detailed)$')
 
+    # Visibility
+    is_active: Optional[bool] = None  # Hide/show chatbot on website
+
 
 class Chatbot(ChatbotBase):
     """Chatbot model with database fields"""

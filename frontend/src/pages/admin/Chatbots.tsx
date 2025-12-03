@@ -15,6 +15,8 @@ import {
   XCircle,
   List,
   Grid3x3,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -98,6 +100,28 @@ export const ChatbotsPage: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to delete chatbot:', error);
       toast.error(error.response?.data?.detail || 'Failed to delete chatbot');
+    }
+  };
+
+  const handleHideChatbot = async (chatbot: Chatbot) => {
+    try {
+      const updated = await apiService.hideChatbot(chatbot.id);
+      setChatbots(chatbots.map(c => c.id === chatbot.id ? updated : c));
+      toast.success(`${chatbot.name} hidden from website`);
+    } catch (error: any) {
+      console.error('Failed to hide chatbot:', error);
+      toast.error(error.response?.data?.detail || 'Failed to hide chatbot');
+    }
+  };
+
+  const handleShowChatbot = async (chatbot: Chatbot) => {
+    try {
+      const updated = await apiService.showChatbot(chatbot.id);
+      setChatbots(chatbots.map(c => c.id === chatbot.id ? updated : c));
+      toast.success(`${chatbot.name} is now visible on website`);
+    } catch (error: any) {
+      console.error('Failed to show chatbot:', error);
+      toast.error(error.response?.data?.detail || 'Failed to show chatbot');
     }
   };
 
@@ -216,6 +240,8 @@ export const ChatbotsPage: React.FC = () => {
                   chatbot={chatbot}
                   onDeploy={() => handleDeployChatbot(chatbot)}
                   onPause={() => handlePauseChatbot(chatbot)}
+                  onHide={() => handleHideChatbot(chatbot)}
+                  onShow={() => handleShowChatbot(chatbot)}
                   onDelete={() => handleDeleteChatbot(chatbot)}
                   onViewDetails={() => navigate(`/admin/chatbots/${chatbot.id}`)}
                 />
@@ -232,6 +258,8 @@ export const ChatbotsPage: React.FC = () => {
               chatbot={chatbot}
               onDeploy={() => handleDeployChatbot(chatbot)}
               onPause={() => handlePauseChatbot(chatbot)}
+              onHide={() => handleHideChatbot(chatbot)}
+              onShow={() => handleShowChatbot(chatbot)}
               onDelete={() => handleDeleteChatbot(chatbot)}
               onViewDetails={() => navigate(`/admin/chatbots/${chatbot.id}`)}
             />
@@ -258,6 +286,8 @@ interface ChatbotListRowProps {
   chatbot: Chatbot;
   onDeploy: () => void;
   onPause: () => void;
+  onHide: () => void;
+  onShow: () => void;
   onDelete: () => void;
   onViewDetails: () => void;
 }
@@ -266,6 +296,8 @@ const ChatbotListRow: React.FC<ChatbotListRowProps> = ({
   chatbot,
   onDeploy,
   onPause,
+  onHide,
+  onShow,
   onDelete,
   onViewDetails,
 }) => {
@@ -368,7 +400,7 @@ const ChatbotListRow: React.FC<ChatbotListRowProps> = ({
           {chatbot.deploy_status === 'deployed' ? (
             <button
               onClick={onPause}
-              className="p-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+              className="p-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded transition-colors"
               title="Pause chatbot"
             >
               <Pause className="w-4 h-4" />
@@ -380,6 +412,23 @@ const ChatbotListRow: React.FC<ChatbotListRowProps> = ({
               title="Deploy chatbot"
             >
               <Play className="w-4 h-4" />
+            </button>
+          )}
+          {chatbot.is_active ? (
+            <button
+              onClick={onHide}
+              className="p-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+              title="Hide from website"
+            >
+              <EyeOff className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={onShow}
+              className="p-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded transition-colors"
+              title="Show on website"
+            >
+              <Eye className="w-4 h-4" />
             </button>
           )}
           <button
@@ -400,6 +449,8 @@ interface ChatbotCardProps {
   chatbot: Chatbot;
   onDeploy: () => void;
   onPause: () => void;
+  onHide: () => void;
+  onShow: () => void;
   onDelete: () => void;
   onViewDetails: () => void;
 }
@@ -408,6 +459,8 @@ const ChatbotCard: React.FC<ChatbotCardProps> = ({
   chatbot,
   onDeploy,
   onPause,
+  onHide,
+  onShow,
   onDelete,
   onViewDetails,
 }) => {
@@ -514,7 +567,7 @@ const ChatbotCard: React.FC<ChatbotCardProps> = ({
         {chatbot.deploy_status === 'deployed' ? (
           <button
             onClick={onPause}
-            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+            className="px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded transition-colors"
             title="Pause chatbot"
           >
             <Pause className="w-4 h-4" />
@@ -526,6 +579,23 @@ const ChatbotCard: React.FC<ChatbotCardProps> = ({
             title="Deploy chatbot"
           >
             <Play className="w-4 h-4" />
+          </button>
+        )}
+        {chatbot.is_active ? (
+          <button
+            onClick={onHide}
+            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+            title="Hide from website"
+          >
+            <EyeOff className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={onShow}
+            className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded transition-colors"
+            title="Show on website"
+          >
+            <Eye className="w-4 h-4" />
           </button>
         )}
         <button
