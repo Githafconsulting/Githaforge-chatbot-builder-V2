@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
-import { getUserInfoFromToken, isTokenExpired } from '../utils/jwt';
+import { getUserInfoFromToken, isTokenExpired, shouldRefreshToken } from '../utils/jwt';
 import type { LoginCredentials, UnifiedSignupRequest } from '../types';
 
 interface UserInfo {
@@ -37,21 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserInfo(null);
   }, []);
 
-  // Check token expiration
-  const checkTokenExpiration = useCallback(() => {
-    const token = localStorage.getItem('access_token');
-    if (token && isTokenExpired(token)) {
-      console.warn('Token expired, logging out...');
-      performLogout();
-      // Redirect to login if not already there
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
-      return true;
-    }
-    return false;
-  }, [performLogout]);
-
   // Listen for auth:logout events from API interceptor
   useEffect(() => {
     const handleLogoutEvent = () => {
@@ -63,16 +48,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('auth:logout', handleLogoutEvent);
   }, [performLogout]);
 
-  // Periodically check token expiration (every 30 seconds)
+  // Proactive token refresh - refresh before expiration
+  const refreshTokenIfNeeded = useCallback(async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    // Check if token is expired first
+    if (isTokenExpired(token)) {
+      console.warn('Token expired, logging out...');
+      performLogout();
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+      return;
+    }
+
+    // Check if token should be refreshed (within 5 minutes of expiry)
+    if (shouldRefreshToken(token)) {
+      try {
+        console.log('Token expiring soon, refreshing...');
+        await apiService.refreshToken();
+        console.log('Token refreshed successfully');
+      } catch (error) {
+        console.error('Failed to refresh token:', error);
+        // If refresh fails, let the token expire naturally
+        // The next check will log out the user
+      }
+    }
+  }, [performLogout]);
+
+  // Periodically check token expiration and refresh if needed (every 30 seconds)
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    // Check immediately on mount
+    refreshTokenIfNeeded();
+
     const interval = setInterval(() => {
-      checkTokenExpiration();
+      refreshTokenIfNeeded();
     }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, checkTokenExpiration]);
+  }, [isAuthenticated, refreshTokenIfNeeded]);
 
   useEffect(() => {
     // Check if token exists and decode it on mount

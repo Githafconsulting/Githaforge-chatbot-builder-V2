@@ -143,6 +143,17 @@ class ApiService {
     return response.data;
   }
 
+  async refreshToken(): Promise<AuthResponse> {
+    const response = await this.api.post('/api/v1/auth/refresh');
+
+    // Update stored token
+    if (response.data.access_token) {
+      localStorage.setItem('access_token', response.data.access_token);
+    }
+
+    return response.data;
+  }
+
   async superAdminLogin(email: string, password: string): Promise<AuthResponse> {
     // OAuth2 Password Flow for super admin
     const formData = new URLSearchParams();

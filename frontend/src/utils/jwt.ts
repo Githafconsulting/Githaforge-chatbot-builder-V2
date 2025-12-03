@@ -58,6 +58,32 @@ export function isTokenExpired(token: string): boolean {
 }
 
 /**
+ * Check if JWT token should be refreshed (within 5 minutes of expiry)
+ */
+export function shouldRefreshToken(token: string): boolean {
+  const payload = decodeJWT(token);
+  if (!payload || !payload.exp) {
+    return false;
+  }
+
+  // Refresh if less than 5 minutes until expiry
+  const fiveMinutesInMs = 5 * 60 * 1000;
+  const expiryTime = payload.exp * 1000;
+  return expiryTime - Date.now() < fiveMinutesInMs;
+}
+
+/**
+ * Get time until token expires in milliseconds
+ */
+export function getTimeUntilExpiry(token: string): number {
+  const payload = decodeJWT(token);
+  if (!payload || !payload.exp) {
+    return 0;
+  }
+  return Math.max(0, payload.exp * 1000 - Date.now());
+}
+
+/**
  * Get user ID from JWT token
  */
 export function getUserIdFromToken(token: string): string | null {

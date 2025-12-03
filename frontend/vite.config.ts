@@ -18,6 +18,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       }
-    }
+    },
+    allowedHosts: [
+      "*.ngrok-free.app",
+      "*.ngrok-free.dev",
+      "maren-unpricked-percy.ngrok-free.dev"
+    ]
   }
 })

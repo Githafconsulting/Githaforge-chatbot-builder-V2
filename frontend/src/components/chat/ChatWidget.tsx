@@ -14,6 +14,7 @@ interface ChatWidgetProps {
   titleOverride?: string; // Override title from widget settings (for live preview)
   subtitleOverride?: string; // Override subtitle from widget settings (for live preview)
   greetingOverride?: string; // Override greeting from widget settings (for live preview)
+  chatbotId?: string; // Chatbot ID to use for this widget (required for deployed bots)
 }
 
 export const ChatWidget: React.FC<ChatWidgetProps> = ({
@@ -21,7 +22,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   embedMode = false,
   titleOverride,
   subtitleOverride,
-  greetingOverride
+  greetingOverride,
+  chatbotId
 }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(embedMode); // Auto-open if embedMode
@@ -114,7 +116,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     setLoading(true);
 
     try {
-      const response = await apiService.sendMessage(input, sessionId);
+      const response = await apiService.sendMessage(input, sessionId, chatbotId);
 
       const botMessage: ChatMessage = {
         message: input,

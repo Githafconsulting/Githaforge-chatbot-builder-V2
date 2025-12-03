@@ -9,6 +9,7 @@ from app.models.user import Token, CompanySignup, UnifiedSignup, SignupResponse
 from app.core.database import get_supabase_client
 from app.core.security import verify_password, create_access_token, get_password_hash
 from app.core.config import settings
+from app.core.dependencies import get_current_user
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -87,6 +88,42 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(current_user: dict = Depends(get_current_user)):
+    """
+    Refresh access token for authenticated users.
+
+    Returns a new JWT token with extended expiration.
+    The current token must still be valid (not expired).
+    """
+    try:
+        # Create new token with fresh expiration
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        token_data = {
+            "sub": str(current_user["id"]),
+            "company_id": str(current_user.get("company_id")) if current_user.get("company_id") else None,
+            "role": current_user.get("role", "member"),
+            "full_name": current_user.get("full_name"),
+            "is_super_admin": current_user.get("is_super_admin", False)
+        }
+
+        access_token = create_access_token(
+            data=token_data,
+            expires_delta=access_token_expires
+        )
+
+        logger.info(f"Token refreshed for user: {current_user.get('email')}")
+
+        return Token(access_token=access_token, token_type="bearer")
+
+    except Exception as e:
+        logger.error(f"Error refreshing token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to refresh token"
+        )
 
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)

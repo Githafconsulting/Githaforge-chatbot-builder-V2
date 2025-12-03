@@ -31,6 +31,7 @@ import {
   Mail,
   MapPin,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -147,9 +148,24 @@ export const ChatbotDetailPage: React.FC = () => {
         contact_address: chatbot.contact_address,
         contact_hours: chatbot.contact_hours,
         response_style: chatbot.response_style,
+        paused_message: chatbot.paused_message,
       };
       const updated = await apiService.updateChatbot(chatbot.id, updates);
       setChatbot(updated);
+
+      // Broadcast update to any open test pages for live sync
+      try {
+        const channel = new BroadcastChannel('chatbot-settings-sync');
+        channel.postMessage({
+          type: 'CHATBOT_UPDATED',
+          chatbotId: chatbot.id,
+          chatbot: updated
+        });
+        channel.close();
+      } catch (e) {
+        // BroadcastChannel not supported or failed - ignore
+      }
+
       toast.success('Chatbot updated successfully!');
     } catch (error: any) {
       console.error('Failed to update chatbot:', error);
@@ -209,6 +225,17 @@ export const ChatbotDetailPage: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleTestChatbot = () => {
+    if (!chatbot) return;
+
+    // Open test page - it fetches latest settings from API
+    const testUrl = new URL('/chatbot-test', window.location.origin);
+    testUrl.searchParams.set('chatbotId', chatbot.id);
+
+    // Open in new tab
+    window.open(testUrl.toString(), '_blank');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -258,6 +285,13 @@ export const ChatbotDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleTestChatbot}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Test Chatbot
+            </button>
             {chatbot.deploy_status === 'deployed' ? (
               <button
                 onClick={handlePause}
@@ -422,6 +456,18 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
             value={chatbot.greeting_message}
             onChange={(e) => setChatbot({ ...chatbot, greeting_message: e.target.value })}
             className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Paused Message</label>
+          <p className="text-xs text-slate-400 mb-2">Message shown to users when the chatbot is paused</p>
+          <textarea
+            value={chatbot.paused_message || 'This chatbot is currently unavailable. Please try again later or contact support.'}
+            onChange={(e) => setChatbot({ ...chatbot, paused_message: e.target.value })}
+            rows={2}
+            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 resize-none"
+            placeholder="This chatbot is currently unavailable..."
           />
         </div>
       </div>
@@ -1103,49 +1149,54 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({ chatbot }) => {
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="w-80 h-96 bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
+          className="w-80 h-96 bg-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-700"
         >
+          {/* Header - matches ChatWidget gradient header */}
           <div
-            className="p-3 text-white flex items-center justify-between"
-            style={{ backgroundColor: primaryColor }}
+            className="p-4 text-white flex items-center justify-between rounded-t-2xl"
+            style={{ background: `linear-gradient(to bottom right, ${primaryColor}, ${secondaryColor})` }}
           >
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <Sparkles className="w-5 h-5" />
+              </div>
               <div>
-                <span className="font-semibold text-sm block">{chatbot.widget_title || chatbot.name}</span>
-                <span className="text-xs opacity-80">{chatbot.widget_subtitle || 'Always here to help'}</span>
+                <span className="font-semibold text-base block">{chatbot.widget_title || chatbot.name}</span>
+                <span className="text-xs text-blue-100">{chatbot.widget_subtitle || 'Always here to help'}</span>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded">
-              <X className="w-4 h-4" />
+            <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="flex-1 p-3 overflow-y-auto bg-slate-50">
-            <div className="flex justify-start">
-              <div className="max-w-[75%] p-3 rounded-lg bg-white border border-slate-200 text-slate-800">
-                <p className="text-sm">{chatbot.greeting_message}</p>
+          {/* Messages area - matches ChatWidget dark theme */}
+          <div className="flex-1 p-4 overflow-y-auto bg-slate-900/50">
+            <div className="flex flex-col items-start">
+              <div className="bg-slate-700 rounded-2xl rounded-tl-sm py-2.5 px-4 max-w-[80%] shadow-md border border-slate-600">
+                <p className="text-sm text-white">{chatbot.greeting_message}</p>
               </div>
             </div>
           </div>
 
-          <div className="p-3 border-t border-slate-200 bg-white">
+          {/* Input area - matches ChatWidget styling */}
+          <div className="p-3 border-t border-slate-700 bg-slate-800">
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 placeholder="Type your message..."
-                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800"
+                className="flex-1 px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled
               />
               <button
-                className="p-2 rounded-lg text-white"
-                style={{ backgroundColor: primaryColor }}
+                className="p-2.5 rounded-xl text-white transition-colors"
+                style={{ background: `linear-gradient(to bottom right, ${primaryColor}, ${secondaryColor})` }}
                 disabled
               >
                 <Send className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-slate-400 mt-2 text-center">Visual preview only</p>
+            <p className="text-xs text-slate-500 mt-2 text-center">Visual preview only</p>
           </div>
         </motion.div>
       )}

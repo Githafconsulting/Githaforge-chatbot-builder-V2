@@ -98,6 +98,10 @@
 
   // Build iframe URL pointing to dedicated /embed route
   const iframeUrl = new URL(config.apiUrl + '/embed');
+  // CRITICAL: Pass chatbotId to iframe so it uses the correct chatbot's knowledge base
+  if (config.chatbotId) {
+    iframeUrl.searchParams.set('chatbotId', config.chatbotId);
+  }
   iframeUrl.searchParams.set('primaryColor', config.primaryColor);
   iframeUrl.searchParams.set('accentColor', config.accentColor);
   iframeUrl.searchParams.set('title', config.title);
@@ -242,12 +246,13 @@
     isOpen = !isOpen;
     if (isOpen) {
       iframe.style.display = 'block';
-      button.innerHTML = closeIcon;
+      button.style.display = 'none'; // Hide button when chat is open - use X in chat header to close
       // Remove badge when opened
       const badge = document.getElementById('githaf-chat-badge');
       if (badge) badge.remove();
     } else {
       iframe.style.display = 'none';
+      button.style.display = 'flex';
       button.innerHTML = chatIcon;
     }
   });
@@ -259,9 +264,11 @@
 
   // Listen for close messages from iframe
   window.addEventListener('message', function(event) {
-    if (event.data === 'closeChat') {
+    // Handle both string and object formats for closeChat message
+    if (event.data === 'closeChat' || (event.data && event.data.type === 'closeChat')) {
       isOpen = false;
       iframe.style.display = 'none';
+      button.style.display = 'flex'; // Show button again
       button.innerHTML = chatIcon;
     }
   });

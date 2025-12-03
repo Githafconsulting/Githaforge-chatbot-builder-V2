@@ -77,31 +77,50 @@ class ChatbotService:
         return ChatbotWithEmbedCode(**chatbot.dict(), embed_code=embed_code)
 
     def _generate_embed_code(self, chatbot: Chatbot) -> str:
-        """Generate JavaScript embed code for chatbot"""
-        api_url = settings.API_BASE_URL or "http://localhost:8000"
+        """Generate JavaScript embed code for chatbot widget
 
-        embed_code = f"""<!-- Githaforge Chatbot -->
+        The embed code:
+        1. Sets configuration options via window.GithafChatConfig
+        2. Loads the embed.js script which creates an iframe pointing to /embed
+        3. Passes chatbotId and customization params to the iframe
+        """
+        # Frontend URL where the embed page is hosted
+        frontend_url = settings.FRONTEND_URL or "http://localhost:5173"
+
+        # Widget configuration
+        primary_color = chatbot.primary_color or '#1e40af'
+        accent_color = chatbot.secondary_color or '#0ea5e9'
+        greeting = chatbot.greeting_message or 'Hi! How can I help you today?'
+        position = chatbot.widget_position or 'bottom-right'
+        button_size = chatbot.button_size or 'medium'
+        theme = chatbot.widget_theme or 'modern'
+        title = chatbot.widget_title or chatbot.name
+        subtitle = chatbot.widget_subtitle or 'Always here to help'
+        padding_x = chatbot.padding_x if chatbot.padding_x is not None else 20
+        padding_y = chatbot.padding_y if chatbot.padding_y is not None else 20
+        z_index = chatbot.z_index if chatbot.z_index is not None else 9999
+        show_badge = 'true' if chatbot.show_notification_badge else 'false'
+
+        embed_code = f"""<!-- Githaforge Chatbot Widget -->
 <script>
-  (function() {{
-    const config = {{
-      chatbotId: "{chatbot.id}",
-      apiUrl: "{api_url}",
-      primaryColor: "{chatbot.primary_color or '#1e40af'}",
-      secondaryColor: "{chatbot.secondary_color or '#0ea5e9'}",
-      greeting: "{chatbot.greeting_message}",
-      logoUrl: "{chatbot.logo_url or ''}",
-      position: "bottom-right"
-    }};
-
-    const script = document.createElement('script');
-    script.src = "{api_url}/static/chatbot-widget.js";
-    script.async = true;
-    script.onload = function() {{
-      window.GithaforgeChat.init(config);
-    }};
-    document.head.appendChild(script);
-  }})();
+  window.GithafChatConfig = {{
+    chatbotId: "{chatbot.id}",
+    apiUrl: "{frontend_url}",
+    primaryColor: "{primary_color}",
+    accentColor: "{accent_color}",
+    greeting: "{greeting}",
+    title: "{title}",
+    subtitle: "{subtitle}",
+    position: "{position}",
+    buttonSize: "{button_size}",
+    theme: "{theme}",
+    paddingX: {padding_x},
+    paddingY: {padding_y},
+    zIndex: {z_index},
+    showNotificationBadge: {show_badge}
+  }};
 </script>
+<script src="{frontend_url}/widget/embed.js" async></script>
 """
         return embed_code
 

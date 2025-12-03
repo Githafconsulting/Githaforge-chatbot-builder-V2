@@ -516,6 +516,7 @@ export interface Chatbot {
   // Status
   is_active: boolean;
   deploy_status: 'draft' | 'deployed' | 'paused';
+  paused_message?: string;  // Custom message shown when chatbot is paused
 
   // Metrics
   total_conversations: number;
@@ -587,6 +588,8 @@ export interface ChatbotUpdate {
   contact_hours?: string;
   // Response Style
   response_style?: 'concise' | 'standard' | 'detailed';
+  // Paused Message
+  paused_message?: string;
 }
 
 export interface ChatbotDeploy {

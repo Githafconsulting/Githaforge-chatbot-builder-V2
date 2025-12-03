@@ -17,10 +17,15 @@ async def similarity_search(
     allowed_scopes: List[str] = None,
     chatbot_id: str = None,
     use_shared_kb: bool = True,
-    selected_document_ids: List[str] = None
+    selected_document_ids: List[str] = None,
+    enable_fallback_threshold: bool = True  # NEW: Enable tiered threshold fallback for typo tolerance
 ) -> List[Dict[str, Any]]:
     """
-    Perform cosine similarity search using pgvector with company and scope filtering
+    Perform cosine similarity search using pgvector with company and scope filtering.
+
+    TYPO TOLERANCE: When no results found at primary threshold, automatically retries
+    at a lower threshold to catch queries with typos (embedding similarity is reduced
+    by misspellings). This is a zero-cost, zero-latency approach compared to LLM rewrites.
 
     Args:
         query_embedding: Query embedding vector
@@ -31,6 +36,7 @@ async def similarity_search(
         chatbot_id: Optional chatbot ID to filter documents assigned to specific bot
         use_shared_kb: If True, use shared KB with scope filtering; if False, use only selected documents
         selected_document_ids: When use_shared_kb=False, only these documents are searched
+        enable_fallback_threshold: If True and no results found, retry with lower threshold (typo tolerance)
 
     Returns:
         List[Dict]: List of matching documents with metadata
@@ -47,21 +53,45 @@ async def similarity_search(
         logger.info(f"Performing similarity search (top_k={top_k}, threshold={threshold}, company_id={company_id}, scopes={allowed_scopes})")
         logger.debug(f"Query embedding dimension: {len(query_embedding)}")
 
+        # Define fallback thresholds for typo tolerance
+        # Primary: Use provided threshold
+        # Fallback 1: Lower threshold to catch misspellings (typos reduce similarity by ~0.1-0.2)
+        # Fallback 2: Minimal threshold for severe typos
+        fallback_thresholds = [
+            threshold,  # Primary threshold
+            max(0.20, threshold - 0.15),  # Fallback 1: 15% lower (handles mild typos)
+            0.15  # Fallback 2: Aggressive fallback for severe typos
+        ]
+
+        results = []
+        threshold_used = threshold
+
         # Call the match_documents RPC function
         # Note: query_embedding is sent as a Python list, Supabase converts it to vector type
         try:
-            response = client.rpc(
-                'match_documents',
-                {
-                    'query_embedding': query_embedding,  # Send as list, Supabase handles conversion
-                    'match_threshold': threshold,
-                    'match_count': top_k * 2  # Get more results for filtering (doubled to account for filters)
-                }
-            ).execute()
+            for i, current_threshold in enumerate(fallback_thresholds):
+                response = client.rpc(
+                    'match_documents',
+                    {
+                        'query_embedding': query_embedding,  # Send as list, Supabase handles conversion
+                        'match_threshold': current_threshold,
+                        'match_count': top_k * 2  # Get more results for filtering (doubled to account for filters)
+                    }
+                ).execute()
 
-            results = response.data if response.data else []
+                results = response.data if response.data else []
+                threshold_used = current_threshold
 
-            logger.info(f"Found {len(results)} matching embeddings (before filtering)")
+                if results:
+                    if i > 0:
+                        logger.info(f"[TYPO_TOLERANCE] Found {len(results)} results at fallback threshold {current_threshold} (original: {threshold})")
+                    break
+                elif enable_fallback_threshold and i < len(fallback_thresholds) - 1:
+                    logger.info(f"[TYPO_TOLERANCE] No results at threshold {current_threshold}, trying lower threshold...")
+                else:
+                    break  # Don't retry if fallback disabled or exhausted all thresholds
+
+            logger.info(f"Found {len(results)} matching embeddings (before filtering) at threshold {threshold_used}")
 
             # MULTITENANCY: Filter by company_id, scope, and KB mode
             if company_id or allowed_scopes or chatbot_id or not use_shared_kb:

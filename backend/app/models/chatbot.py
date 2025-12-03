@@ -45,6 +45,7 @@ class ChatbotUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
     greeting_message: Optional[str] = Field(None, max_length=200)
+    paused_message: Optional[str] = Field(None, max_length=500)  # Message shown when paused
     primary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     secondary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     logo_url: Optional[str] = None
@@ -90,11 +91,23 @@ class Chatbot(ChatbotBase):
     company_id: str
     is_active: bool = True
     deploy_status: str = "draft"  # draft, deployed, paused
+    paused_message: str = "This chatbot is currently unavailable. Please try again later or contact support."
 
-    # Scope and KB Mode (NEW)
+    # Scope and KB Mode
     scope_id: Optional[str] = None  # UUID of assigned scope
     use_shared_kb: bool = True  # True = shared KB, False = selected docs only
     selected_document_ids: Optional[List[str]] = None  # Doc IDs when use_shared_kb=False
+
+    # Widget Appearance (stored in DB)
+    widget_theme: Optional[str] = "modern"
+    widget_position: Optional[str] = "bottom-right"
+    button_size: Optional[str] = "medium"
+    show_notification_badge: Optional[bool] = True
+    widget_title: Optional[str] = None
+    widget_subtitle: Optional[str] = None
+    padding_x: Optional[int] = 20
+    padding_y: Optional[int] = 20
+    z_index: Optional[int] = 9999
 
     # Custom Contact Details
     enable_custom_contact: bool = False

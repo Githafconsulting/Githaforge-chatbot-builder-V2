@@ -5,13 +5,25 @@ import { ChatWidget } from '../components/chat/ChatWidget';
  * Dedicated embed page for the chatbot widget
  * This page contains ONLY the ChatWidget component
  * Used when embedding on external websites via iframe
+ *
+ * Required URL params:
+ * - chatbotId: UUID of the chatbot to use
+ *
+ * Optional URL params:
+ * - primaryColor: Hex color for primary theme
+ * - accentColor: Hex color for accent theme
+ * - title: Widget title
+ * - subtitle: Widget subtitle
+ * - greeting: Initial greeting message
+ * - adminPreview: Set to 'true' to enable admin mode (shows sources)
  */
 export const EmbedPage: React.FC = () => {
   const [widgetConfig, setWidgetConfig] = useState({
     title: '',
     subtitle: '',
     greeting: '',
-    adminMode: false
+    adminMode: false,
+    chatbotId: ''
   });
 
   useEffect(() => {
@@ -23,6 +35,7 @@ export const EmbedPage: React.FC = () => {
     const subtitle = params.get('subtitle');
     const greeting = params.get('greeting');
     const adminPreview = params.get('adminPreview');
+    const chatbotId = params.get('chatbotId');
 
     if (primaryColor) {
       document.documentElement.style.setProperty('--primary-color', primaryColor);
@@ -36,7 +49,8 @@ export const EmbedPage: React.FC = () => {
       title: title || '',
       subtitle: subtitle || '',
       greeting: greeting || '',
-      adminMode: adminPreview === 'true' // Enable admin mode (sources display) when in admin panel preview
+      adminMode: adminPreview === 'true', // Enable admin mode (sources display) when in admin panel preview
+      chatbotId: chatbotId || ''
     });
 
     // Notify parent that embed is loaded
@@ -60,6 +74,7 @@ export const EmbedPage: React.FC = () => {
         titleOverride={widgetConfig.title}
         subtitleOverride={widgetConfig.subtitle}
         greetingOverride={widgetConfig.greeting}
+        chatbotId={widgetConfig.chatbotId}
       />
 
       {/* Optional: Background styling */}

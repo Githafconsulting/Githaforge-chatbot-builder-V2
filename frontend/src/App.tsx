@@ -33,6 +33,7 @@ import { DeletedItemsPage } from './pages/admin/DeletedItems';
 import { LearningPage } from './pages/admin/Learning';
 import { IntegrationsPage } from './pages/admin/Integrations';
 import { EmbedPage } from './pages/Embed';
+import { ChatbotTestPage } from './pages/admin/ChatbotTest';
 import { GlowComponentsShowcase } from './pages/GlowComponentsShowcase';
 import { OAuthCallback } from './pages/OAuthCallback';
 import './i18n'; // Initialize i18n
@@ -54,6 +55,7 @@ function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/super-admin-login" element={<SuperAdminLogin />} />
                 <Route path="/embed" element={<EmbedPage />} />
+                <Route path="/chatbot-test" element={<ChatbotTestPage />} />
                 <Route path="/oauth/callback" element={<OAuthCallback />} />
 
           {/* Glow Components Demo Pages */}

@@ -9,10 +9,39 @@ from app.middleware.rate_limiter import limiter
 from app.utils.logger import get_logger
 from app.utils.geolocation import get_country_from_ip, anonymize_ip
 from app.core.config import settings
+from app.core.database import get_supabase_client
+from typing import Optional, Dict, Any
 import uuid
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+# Default message when chatbot is paused
+DEFAULT_PAUSED_MESSAGE = "This chatbot is currently unavailable. Please try again later or contact support."
+
+
+async def get_chatbot_status(chatbot_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch chatbot deploy_status and paused_message from database.
+
+    Returns:
+        Dict with deploy_status, paused_message, is_active, or None if not found
+    """
+    if not chatbot_id:
+        return None
+
+    try:
+        client = get_supabase_client()
+        response = client.table("chatbots").select(
+            "deploy_status, paused_message, is_active"
+        ).eq("id", chatbot_id).single().execute()
+
+        if response.data:
+            return response.data
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to fetch chatbot status for {chatbot_id}: {e}")
+        return None
 
 
 @router.post("/", response_model=ChatResponse)
@@ -33,6 +62,45 @@ async def chat(chat_request: ChatRequest, request: Request):
         if not chatbot_id and settings.SYSTEM_CHATBOT_ID:
             chatbot_id = settings.SYSTEM_CHATBOT_ID
             logger.info(f"Using system chatbot for public chat: {chatbot_id[:8]}...")
+
+        # Check if chatbot is paused or inactive
+        if chatbot_id:
+            chatbot_status = await get_chatbot_status(chatbot_id)
+
+            if chatbot_status:
+                # Check if chatbot is inactive (deleted)
+                if not chatbot_status.get("is_active", True):
+                    logger.warning(f"Chat attempt to inactive chatbot: {chatbot_id[:8]}...")
+                    return ChatResponse(
+                        response="This chatbot is no longer available.",
+                        session_id=session_id,
+                        sources=None,
+                        context_found=False,
+                        message_id=None
+                    )
+
+                # Check if chatbot is paused
+                if chatbot_status.get("deploy_status") == "paused":
+                    paused_message = chatbot_status.get("paused_message") or DEFAULT_PAUSED_MESSAGE
+                    logger.info(f"Chat attempt to paused chatbot: {chatbot_id[:8]}...")
+                    return ChatResponse(
+                        response=paused_message,
+                        session_id=session_id,
+                        sources=None,
+                        context_found=False,
+                        message_id=None
+                    )
+
+                # Check if chatbot is still in draft mode
+                if chatbot_status.get("deploy_status") == "draft":
+                    logger.warning(f"Chat attempt to draft chatbot: {chatbot_id[:8]}...")
+                    return ChatResponse(
+                        response="This chatbot is not yet deployed. Please contact the administrator.",
+                        session_id=session_id,
+                        sources=None,
+                        context_found=False,
+                        message_id=None
+                    )
 
         # Get client IP address
         client_ip = request.client.host if request.client else None

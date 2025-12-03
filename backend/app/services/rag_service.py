@@ -105,6 +105,9 @@ def preprocess_query(query: str) -> str:
     processed = query
 
     # 1. Fix common misspellings (case-insensitive replacements)
+    # NOTE: This map handles COMMON typos only. For rare/unusual typos,
+    # the tiered similarity threshold in vectorstore_service.py handles them
+    # by automatically retrying at lower thresholds (zero LLM cost).
     misspelling_map = {
         # Contact-related
         r'\b(emial|emal|e-mail)\b': 'email',
@@ -124,6 +127,23 @@ def preprocess_query(query: str) -> str:
         r'\b(avaliable|availble|avalable)\b': 'available',
         r'\b(recieve|recive)\b': 'receive',
         r'\b(responce|reponse)\b': 'response',
+
+        # Organization/governance terms (common in knowledge bases)
+        r'\b(comittee|comitee|commitee|committe|comittees|comitees|commitees|committes)\b': 'committee',
+        r'\b(committees)\b': 'committees',  # Ensure plural is preserved
+        r'\b(memebers|memeber|mebmers|membrs)\b': 'members',
+        r'\b(metting|meetting|meetng)\b': 'meeting',
+        r'\b(orgnization|organizaton|organisaton)\b': 'organization',
+        r'\b(managment|managemnt|mangement)\b': 'management',
+        r'\b(deparment|departmnt|departement)\b': 'department',
+
+        # Technical/product terms
+        r'\b(documnet|docuemnt|documnt)\b': 'document',
+        r'\b(softwar|sofware|softwre)\b': 'software',
+        r'\b(developmnt|devlopment|developement)\b': 'development',
+        r'\b(requirment|requiremnt|requirments)\b': 'requirement',
+        r'\b(schedul|schdule|schedual)\b': 'schedule',
+        r'\b(proccess|proces|proccessing)\b': 'process',
     }
 
     for pattern, replacement in misspelling_map.items():

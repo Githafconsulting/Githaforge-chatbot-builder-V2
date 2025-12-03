@@ -77,7 +77,11 @@ INTENT_PATTERNS = {
         r"^no\s+thanks\b",
         r"^no\s+thank\s+you\b",
         r"^i'?m\s+good\b",
+        r"^i\s+am\s+good\b",  # Without apostrophe
         r"^all\s+good\b",
+        r"^all\s+set\b",
+        r"^we'?re\s+good\b",
+        r"^we\s+are\s+good\b",
     ],
     Intent.GRATITUDE: [
         r"^thank",
@@ -92,6 +96,28 @@ INTENT_PATTERNS = {
         r"^i\s+appreciate",
         r"^much\s+appreciated",
         r"^highly\s+appreciated",
+        # Combined acknowledgment + thanks (common conversation enders)
+        r"^okay\s+thanks",
+        r"^ok\s+thanks",
+        r"^alright\s+thanks",
+        r"^great\s+thanks",
+        r"^perfect\s+thanks",
+        r"^cool\s+thanks",
+        r"^nice\s+thanks",
+        r"^awesome\s+thanks",
+        r"^got\s+it[,.]?\s*thanks",
+        r"^okay[,.]?\s*thank\s+you",
+        r"^ok[,.]?\s*thank\s+you",
+        r"^alright[,.]?\s*thank\s+you",
+        r"^great[,.]?\s*thank\s+you",
+        r"^perfect[,.]?\s*thank\s+you",
+        r"^nice[,.]?\s*thank\s+you",
+        r"^cool[,.]?\s*thank\s+you",
+        r"^awesome[,.]?\s*thank\s+you",
+        # Thanks at the end of short acknowledgment messages (NOT in questions)
+        # Pattern: short prefix (no question words) + thanks/thank you at end
+        r"^(?!what|how|where|when|why|who|can|could|do|does|is|are)(\w+\s+){0,3}thanks\s*[!.]*$",
+        r"^(?!what|how|where|when|why|who|can|could|do|does|is|are)(\w+\s+){0,3}thank\s+you\s*[!.]*$",
     ],
     Intent.HELP: [
         r"^help\b",
