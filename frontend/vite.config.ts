@@ -8,9 +8,18 @@ export default defineConfig({
     proxy: {
       // Proxy all /api requests to backend
       '/api': {
-        target: 'http://localhost:8000',
+        // local dev backend config
+        // target: 'http://localhost:8000',
+        // changeOrigin: true,
+        // secure: true
+
+        // Ngrok config
+        target: 'https://emely-unmorphological-unconsiderablely.ngrok-free.dev',
         changeOrigin: true,
-        secure: false,
+        secure: true,
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
       },
       // Proxy /health endpoint to backend
       '/health': {

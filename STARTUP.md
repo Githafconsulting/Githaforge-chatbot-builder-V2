@@ -354,3 +354,21 @@ http://localhost:8000/health        → Health check endpoint
 **🎉 Congratulations! Your chatbot is now running!**
 
 **Total setup time:** ~10 minutes (excluding downloads)
+
+
+-------------------------------------------------------------------------------------------
+# running ngrok: 
+
+# Account1: 
+ngrok http 5173 --config C:\ngrok-configs\ngrok-account1.yml --log=stdout --log-level=info --web-port=4040
+
+# or
+ngrok http 5173 --config C:\ngrok-configs\ngrok-account1.yml
+------------------------------------------------------------------------------------------
+# Account1: 
+ngrok http 8000 --config C:\ngrok-configs\ngrok-account2.yml --log=stdout --log-level=info --web-port=4041
+
+# or
+ngrok http 8000 --config C:\ngrok-configs\ngrok-account2.yml
+
+-----------------------------------------------------------------------------------------------
