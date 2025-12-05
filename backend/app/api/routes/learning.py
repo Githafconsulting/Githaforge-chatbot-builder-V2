@@ -73,11 +73,15 @@ async def generate_draft(
     }
     """
     try:
+        # Get company_id from current user for multitenancy
+        company_id = current_user.get("company_id")
+
         result = await generate_draft_from_feedback(
             feedback_ids=request.feedback_ids,
             query_pattern=request.query_pattern,
             category=request.category,
-            additional_context=request.additional_context
+            additional_context=request.additional_context,
+            company_id=company_id
         )
 
         if result.get("success"):

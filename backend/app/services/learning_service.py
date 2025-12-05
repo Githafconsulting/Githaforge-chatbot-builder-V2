@@ -183,9 +183,18 @@ async def generate_draft_from_feedback(
     feedback_ids: List[UUID],
     query_pattern: Optional[str] = None,
     category: Optional[str] = None,
-    additional_context: Optional[str] = None
+    additional_context: Optional[str] = None,
+    company_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Generate draft document from feedback using LLM"""
+    """Generate draft document from feedback using LLM
+
+    Args:
+        feedback_ids: List of feedback IDs to generate draft from
+        query_pattern: Optional pattern describing the query type
+        category: Optional category for the draft
+        additional_context: Optional additional context for LLM
+        company_id: Company ID for multitenancy (required for new drafts)
+    """
     try:
         client = get_supabase_client()
         feedback_data = []
@@ -266,6 +275,10 @@ FEEDBACK ANALYSIS:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
         }
+
+        # Add company_id for multitenancy
+        if company_id:
+            draft_data["company_id"] = company_id
 
         insert_response = client.table("draft_documents").insert(draft_data).execute()
 
