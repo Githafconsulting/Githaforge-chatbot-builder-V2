@@ -77,6 +77,12 @@ export const DocumentsPage: React.FC = () => {
   const [editIsShared, setEditIsShared] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
 
+  // View document state
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+  const [viewContent, setViewContent] = useState<string>('');
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [loadingViewContent, setLoadingViewContent] = useState(false);
+
   useEffect(() => {
     loadDocuments();
     loadChatbots();
@@ -237,6 +243,23 @@ export const DocumentsPage: React.FC = () => {
       setShowEditModal(false);
     } finally {
       setLoadingContent(false);
+    }
+  };
+
+  const handleView = async (doc: Document) => {
+    try {
+      setViewingDocument(doc);
+      setShowViewModal(true);
+      setLoadingViewContent(true);
+
+      const content = await apiService.getDocumentContent(doc.id);
+      setViewContent(content);
+    } catch (error: any) {
+      console.error('Failed to load document content:', error);
+      toast.error('Failed to load document content');
+      setShowViewModal(false);
+    } finally {
+      setLoadingViewContent(false);
     }
   };
 
@@ -604,10 +627,20 @@ export const DocumentsPage: React.FC = () => {
                             >
                               <button
                                 onClick={() => {
-                                  handleEdit(doc);
+                                  handleView(doc);
                                   setOpenActionMenu(null);
                                 }}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-600 transition-colors rounded-t-lg"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleEdit(doc);
+                                  setOpenActionMenu(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-600 transition-colors"
                               >
                                 <Edit className="w-4 h-4" />
                                 Edit
@@ -836,6 +869,125 @@ export const DocumentsPage: React.FC = () => {
           isShared={editIsShared}
           setIsShared={setEditIsShared}
         />
+      )}
+
+      {/* View Document Modal */}
+      {showViewModal && viewingDocument && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowViewModal(false);
+            setViewingDocument(null);
+            setViewContent('');
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-400" />
+                <h2 className="text-xl font-bold text-white">View Document</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setViewingDocument(null);
+                  setViewContent('');
+                }}
+                className="p-1 hover:bg-slate-700 rounded"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Title</label>
+                <p className="text-white">{viewingDocument.title}</p>
+              </div>
+
+              <div className="flex gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Type</label>
+                  <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300">
+                    {viewingDocument.file_type?.toUpperCase()}
+                  </span>
+                </div>
+                {viewingDocument.category && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Category</label>
+                    <span className="text-xs px-2 py-1 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                      {viewingDocument.category}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Status</label>
+                  {viewingDocument.is_shared !== false ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20 text-xs">
+                      <Globe className="w-3 h-3" />
+                      Shared
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs">
+                      <Lock className="w-3 h-3" />
+                      Specific
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Content</label>
+                {loadingViewContent ? (
+                  <div className="flex items-center justify-center py-12 bg-slate-900 border border-slate-700 rounded-lg">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span className="ml-3 text-slate-400">Loading content...</span>
+                  </div>
+                ) : (
+                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                    <pre className="text-slate-300 text-sm whitespace-pre-wrap font-mono">
+                      {viewContent}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-700">
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    setViewingDocument(null);
+                    setViewContent('');
+                    handleEdit(viewingDocument);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit Document
+                </button>
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    setViewingDocument(null);
+                    setViewContent('');
+                  }}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* Draft Preview Modal */}

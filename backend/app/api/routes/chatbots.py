@@ -13,6 +13,7 @@ from app.models.chatbot import (
     ChatbotStats
 )
 from app.services.chatbot_service import ChatbotService
+from app.services.branding_service import clear_branding_cache
 from app.core.dependencies import get_current_user, require_permission, require_any_permission
 from app.models.user import User
 
@@ -238,6 +239,9 @@ async def update_chatbot(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chatbot {chatbot_id} not found"
         )
+
+    # Clear branding cache so new settings take effect immediately
+    clear_branding_cache(chatbot_id)
 
     return chatbot
 

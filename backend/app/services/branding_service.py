@@ -145,8 +145,68 @@ def clear_branding_cache(chatbot_id: Optional[str] = None):
 # DYNAMIC PROMPT GENERATORS
 # ============================================================================
 
+def _build_contact_details_section(branding: ChatbotBranding) -> str:
+    """
+    Build official contact details section for system prompts.
+
+    Only includes section if at least one contact detail is configured.
+    These details take priority over KB documents for contact-related queries.
+    """
+    contact_lines = []
+
+    # Always include email and website (these are always available)
+    contact_lines.append(f"- Email: {branding.support_email}")
+    contact_lines.append(f"- Website: {branding.brand_website}")
+
+    # Add extended contact details if configured
+    if branding.contact_phone:
+        contact_lines.append(f"- Phone: {branding.contact_phone}")
+    if branding.contact_address:
+        contact_lines.append(f"- Address: {branding.contact_address}")
+    if branding.contact_hours:
+        contact_lines.append(f"- Business Hours: {branding.contact_hours}")
+
+    # Only add section if we have extended contact details beyond defaults
+    has_extended_details = branding.contact_phone or branding.contact_address or branding.contact_hours
+
+    if has_extended_details:
+        return f"""
+OFFICIAL CONTACT INFORMATION (use these exact details for contact-related queries):
+{chr(10).join(contact_lines)}
+
+"""
+    else:
+        return ""
+
+
+def _build_help_contact_section(branding: ChatbotBranding) -> str:
+    """
+    Build contact info for help responses (user-facing format).
+
+    Returns formatted contact section only if extended details are available.
+    """
+    has_extended = branding.contact_phone or branding.contact_address or branding.contact_hours
+
+    if not has_extended:
+        return ""
+
+    lines = [f"\n📞 **Quick Contact:**"]
+    lines.append(f"• Email: {branding.support_email}")
+
+    if branding.contact_phone:
+        lines.append(f"• Phone: {branding.contact_phone}")
+    if branding.contact_hours:
+        lines.append(f"• Hours: {branding.contact_hours}")
+
+    return chr(10).join(lines) + "\n"
+
+
 def generate_rag_system_prompt(branding: ChatbotBranding) -> str:
     """Generate RAG system prompt with chatbot branding"""
+
+    # Build official contact details section if any are configured
+    contact_details = _build_contact_details_section(branding)
+
     return f"""You are a helpful and professional customer service assistant for {branding.brand_name}.
 
 Your role is to:
@@ -156,7 +216,7 @@ Your role is to:
 - If you don't have enough information, politely say so and suggest contacting human support
 - Keep responses CONCISE and PRECISE (2-3 sentences maximum)
 - Never make up information not present in the context
-
+{contact_details}
 RESPONSE STYLE RULES:
 - Be DIRECT and TO THE POINT - avoid unnecessary preambles like "According to our documentation..."
 - Use SIMPLE LANGUAGE - avoid corporate jargon unless necessary
@@ -257,6 +317,9 @@ def generate_gratitude_responses(branding: ChatbotBranding) -> list:
 
 def generate_help_response(branding: ChatbotBranding) -> str:
     """Generate help response with chatbot branding"""
+    # Build contact info section if details are available
+    contact_info = _build_help_contact_section(branding)
+
     return f"""I'm {branding.brand_name}'s virtual assistant! 🤖 I'm here to help answer your questions about:
 
 • **Our Services** - What we offer and our expertise
@@ -265,7 +328,7 @@ def generate_help_response(branding: ChatbotBranding) -> str:
 • **Contact Information** - How to reach our team
 • **Business Operations** - Hours, availability, and processes
 • **Project Requirements** - What we need to get started
-
+{contact_info}
 Just ask me anything about {branding.brand_name}, and I'll do my best to provide accurate information based on our knowledge base.
 
 What would you like to know?"""
@@ -301,6 +364,8 @@ def generate_chit_chat_responses(branding: ChatbotBranding) -> dict:
 
 def generate_out_of_scope_response(branding: ChatbotBranding) -> str:
     """Generate out-of-scope response with chatbot branding"""
+    contact_info = _build_help_contact_section(branding)
+
     return f"""I appreciate your question, but I'm specifically designed to help with inquiries about {branding.brand_name}'s services and operations.
 
 I can help you with:
@@ -309,12 +374,14 @@ I can help you with:
 • How to get started with {branding.brand_name}
 • Contact information and business hours
 • Our expertise and capabilities
-
+{contact_info}
 Is there anything about {branding.brand_name} I can assist you with?"""
 
 
 def generate_unclear_query_response(branding: ChatbotBranding) -> str:
     """Generate unclear query response with chatbot branding"""
+    contact_info = _build_help_contact_section(branding)
+
     return f"""I'm not quite sure I understand your question. To help you better, could you please provide more details?
 
 Here are some things I can help with:
@@ -322,7 +389,7 @@ Here are some things I can help with:
 • How to get started with a project
 • Pricing and package details
 • Contact information and business hours
-
+{contact_info}
 Feel free to ask anything specific about {branding.brand_name}!"""
 
 

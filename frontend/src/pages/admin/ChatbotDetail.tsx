@@ -745,6 +745,71 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
         )}
       </div>
 
+      {/* Connected Documents Summary */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-green-400" />
+            <h3 className="text-lg font-semibold text-white">Connected Documents</h3>
+          </div>
+          <span className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300">
+            {chatbot.use_shared_kb
+              ? `${availableDocuments.length} shared documents`
+              : `${chatbot.selected_document_ids?.length || 0} selected`}
+          </span>
+        </div>
+
+        <p className="text-sm text-slate-400 mb-4">
+          {chatbot.use_shared_kb
+            ? 'This chatbot has access to all shared documents in your knowledge base.'
+            : 'This chatbot only has access to the selected documents below.'}
+        </p>
+
+        {(() => {
+          const connectedDocs = chatbot.use_shared_kb
+            ? availableDocuments
+            : documents.filter(d => chatbot.selected_document_ids?.includes(d.id));
+
+          if (connectedDocs.length === 0) {
+            return (
+              <div className="p-6 text-center bg-slate-900 rounded-lg border border-slate-700">
+                <FileText className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                <p className="text-slate-400">No documents connected</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {chatbot.use_shared_kb
+                    ? 'Upload documents to your knowledge base'
+                    : 'Select documents above to connect them'}
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="max-h-48 overflow-y-auto bg-slate-900 rounded-lg border border-slate-700">
+              {connectedDocs.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center gap-3 p-3 border-b border-slate-700 last:border-0"
+                >
+                  <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{doc.title}</p>
+                    <p className="text-xs text-slate-400">
+                      {doc.file_type?.toUpperCase()} • {doc.chunk_count || 0} chunks
+                      {doc.category && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                          {doc.category}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Custom Contact Details */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
         <div className="flex items-center justify-between mb-4">
