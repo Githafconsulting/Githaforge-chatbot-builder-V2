@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, RefreshCw, RotateCcw, Bot, Sparkles, ChevronDown, ChevronUp, Copy, Check, Clock } from 'lucide-react';
 import { apiService } from '../../services/api';
-import type { Scope, ScopeCreate, ScopeUpdate } from '../../types';
+import type { Persona, PersonaCreate, PersonaUpdate } from '../../types';
 
 // Helper function to format relative time
 const formatRelativeTime = (dateString: string): string => {
@@ -19,27 +19,27 @@ const formatRelativeTime = (dateString: string): string => {
   return date.toLocaleDateString();
 };
 
-export const ScopesPage: React.FC = () => {
-  const [scopes, setScopes] = useState<Scope[]>([]);
+export const PersonasPage: React.FC = () => {
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedScope, setSelectedScope] = useState<Scope | null>(null);
-  const [expandedScopeId, setExpandedScopeId] = useState<string | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+  const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Form state for create
-  const [createForm, setCreateForm] = useState<ScopeCreate>({
+  const [createForm, setCreateForm] = useState<PersonaCreate>({
     name: '',
     description: '',
   });
 
   // Form state for edit
-  const [editForm, setEditForm] = useState<ScopeUpdate>({
+  const [editForm, setEditForm] = useState<PersonaUpdate>({
     name: '',
     description: '',
     system_prompt: '',
@@ -49,87 +49,87 @@ export const ScopesPage: React.FC = () => {
   const [regenerateContext, setRegenerateContext] = useState('');
 
   useEffect(() => {
-    loadScopes();
+    loadPersonas();
   }, []);
 
-  const loadScopes = async () => {
+  const loadPersonas = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getScopes(true);
-      setScopes(data);
+      const data = await apiService.getPersonas(true);
+      setPersonas(data);
       setError('');
     } catch (err: any) {
-      console.error('Failed to load scopes:', err);
-      setError(err.response?.data?.detail || 'Failed to load scopes');
+      console.error('Failed to load personas:', err);
+      setError(err.response?.data?.detail || 'Failed to load personas');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateScope = async (e: React.FormEvent) => {
+  const handleCreatePersona = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createForm.name.trim()) {
-      setError('Scope name is required');
+      setError('Persona name is required');
       return;
     }
 
     try {
       setCreating(true);
       setError('');
-      await apiService.createScope(createForm);
-      await loadScopes();
+      await apiService.createPersona(createForm);
+      await loadPersonas();
       setShowCreateModal(false);
       setCreateForm({ name: '', description: '' });
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create scope');
+      setError(err.response?.data?.detail || 'Failed to create persona');
     } finally {
       setCreating(false);
     }
   };
 
-  const handleUpdateScope = async (e: React.FormEvent) => {
+  const handleUpdatePersona = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedScope) return;
+    if (!selectedPersona) return;
 
     try {
       setUpdating(true);
       setError('');
-      await apiService.updateScope(selectedScope.id, editForm);
-      await loadScopes();
+      await apiService.updatePersona(selectedPersona.id, editForm);
+      await loadPersonas();
       setShowEditModal(false);
-      setSelectedScope(null);
+      setSelectedPersona(null);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to update scope');
+      setError(err.response?.data?.detail || 'Failed to update persona');
     } finally {
       setUpdating(false);
     }
   };
 
-  const handleDeleteScope = async (scope: Scope) => {
-    if (scope.is_default) {
-      setError('Cannot delete default scopes');
+  const handleDeletePersona = async (persona: Persona) => {
+    if (persona.is_default) {
+      setError('Cannot delete default personas');
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete "${scope.name}"? Chatbots using this scope will lose their scope assignment.`)) {
+    if (!confirm(`Are you sure you want to delete "${persona.name}"? Chatbots using this persona will lose their persona assignment.`)) {
       return;
     }
 
     try {
-      await apiService.deleteScope(scope.id);
-      await loadScopes();
+      await apiService.deletePersona(persona.id);
+      await loadPersonas();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to delete scope');
+      setError(err.response?.data?.detail || 'Failed to delete persona');
     }
   };
 
-  const handleRegeneratePrompt = async (scope: Scope) => {
+  const handleRegeneratePrompt = async (persona: Persona) => {
     try {
-      setRegenerating(scope.id);
+      setRegenerating(persona.id);
       setError('');
-      const updatedScope = await apiService.regenerateScopePrompt(scope.id, { context: regenerateContext || undefined });
-      // Update just the regenerated scope in state without reloading all scopes
-      setScopes(prev => prev.map(s => s.id === updatedScope.id ? { ...s, ...updatedScope } : s));
+      const updatedPersona = await apiService.regeneratePersonaPrompt(persona.id, { context: regenerateContext || undefined });
+      // Update just the regenerated persona in state without reloading all personas
+      setPersonas(prev => prev.map(p => p.id === updatedPersona.id ? { ...p, ...updatedPersona } : p));
       setRegenerateContext('');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to regenerate prompt');
@@ -138,16 +138,16 @@ export const ScopesPage: React.FC = () => {
     }
   };
 
-  const handleRestoreLastSaved = async (scope: Scope) => {
-    if (scope.prompt_history.length === 0) {
+  const handleRestoreLastSaved = async (persona: Persona) => {
+    if (persona.prompt_history.length === 0) {
       setError('No previous versions available');
       return;
     }
 
     try {
-      const updatedScope = await apiService.restoreScopeToLastSaved(scope.id);
-      // Update just the restored scope in state without reloading all scopes
-      setScopes(prev => prev.map(s => s.id === updatedScope.id ? { ...s, ...updatedScope } : s));
+      const updatedPersona = await apiService.restorePersonaToLastSaved(persona.id);
+      // Update just the restored persona in state without reloading all personas
+      setPersonas(prev => prev.map(p => p.id === updatedPersona.id ? { ...p, ...updatedPersona } : p));
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to restore');
     }
@@ -156,33 +156,33 @@ export const ScopesPage: React.FC = () => {
   const handleSeedDefaults = async () => {
     try {
       setLoading(true);
-      await apiService.seedDefaultScopes();
-      await loadScopes();
+      await apiService.seedDefaultPersonas();
+      await loadPersonas();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to seed default scopes');
+      setError(err.response?.data?.detail || 'Failed to seed default personas');
     } finally {
       setLoading(false);
     }
   };
 
-  const openEditModal = (scope: Scope) => {
-    setSelectedScope(scope);
+  const openEditModal = (persona: Persona) => {
+    setSelectedPersona(persona);
     setEditForm({
-      name: scope.name,
-      description: scope.description || '',
-      system_prompt: scope.system_prompt,
+      name: persona.name,
+      description: persona.description || '',
+      system_prompt: persona.system_prompt,
     });
     setShowEditModal(true);
   };
 
-  const copyPromptToClipboard = async (prompt: string, scopeId: string) => {
+  const copyPromptToClipboard = async (prompt: string, personaId: string) => {
     await navigator.clipboard.writeText(prompt);
-    setCopiedId(scopeId);
+    setCopiedId(personaId);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const toggleExpanded = (scopeId: string) => {
-    setExpandedScopeId(expandedScopeId === scopeId ? null : scopeId);
+  const toggleExpanded = (personaId: string) => {
+    setExpandedPersonaId(expandedPersonaId === personaId ? null : personaId);
   };
 
   return (
@@ -194,7 +194,7 @@ export const ScopesPage: React.FC = () => {
             <Sparkles className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-50">Scopes</h1>
+            <h1 className="text-2xl font-bold text-slate-50">Personas</h1>
             <p className="text-slate-400 text-sm mt-0.5">Configure role-based prompts for your chatbots</p>
           </div>
         </div>
@@ -212,7 +212,7 @@ export const ScopesPage: React.FC = () => {
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus size={20} />
-            Create Scope
+            Create Persona
           </button>
         </div>
       </div>
@@ -223,50 +223,50 @@ export const ScopesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Scopes List */}
+      {/* Personas List */}
       <div className="space-y-4">
         {loading ? (
           <div className="bg-slate-800 rounded-lg p-8 text-center text-slate-400">
-            Loading scopes...
+            Loading personas...
           </div>
-        ) : scopes.length === 0 ? (
+        ) : personas.length === 0 ? (
           <div className="bg-slate-800 rounded-lg p-8 text-center text-slate-400">
             <Sparkles size={48} className="mx-auto mb-4 text-slate-500" />
-            <p>No scopes configured. Click "Restore Defaults" to create default scopes.</p>
+            <p>No personas configured. Click "Restore Defaults" to create default personas.</p>
           </div>
         ) : (
-          scopes.map((scope) => (
-            <div key={scope.id} className="bg-slate-800 rounded-lg overflow-hidden">
-              {/* Scope Header */}
+          personas.map((persona) => (
+            <div key={persona.id} className="bg-slate-800 rounded-lg overflow-hidden">
+              {/* Persona Header */}
               <div
                 className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-700/50"
-                onClick={() => toggleExpanded(scope.id)}
+                onClick={() => toggleExpanded(persona.id)}
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    scope.is_default ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
+                    persona.is_default ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
                   }`}>
                     <Bot size={20} />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-slate-50">{scope.name}</h3>
-                      {scope.is_default && (
+                      <h3 className="text-lg font-semibold text-slate-50">{persona.name}</h3>
+                      {persona.is_default && (
                         <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-400">
                           Default
                         </span>
                       )}
-                      {scope.chatbot_count !== undefined && scope.chatbot_count > 0 && (
+                      {persona.chatbot_count !== undefined && persona.chatbot_count > 0 && (
                         <span className="px-2 py-0.5 text-xs rounded-full bg-slate-700 text-slate-300">
-                          {scope.chatbot_count} chatbot{scope.chatbot_count !== 1 ? 's' : ''}
+                          {persona.chatbot_count} chatbot{persona.chatbot_count !== 1 ? 's' : ''}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <p className="text-sm text-slate-400">{scope.description || 'No description'}</p>
+                      <p className="text-sm text-slate-400">{persona.description || 'No description'}</p>
                       <span className="flex items-center gap-1 text-xs text-slate-500">
                         <Clock size={12} />
-                        {formatRelativeTime(scope.updated_at)}
+                        {formatRelativeTime(persona.updated_at)}
                       </span>
                     </div>
                   </div>
@@ -274,22 +274,22 @@ export const ScopesPage: React.FC = () => {
 
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={(e) => { e.stopPropagation(); openEditModal(scope); }}
+                    onClick={(e) => { e.stopPropagation(); openEditModal(persona); }}
                     className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-700 rounded-lg"
-                    title="Edit scope"
+                    title="Edit persona"
                   >
                     <Edit2 size={18} />
                   </button>
-                  {!scope.is_default && (
+                  {!persona.is_default && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteScope(scope); }}
+                      onClick={(e) => { e.stopPropagation(); handleDeletePersona(persona); }}
                       className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg"
-                      title="Delete scope"
+                      title="Delete persona"
                     >
                       <Trash2 size={18} />
                     </button>
                   )}
-                  {expandedScopeId === scope.id ? (
+                  {expandedPersonaId === persona.id ? (
                     <ChevronUp size={20} className="text-slate-400" />
                   ) : (
                     <ChevronDown size={20} className="text-slate-400" />
@@ -298,23 +298,23 @@ export const ScopesPage: React.FC = () => {
               </div>
 
               {/* Expanded Content */}
-              {expandedScopeId === scope.id && (
+              {expandedPersonaId === persona.id && (
                 <div className="border-t border-slate-700 p-4 space-y-4">
                   {/* System Prompt */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-medium text-slate-300">System Prompt</label>
                       <button
-                        onClick={() => copyPromptToClipboard(scope.system_prompt, scope.id)}
+                        onClick={() => copyPromptToClipboard(persona.system_prompt, persona.id)}
                         className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200"
                       >
-                        {copiedId === scope.id ? <Check size={14} /> : <Copy size={14} />}
-                        {copiedId === scope.id ? 'Copied!' : 'Copy'}
+                        {copiedId === persona.id ? <Check size={14} /> : <Copy size={14} />}
+                        {copiedId === persona.id ? 'Copied!' : 'Copy'}
                       </button>
                     </div>
                     <div className="bg-slate-900 rounded-lg p-4 max-h-64 overflow-y-auto">
                       <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono">
-                        {scope.system_prompt}
+                        {persona.system_prompt}
                       </pre>
                     </div>
                   </div>
@@ -334,16 +334,16 @@ export const ScopesPage: React.FC = () => {
                       />
                     </div>
                     <button
-                      onClick={() => handleRegeneratePrompt(scope)}
-                      disabled={regenerating === scope.id}
+                      onClick={() => handleRegeneratePrompt(persona)}
+                      disabled={regenerating === persona.id}
                       className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
                     >
-                      <RefreshCw size={18} className={regenerating === scope.id ? 'animate-spin' : ''} />
-                      {regenerating === scope.id ? 'Regenerating...' : 'Regenerate'}
+                      <RefreshCw size={18} className={regenerating === persona.id ? 'animate-spin' : ''} />
+                      {regenerating === persona.id ? 'Regenerating...' : 'Regenerate'}
                     </button>
-                    {scope.prompt_history.length > 0 && (
+                    {persona.prompt_history.length > 0 && (
                       <button
-                        onClick={() => handleRestoreLastSaved(scope)}
+                        onClick={() => handleRestoreLastSaved(persona)}
                         className="px-4 py-2 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 flex items-center gap-2"
                       >
                         <RotateCcw size={18} />
@@ -353,9 +353,9 @@ export const ScopesPage: React.FC = () => {
                   </div>
 
                   {/* History Info */}
-                  {scope.prompt_history.length > 0 && (
+                  {persona.prompt_history.length > 0 && (
                     <p className="text-xs text-slate-500">
-                      {scope.prompt_history.length} previous version{scope.prompt_history.length !== 1 ? 's' : ''} saved
+                      {persona.prompt_history.length} previous version{persona.prompt_history.length !== 1 ? 's' : ''} saved
                     </p>
                   )}
                 </div>
@@ -365,19 +365,19 @@ export const ScopesPage: React.FC = () => {
         )}
       </div>
 
-      {/* Create Scope Modal */}
+      {/* Create Persona Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-slate-800 rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-semibold text-slate-50 mb-4">Create New Scope</h3>
+            <h3 className="text-xl font-semibold text-slate-50 mb-4">Create New Persona</h3>
             <p className="text-sm text-slate-400 mb-4">
               Define a role for your chatbot. The system prompt will be automatically generated from your description.
             </p>
 
-            <form onSubmit={handleCreateScope} className="space-y-4">
+            <form onSubmit={handleCreatePersona} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-200 mb-1">
-                  Scope Name *
+                  Persona Name *
                 </label>
                 <input
                   type="text"
@@ -414,7 +414,7 @@ export const ScopesPage: React.FC = () => {
                   disabled={creating}
                   className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {creating ? 'Creating...' : 'Create Scope'}
+                  {creating ? 'Creating...' : 'Create Persona'}
                 </button>
                 <button
                   type="button"
@@ -434,16 +434,16 @@ export const ScopesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Scope Modal */}
-      {showEditModal && selectedScope && (
+      {/* Edit Persona Modal */}
+      {showEditModal && selectedPersona && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-slate-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-semibold text-slate-50 mb-4">Edit Scope: {selectedScope.name}</h3>
+            <h3 className="text-xl font-semibold text-slate-50 mb-4">Edit Persona: {selectedPersona.name}</h3>
 
-            <form onSubmit={handleUpdateScope} className="space-y-4">
+            <form onSubmit={handleUpdatePersona} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-200 mb-1">
-                  Scope Name *
+                  Persona Name *
                 </label>
                 <input
                   type="text"
@@ -499,7 +499,7 @@ export const ScopesPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setShowEditModal(false);
-                    setSelectedScope(null);
+                    setSelectedPersona(null);
                     setError('');
                   }}
                   disabled={updating}

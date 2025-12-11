@@ -1,5 +1,5 @@
 """
-Scope model for role-based chatbot prompt configurations
+Persona model for role-based chatbot prompt configurations
 """
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Union
@@ -21,14 +21,14 @@ class PromptHistoryEntry(BaseModel):
         return v
 
 
-class ScopeBase(BaseModel):
-    """Base scope model with common fields"""
+class PersonaBase(BaseModel):
+    """Base persona model with common fields"""
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
 
 
-class ScopeCreate(ScopeBase):
-    """Schema for creating a new scope.
+class PersonaCreate(PersonaBase):
+    """Schema for creating a new persona.
 
     Note: system_prompt is NOT included here because it will be
     LLM-generated from the name and description.
@@ -36,8 +36,8 @@ class ScopeCreate(ScopeBase):
     pass
 
 
-class ScopeUpdate(BaseModel):
-    """Schema for updating scope settings.
+class PersonaUpdate(BaseModel):
+    """Schema for updating persona settings.
 
     All fields are optional to allow partial updates.
     """
@@ -46,13 +46,13 @@ class ScopeUpdate(BaseModel):
     system_prompt: Optional[str] = Field(None, max_length=10000)
 
 
-class ScopeRegenerateRequest(BaseModel):
-    """Schema for regenerating a scope's prompt with additional context"""
+class PersonaRegenerateRequest(BaseModel):
+    """Schema for regenerating a persona's prompt with additional context"""
     context: Optional[str] = Field(None, max_length=1000, description="Additional instructions for prompt regeneration")
 
 
-class Scope(ScopeBase):
-    """Full scope model with database fields"""
+class Persona(PersonaBase):
+    """Full persona model with database fields"""
     id: UUID
     company_id: UUID
     system_prompt: str
@@ -67,12 +67,12 @@ class Scope(ScopeBase):
         from_attributes = True
 
 
-class ScopeList(BaseModel):
-    """List of scopes with total count"""
-    scopes: List[Scope]
+class PersonaList(BaseModel):
+    """List of personas with total count"""
+    personas: List[Persona]
     total: int
 
 
-class ScopeWithChatbotCount(Scope):
-    """Scope with count of chatbots using it"""
+class PersonaWithChatbotCount(Persona):
+    """Persona with count of chatbots using it"""
     chatbot_count: int = 0

@@ -33,10 +33,10 @@ import type {
   ChatbotWithEmbedCode,
   UnifiedSignupRequest,
   SignupResponse,
-  Scope,
-  ScopeCreate,
-  ScopeUpdate,
-  ScopeRegenerateRequest,
+  Persona,
+  PersonaCreate,
+  PersonaUpdate,
+  PersonaRegenerateRequest,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -640,9 +640,9 @@ class ApiService {
     return response.data;
   }
 
-  async assignChatbotScope(chatbotId: string, scopeId: string | null): Promise<Chatbot> {
-    const response = await this.api.put(`/api/v1/chatbots/${chatbotId}/scope`, {
-      scope_id: scopeId
+  async assignChatbotPersona(chatbotId: string, personaId: string | null): Promise<Chatbot> {
+    const response = await this.api.put(`/api/v1/chatbots/${chatbotId}/persona`, {
+      persona_id: personaId
     });
     return response.data;
   }
@@ -659,50 +659,50 @@ class ApiService {
     return response.data;
   }
 
-  // Scope APIs (Role-based chatbot prompt configurations)
-  async getScopes(includeChatbotCount: boolean = false): Promise<Scope[]> {
-    const response = await this.api.get('/api/v1/scopes/', {
+  // Persona APIs (Role-based chatbot prompt configurations)
+  async getPersonas(includeChatbotCount: boolean = false): Promise<Persona[]> {
+    const response = await this.api.get('/api/v1/personas/', {
       params: { include_chatbot_count: includeChatbotCount }
     });
     return response.data;
   }
 
-  async getScope(scopeId: string): Promise<Scope> {
-    const response = await this.api.get(`/api/v1/scopes/${scopeId}`);
+  async getPersona(personaId: string): Promise<Persona> {
+    const response = await this.api.get(`/api/v1/personas/${personaId}`);
     return response.data;
   }
 
-  async createScope(data: ScopeCreate): Promise<Scope> {
-    const response = await this.api.post('/api/v1/scopes/', data);
+  async createPersona(data: PersonaCreate): Promise<Persona> {
+    const response = await this.api.post('/api/v1/personas/', data);
     return response.data;
   }
 
-  async updateScope(scopeId: string, data: ScopeUpdate): Promise<Scope> {
-    const response = await this.api.put(`/api/v1/scopes/${scopeId}`, data);
+  async updatePersona(personaId: string, data: PersonaUpdate): Promise<Persona> {
+    const response = await this.api.put(`/api/v1/personas/${personaId}`, data);
     return response.data;
   }
 
-  async deleteScope(scopeId: string): Promise<void> {
-    await this.api.delete(`/api/v1/scopes/${scopeId}`);
+  async deletePersona(personaId: string): Promise<void> {
+    await this.api.delete(`/api/v1/personas/${personaId}`);
   }
 
-  async regenerateScopePrompt(scopeId: string, request: ScopeRegenerateRequest): Promise<Scope> {
-    const response = await this.api.post(`/api/v1/scopes/${scopeId}/regenerate`, request);
+  async regeneratePersonaPrompt(personaId: string, request: PersonaRegenerateRequest): Promise<Persona> {
+    const response = await this.api.post(`/api/v1/personas/${personaId}/regenerate`, request);
     return response.data;
   }
 
-  async restoreScopeToDefault(scopeId: string): Promise<Scope> {
-    const response = await this.api.post(`/api/v1/scopes/${scopeId}/restore-default`);
+  async restorePersonaToDefault(personaId: string): Promise<Persona> {
+    const response = await this.api.post(`/api/v1/personas/${personaId}/restore-default`);
     return response.data;
   }
 
-  async restoreScopeToLastSaved(scopeId: string): Promise<Scope> {
-    const response = await this.api.post(`/api/v1/scopes/${scopeId}/restore-last-saved`);
+  async restorePersonaToLastSaved(personaId: string): Promise<Persona> {
+    const response = await this.api.post(`/api/v1/personas/${personaId}/restore-last-saved`);
     return response.data;
   }
 
-  async seedDefaultScopes(): Promise<Scope[]> {
-    const response = await this.api.post('/api/v1/scopes/seed-defaults');
+  async seedDefaultPersonas(): Promise<Persona[]> {
+    const response = await this.api.post('/api/v1/personas/seed-defaults');
     return response.data;
   }
 

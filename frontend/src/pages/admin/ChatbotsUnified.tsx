@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Bot, Sparkles } from 'lucide-react';
 import { ChatbotsPage } from './Chatbots';
-import { ScopesPage } from './Scopes';
+import { PersonasPage } from './Personas';
 
-type TabId = 'chatbots' | 'scopes';
+type TabId = 'chatbots' | 'personas';
 
 interface Tab {
   id: TabId;
@@ -13,7 +13,7 @@ interface Tab {
 
 const tabs: Tab[] = [
   { id: 'chatbots', label: 'My Chatbots', icon: Bot },
-  { id: 'scopes', label: 'Scopes', icon: Sparkles },
+  { id: 'personas', label: 'Personas', icon: Sparkles },
 ];
 
 export const ChatbotsUnifiedPage: React.FC = () => {
@@ -23,8 +23,8 @@ export const ChatbotsUnifiedPage: React.FC = () => {
     switch (activeTab) {
       case 'chatbots':
         return <ChatbotsPage />;
-      case 'scopes':
-        return <ScopesPage />;
+      case 'personas':
+        return <PersonasPage />;
       default:
         return <ChatbotsPage />;
     }

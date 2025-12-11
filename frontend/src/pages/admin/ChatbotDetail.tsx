@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
-import type { Chatbot, ChatbotUpdate, ChatbotStats, ChatbotWithEmbedCode, ChatResponse, Scope, Document } from '../../types';
+import type { Chatbot, ChatbotUpdate, ChatbotStats, ChatbotWithEmbedCode, ChatResponse, Persona, Document } from '../../types';
 
 type TabType = 'settings' | 'appearance' | 'training' | 'analytics' | 'embed';
 
@@ -51,24 +51,30 @@ export const ChatbotDetailPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('settings');
   const [copied, setCopied] = useState(false);
-  const [scopes, setScopes] = useState<Scope[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
 
   useEffect(() => {
     if (chatbotId) {
-      loadChatbot();
+      loadInitialData();
+      // Load non-critical data separately (doesn't block UI)
       loadStats();
       loadEmbedCode();
-      loadScopes();
-      loadDocuments();
     }
   }, [chatbotId]);
 
-  const loadChatbot = async () => {
+  const loadInitialData = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getChatbot(chatbotId!);
-      setChatbot(data);
+      // Load chatbot, personas, and documents in parallel
+      const [chatbotData, personasData, documentsData] = await Promise.all([
+        apiService.getChatbot(chatbotId!),
+        apiService.getPersonas(),
+        apiService.getDocuments()
+      ]);
+      setChatbot(chatbotData);
+      setPersonas(personasData);
+      setDocuments(Array.isArray(documentsData) ? documentsData : []);
     } catch (error) {
       console.error('Failed to load chatbot:', error);
       toast.error('Failed to load chatbot');
@@ -93,24 +99,6 @@ export const ChatbotDetailPage: React.FC = () => {
       setEmbedCode(data.embed_code);
     } catch (error) {
       console.error('Failed to load embed code:', error);
-    }
-  };
-
-  const loadScopes = async () => {
-    try {
-      const data = await apiService.getScopes();
-      setScopes(data);
-    } catch (error) {
-      console.error('Failed to load scopes:', error);
-    }
-  };
-
-  const loadDocuments = async () => {
-    try {
-      const data = await apiService.getDocuments();
-      setDocuments(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to load documents:', error);
     }
   };
 
@@ -141,7 +129,7 @@ export const ChatbotDetailPage: React.FC = () => {
         similarity_threshold: chatbot.similarity_threshold,
         allowed_domains: chatbot.allowed_domains,
         rate_limit_per_ip: chatbot.rate_limit_per_ip,
-        scope_id: chatbot.scope_id,
+        persona_id: chatbot.persona_id,
         use_shared_kb: chatbot.use_shared_kb,
         selected_document_ids: chatbot.selected_document_ids,
         enable_custom_contact: chatbot.enable_custom_contact,
@@ -450,7 +438,7 @@ export const ChatbotDetailPage: React.FC = () => {
             setChatbot={setChatbot}
             onSave={handleSave}
             saving={saving}
-            scopes={scopes}
+            personas={personas}
             documents={documents}
           />
         )}
@@ -487,11 +475,11 @@ interface SettingsTabProps {
   setChatbot: (chatbot: Chatbot) => void;
   onSave: () => void;
   saving: boolean;
-  scopes: Scope[];
+  personas: Persona[];
   documents: Document[];
 }
 
-const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, saving, scopes, documents }) => {
+const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, saving, personas, documents }) => {
   // Filter documents for selection (only shared documents)
   const availableDocuments = documents.filter(d => d.is_shared !== false);
 
@@ -503,7 +491,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
     setChatbot({ ...chatbot, selected_document_ids: newSelected });
   };
 
-  const selectedScope = scopes.find(s => s.id === chatbot.scope_id);
+  const selectedPersona = personas.find(p => p.id === chatbot.persona_id);
 
   return (
     <motion.div
@@ -603,39 +591,39 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ chatbot, setChatbot, onSave, 
         </div>
       </div>
 
-      {/* Scope Assignment */}
+      {/* Persona Assignment */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-4">
         <div className="flex items-center gap-3 mb-4">
           <Target className="w-5 h-5 text-purple-400" />
-          <h3 className="text-lg font-semibold text-white">Scope Assignment</h3>
+          <h3 className="text-lg font-semibold text-white">Persona Assignment</h3>
         </div>
 
         <p className="text-sm text-slate-400 mb-4">
-          Assign a scope to define this chatbot's personality, expertise area, and response style.
+          Assign a persona to define this chatbot's personality, expertise area, and response style.
         </p>
 
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">Select Scope</label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Select Persona</label>
           <select
-            value={chatbot.scope_id || ''}
-            onChange={(e) => setChatbot({ ...chatbot, scope_id: e.target.value || undefined })}
+            value={chatbot.persona_id || ''}
+            onChange={(e) => setChatbot({ ...chatbot, persona_id: e.target.value || undefined })}
             className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
           >
-            <option value="">No Scope (Default behavior)</option>
-            {scopes.map((scope) => (
-              <option key={scope.id} value={scope.id}>
-                {scope.name} - {scope.description || 'No description'}
+            <option value="">No Persona (Default behavior)</option>
+            {personas.map((persona) => (
+              <option key={persona.id} value={persona.id}>
+                {persona.name} - {persona.description || 'No description'}
               </option>
             ))}
           </select>
         </div>
 
-        {selectedScope && (
+        {selectedPersona && (
           <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-            <p className="text-sm font-medium text-purple-300 mb-2">{selectedScope.name}</p>
-            <p className="text-xs text-slate-400 mb-2">{selectedScope.description}</p>
+            <p className="text-sm font-medium text-purple-300 mb-2">{selectedPersona.name}</p>
+            <p className="text-xs text-slate-400 mb-2">{selectedPersona.description}</p>
             <p className="text-xs text-slate-500 line-clamp-3 font-mono">
-              {selectedScope.system_prompt?.substring(0, 200)}...
+              {selectedPersona.system_prompt?.substring(0, 200)}...
             </p>
           </div>
         )}

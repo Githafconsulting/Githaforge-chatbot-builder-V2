@@ -50,8 +50,8 @@ class ChatbotUpdate(BaseModel):
     secondary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     logo_url: Optional[str] = None
 
-    # Scope and KB Mode (NEW)
-    scope_id: Optional[str] = None  # UUID of assigned scope
+    # Persona and KB Mode
+    persona_id: Optional[str] = None  # UUID of assigned persona
     use_shared_kb: Optional[bool] = None  # True = shared KB, False = selected docs only
     selected_document_ids: Optional[List[str]] = None  # Doc IDs when use_shared_kb=False
 
@@ -96,8 +96,8 @@ class Chatbot(ChatbotBase):
     deploy_status: str = "draft"  # draft, deployed, paused
     paused_message: str = "This chatbot is currently unavailable. Please try again later or contact support."
 
-    # Scope and KB Mode
-    scope_id: Optional[str] = None  # UUID of assigned scope
+    # Persona and KB Mode
+    persona_id: Optional[str] = None  # UUID of assigned persona
     use_shared_kb: bool = True  # True = shared KB, False = selected docs only
     selected_document_ids: Optional[List[str]] = None  # Doc IDs when use_shared_kb=False
 

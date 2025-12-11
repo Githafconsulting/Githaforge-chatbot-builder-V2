@@ -1,10 +1,9 @@
 """
-Scope Prompt Generator Service
+Persona Prompt Generator Service
 
-Uses LLM to generate role-specific system prompts from scope descriptions.
+Uses LLM to generate role-specific system prompts from persona descriptions.
 
 Follows KISS, YAGNI, DRY, and SOLID principles.
-Reference: docs/SCOPE_SYSTEM_IMPLEMENTATION_PLAN.md
 """
 from typing import Optional
 from app.services.llm_service import generate_response
@@ -21,8 +20,8 @@ PROMPT_GENERATOR_TEMPLATE = """You are an expert at writing system prompts for A
 
 Your task is to create a professional, effective system prompt for a chatbot with the following role:
 
-ROLE NAME: {scope_name}
-ROLE DESCRIPTION: {scope_description}
+ROLE NAME: {persona_name}
+ROLE DESCRIPTION: {persona_description}
 COMPANY NAME: {company_name}
 
 {additional_context}
@@ -62,18 +61,18 @@ Generate ONLY the system prompt text, nothing else. Start directly with "You are
 # PROMPT GENERATION FUNCTIONS
 # ============================================================================
 
-async def generate_scope_prompt(
-    scope_name: str,
-    scope_description: str,
+async def generate_persona_prompt(
+    persona_name: str,
+    persona_description: str,
     company_name: str,
     additional_context: Optional[str] = None
 ) -> str:
     """
-    Use LLM to generate a system prompt for a scope/role.
+    Use LLM to generate a system prompt for a persona/role.
 
     Args:
-        scope_name: Name of the scope (e.g., "HR Support")
-        scope_description: User's description of the scope's purpose
+        persona_name: Name of the persona (e.g., "HR Support")
+        persona_description: User's description of the persona's purpose
         company_name: Company name for personalization
         additional_context: Optional additional context from user
 
@@ -85,8 +84,8 @@ async def generate_scope_prompt(
         context_text = f"ADDITIONAL CONTEXT: {additional_context}" if additional_context else ""
 
         prompt = PROMPT_GENERATOR_TEMPLATE.format(
-            scope_name=scope_name,
-            scope_description=scope_description,
+            persona_name=persona_name,
+            persona_description=persona_description,
             company_name=company_name,
             additional_context=context_text
         )
@@ -120,30 +119,30 @@ User question: {{query}}
 Provide a helpful response:"""
                 break  # Only add once
 
-        logger.info(f"Generated prompt for scope '{scope_name}' ({len(generated_prompt)} chars)")
+        logger.info(f"Generated prompt for persona '{persona_name}' ({len(generated_prompt)} chars)")
         return generated_prompt
 
     except Exception as e:
-        logger.error(f"Error generating scope prompt: {str(e)}")
+        logger.error(f"Error generating persona prompt: {str(e)}")
         # Return a default fallback prompt
-        return _get_fallback_prompt(scope_name, scope_description)
+        return _get_fallback_prompt(persona_name, persona_description)
 
 
-async def regenerate_scope_prompt(
-    scope_name: str,
-    scope_description: str,
+async def regenerate_persona_prompt(
+    persona_name: str,
+    persona_description: str,
     company_name: str,
     current_prompt: str,
     regenerate_context: Optional[str] = None
 ) -> str:
     """
-    Regenerate a scope's system prompt with additional context.
+    Regenerate a persona's system prompt with additional context.
 
     This is useful when users want to tweak the prompt based on feedback.
 
     Args:
-        scope_name: Name of the scope
-        scope_description: User's description of the scope's purpose
+        persona_name: Name of the persona
+        persona_description: User's description of the persona's purpose
         company_name: Company name for personalization
         current_prompt: The current system prompt for reference
         regenerate_context: User's notes for regeneration
@@ -163,33 +162,33 @@ USER FEEDBACK FOR REGENERATION:
 
 Please incorporate this feedback while maintaining the core structure and placeholders."""
 
-        return await generate_scope_prompt(
-            scope_name=scope_name,
-            scope_description=scope_description,
+        return await generate_persona_prompt(
+            persona_name=persona_name,
+            persona_description=persona_description,
             company_name=company_name,
             additional_context=context_text
         )
 
     except Exception as e:
-        logger.error(f"Error regenerating scope prompt: {str(e)}")
+        logger.error(f"Error regenerating persona prompt: {str(e)}")
         raise
 
 
-def _get_fallback_prompt(scope_name: str, scope_description: str) -> str:
+def _get_fallback_prompt(persona_name: str, persona_description: str) -> str:
     """
     Get a fallback prompt when LLM generation fails.
 
     Args:
-        scope_name: Name of the scope
-        scope_description: Description of the scope
+        persona_name: Name of the persona
+        persona_description: Description of the persona
 
     Returns:
         Basic fallback system prompt
     """
-    return f"""You are a professional {scope_name.lower()} assistant for {{brand_name}}.
+    return f"""You are a professional {persona_name.lower()} assistant for {{brand_name}}.
 
 Your role is to:
-{scope_description}
+{persona_description}
 
 GUIDELINES:
 - Be helpful, accurate, and professional

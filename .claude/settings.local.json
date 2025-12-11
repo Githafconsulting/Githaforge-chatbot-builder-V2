@@ -11,7 +11,11 @@
       "Bash(git checkout:*)",
       "Bash(git merge:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nAdd document view action and enhance training features\n\nFrontend Changes:\n- frontend/src/pages/admin/Documents.tsx: Added view action to document table\n- frontend/src/pages/admin/ChatbotDetail.tsx: Enhanced chatbot detail page\n- frontend/vite.config.ts: Build configuration updates\n\nBackend Changes:\n- backend/app/api/routes/chatbots.py: Improved chatbot endpoints\n- backend/app/services/branding_service.py: Updated branding logic\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd document view action and enhance training features\n\nFrontend Changes:\n- frontend/src/pages/admin/Documents.tsx: Added view action to document table\n- frontend/src/pages/admin/ChatbotDetail.tsx: Enhanced chatbot detail page\n- frontend/vite.config.ts: Build configuration updates\n\nBackend Changes:\n- backend/app/api/routes/chatbots.py: Improved chatbot endpoints\n- backend/app/services/branding_service.py: Updated branding logic\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(del /f \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\backend\\app\\models\\scope.py\")",
+      "Bash(del /f \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\backend\\app\\services\\scope_service.py\")",
+      "Bash(del /f \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\backend\\app\\services\\scope_prompt_service.py\")",
+      "Bash(del /f \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\backend\\app\\api\\routes\\scopes.py\")"
     ],
     "deny": [],
     "ask": []

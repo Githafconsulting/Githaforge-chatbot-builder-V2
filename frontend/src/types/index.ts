@@ -476,8 +476,8 @@ export interface Chatbot {
   secondary_color?: string;
   logo_url?: string;
 
-  // Scope and KB Mode
-  scope_id?: string;  // UUID of assigned scope
+  // Persona and KB Mode
+  persona_id?: string;  // UUID of assigned persona
   use_shared_kb: boolean;  // True = shared KB, False = selected docs only
   selected_document_ids?: string[];  // Doc IDs when use_shared_kb=False
 
@@ -559,8 +559,8 @@ export interface ChatbotUpdate {
   primary_color?: string;
   secondary_color?: string;
   logo_url?: string;
-  // Scope and KB Mode
-  scope_id?: string;
+  // Persona and KB Mode
+  persona_id?: string;
   use_shared_kb?: boolean;
   selected_document_ids?: string[];
   // Widget Appearance
@@ -611,14 +611,14 @@ export interface ChatbotWithEmbedCode extends Chatbot {
   embed_code: string;
 }
 
-// Scope Types (Role-based chatbot prompt configurations)
+// Persona Types (Role-based chatbot prompt configurations)
 export interface PromptHistoryEntry {
   prompt: string;
   saved_at: string;
   saved_by?: string;
 }
 
-export interface Scope {
+export interface Persona {
   id: string;
   company_id: string;
   name: string;
@@ -633,20 +633,26 @@ export interface Scope {
   chatbot_count?: number;  // Optional - included when listing with counts
 }
 
-export interface ScopeCreate {
+export interface PersonaCreate {
   name: string;
   description?: string;
 }
 
-export interface ScopeUpdate {
+export interface PersonaUpdate {
   name?: string;
   description?: string;
   system_prompt?: string;
 }
 
-export interface ScopeRegenerateRequest {
+export interface PersonaRegenerateRequest {
   context?: string;  // Additional instructions for prompt regeneration
 }
+
+// Legacy aliases for backward compatibility
+export type Scope = Persona;
+export type ScopeCreate = PersonaCreate;
+export type ScopeUpdate = PersonaUpdate;
+export type ScopeRegenerateRequest = PersonaRegenerateRequest;
 
 // Signup Types
 export type AccountType = 'company' | 'individual';

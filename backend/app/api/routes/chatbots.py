@@ -68,9 +68,9 @@ async def get_chatbot_public_status(chatbot_id: str):
         )
 
 
-class ScopeAssignRequest(BaseModel):
-    """Request to assign a scope to a chatbot"""
-    scope_id: Optional[str] = None  # None to remove scope assignment
+class PersonaAssignRequest(BaseModel):
+    """Request to assign a persona to a chatbot"""
+    persona_id: Optional[str] = None  # None to remove persona assignment
 
 
 class KBModeRequest(BaseModel):
@@ -404,21 +404,21 @@ async def get_embed_code(
     return chatbot_with_code
 
 
-@router.put("/{chatbot_id}/scope", response_model=Chatbot)
-async def assign_scope(
+@router.put("/{chatbot_id}/persona", response_model=Chatbot)
+async def assign_persona(
     chatbot_id: str,
-    scope_request: ScopeAssignRequest,
+    persona_request: PersonaAssignRequest,
     current_user: User = Depends(get_current_user),
     _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
-    Assign a scope to a chatbot
+    Assign a persona to a chatbot
 
     - **chatbot_id**: UUID of the chatbot
-    - **scope_id**: UUID of the scope to assign (null to remove)
+    - **persona_id**: UUID of the persona to assign (null to remove)
 
-    The scope determines the chatbot's system prompt behavior.
-    Setting scope_id to null removes scope assignment (uses default prompt).
+    The persona determines the chatbot's system prompt behavior.
+    Setting persona_id to null removes persona assignment (uses default prompt).
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -427,20 +427,20 @@ async def assign_scope(
             detail="User must be associated with a company"
         )
 
-    # Verify scope belongs to company if provided
-    if scope_request.scope_id:
-        from app.services.scope_service import get_scope_service
-        scope_service = get_scope_service()
-        scope = await scope_service.get_scope(scope_request.scope_id, str(company_id))
-        if not scope:
+    # Verify persona belongs to company if provided
+    if persona_request.persona_id:
+        from app.services.persona_service import get_persona_service
+        persona_service = get_persona_service()
+        persona = await persona_service.get_persona(persona_request.persona_id, str(company_id))
+        if not persona:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Scope {scope_request.scope_id} not found"
+                detail=f"Persona {persona_request.persona_id} not found"
             )
 
-    # Update chatbot with new scope
+    # Update chatbot with new persona
     service = ChatbotService()
-    chatbot_update = ChatbotUpdate(scope_id=scope_request.scope_id)
+    chatbot_update = ChatbotUpdate(persona_id=persona_request.persona_id)
     chatbot = await service.update_chatbot(chatbot_id, chatbot_update, str(company_id))
 
     if not chatbot:

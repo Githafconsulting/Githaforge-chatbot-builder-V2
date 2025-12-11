@@ -500,9 +500,9 @@ async def get_rag_response(
                 }
             }
 
-        # 4. Fetch chatbot configuration for scope filtering (MULTITENANCY) and branding
+        # 4. Fetch chatbot configuration for persona and branding
         allowed_scopes = None
-        scope_system_prompt = None  # NEW: Scope-specific system prompt
+        persona_system_prompt = None  # Persona-specific system prompt
         use_shared_kb = True  # NEW: KB mode flag
         selected_document_ids = None  # NEW: Selected documents for non-shared KB mode
         response_style = "standard"  # NEW: Response verbosity style
@@ -519,10 +519,10 @@ async def get_rag_response(
                 from app.core.database import get_supabase_client
                 client = get_supabase_client()
 
-                # Fetch chatbot config with scope join for scope-specific prompt
+                # Fetch chatbot config with persona join for persona-specific prompt
                 chatbot_response = client.table("chatbots").select(
-                    "allowed_scopes, company_id, scope_id, use_shared_kb, selected_document_ids, response_style, "
-                    "scopes(name, system_prompt)"
+                    "allowed_scopes, company_id, persona_id, use_shared_kb, selected_document_ids, response_style, "
+                    "personas(name, system_prompt)"
                 ).eq("id", chatbot_id).single().execute()
 
                 if chatbot_response.data:
@@ -538,12 +538,12 @@ async def get_rag_response(
                     else:
                         logger.info(f"[ISOLATION] company_id already provided: {company_id}")
 
-                    # NEW: Get scope's system prompt if chatbot has a scope assigned
-                    scope_data = chatbot_response.data.get("scopes")
-                    if scope_data:
-                        scope_system_prompt = scope_data.get("system_prompt")
-                        scope_name = scope_data.get("name")
-                        logger.info(f"[SCOPE] Using scope '{scope_name}' system prompt for chatbot")
+                    # Get persona's system prompt if chatbot has a persona assigned
+                    persona_data = chatbot_response.data.get("personas")
+                    if persona_data:
+                        persona_system_prompt = persona_data.get("system_prompt")
+                        persona_name = persona_data.get("name")
+                        logger.info(f"[PERSONA] Using persona '{persona_name}' system prompt for chatbot")
 
                     logger.info(f"[ISOLATION] Chatbot {chatbot_id[:8] if chatbot_id else 'None'}...: allowed_scopes={allowed_scopes}, company_id={company_id[:8] if company_id else 'None'}..., use_shared_kb={use_shared_kb}, response_style={response_style}")
 
@@ -698,17 +698,17 @@ async def get_rag_response(
             logger.info(f"Including {len(memories)} semantic facts in prompt")
 
         # 12. Build prompt with chatbot branding (use original query so user sees their question)
-        # Use scope-specific system prompt if available, otherwise fall back to branded default
-        if scope_system_prompt:
-            # Use scope's custom prompt with safe variable substitution
+        # Use persona-specific system prompt if available, otherwise fall back to branded default
+        if persona_system_prompt:
+            # Use persona's custom prompt with safe variable substitution
             # NOTE: We use string replace instead of .format() because LLM-generated prompts
             # may contain unescaped curly braces (JSON examples, etc.) that would break .format()
-            rag_system_prompt = scope_system_prompt
+            rag_system_prompt = persona_system_prompt
             rag_system_prompt = rag_system_prompt.replace("{brand_name}", branding.brand_name)
             rag_system_prompt = rag_system_prompt.replace("{support_email}", branding.support_email)
             rag_system_prompt = rag_system_prompt.replace("{brand_website}", branding.brand_website)
             # Keep the context/history/query placeholders for final formatting
-            logger.info(f"[SCOPE] Using scope-specific system prompt (length: {len(rag_system_prompt)})")
+            logger.info(f"[PERSONA] Using persona-specific system prompt (length: {len(rag_system_prompt)})")
         else:
             # Fall back to generic branded prompt
             rag_system_prompt = generate_rag_system_prompt(branding)

@@ -89,7 +89,7 @@ function App() {
             <Route path="settings" element={<SystemSettingsPage />} />
             {/* Redirects for old routes */}
             <Route path="chatbot" element={<Navigate to="/admin/chatbots" replace />} />
-            <Route path="scopes" element={<Navigate to="/admin/chatbots" replace />} />
+            <Route path="personas" element={<Navigate to="/admin/chatbots" replace />} />
           </Route>
 
           {/* Super Admin Routes */}
