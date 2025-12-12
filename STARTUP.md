@@ -365,7 +365,7 @@ ngrok http 5173 --config C:\ngrok-configs\ngrok-account1.yml --log=stdout --log-
 # or
 ngrok http 5173 --config C:\ngrok-configs\ngrok-account1.yml
 ------------------------------------------------------------------------------------------
-# Account1: 
+# Account2: 
 ngrok http 8000 --config C:\ngrok-configs\ngrok-account2.yml --log=stdout --log-level=info --web-port=4041
 
 # or
