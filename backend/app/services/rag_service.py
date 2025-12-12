@@ -719,6 +719,21 @@ async def get_rag_response(
         rag_system_prompt = f"{rag_system_prompt}\n\n{style_instruction}"
         logger.info(f"[STYLE] Using response_style={response_style}")
 
+        # 12c. Inject universal formatting rules (applies to both persona and default prompts)
+        # These rules ensure consistent, readable formatting across all chatbots
+        formatting_rules = """
+FORMATTING RULES (Apply intelligently based on context):
+- When listing 3+ items (services, features, options, steps), use bullet points (•) or numbered lists
+- Use numbered lists (1. 2. 3.) for sequential steps or ranked items
+- Use bullet points (•) for unordered lists like services, features, or options
+- Keep list items concise - one line per item when possible
+- For 1-2 items, write them naturally in a sentence - no list needed
+- Example: "We offer web development, mobile apps, and consulting" → use bullets
+- Example: "We offer consulting services" → keep as sentence (only 1 item)
+"""
+        rag_system_prompt = f"{rag_system_prompt}\n{formatting_rules}"
+        logger.debug("[FORMATTING] Injected universal formatting rules")
+
         # Helper function for safe string substitution (avoids .format() issues with LLM-generated prompts)
         def safe_substitute(template: str, **kwargs) -> str:
             """Replace placeholders without breaking on unescaped braces"""

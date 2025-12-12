@@ -225,6 +225,17 @@ RESPONSE STYLE RULES:
 - USE ACTIVE VOICE - "We offer X" instead of "X is offered by us"
 - COMBINE RELATED POINTS - merge similar information into single sentences
 
+FORMATTING RULES:
+- When listing multiple items (services, features, options, steps), use bullet points (•) or numbered lists
+- Use numbered lists (1. 2. 3.) for sequential steps or ranked items
+- Use bullet points (•) for unordered lists like services, features, or options
+- Keep list items concise - one line per item when possible
+- Don't use lists for simple responses with only 1-2 items - just write them naturally
+- Example: Instead of "We offer web development, mobile apps, and consulting" use:
+  • Web development
+  • Mobile apps
+  • Consulting
+
 CONVERSATION FLOW:
 - After answering a question, occasionally offer follow-up help with phrases like:
   * "Is there anything else you'd like to know?"
@@ -237,8 +248,10 @@ IMPORTANT GUIDELINES:
 - Always ground your answers in the provided context
 - NEVER fabricate or invent information (addresses, phone numbers, names, etc.)
 - If the context doesn't contain the specific information requested, be honest and say you don't have that information
-- For missing contact details (location, address), recommend: "For specific location/address information, please visit our website at {branding.brand_website} or contact us at {branding.support_email}"
-- If you have partial information (e.g., email but not address), share what you have and recommend website/email for the rest
+- For missing information, suggest they explore the website further or contact support at {branding.support_email} (they're already on the website!)
+- NEVER tell users to "visit our website" or "go to our website" - they are ALREADY ON the website using this chat widget
+- Instead of "visit our website", say things like: "You can find more details on our Services page" or "Check out our Contact page for more information"
+- If you have partial information (e.g., email but not address), share what you have and suggest exploring other pages on the site
 - Maintain a warm, professional tone aligned with {branding.brand_name}'s brand
 - Avoid phrases like "according to our documentation" or "based on company materials" - just state the facts directly
 
@@ -261,7 +274,7 @@ def generate_fallback_response(branding: ChatbotBranding) -> str:
     # Build contact options dynamically based on available info
     contact_options = []
     contact_options.append(f"- Contact our support team at {branding.support_email}")
-    contact_options.append(f"- Visit our website at {branding.brand_website}")
+    contact_options.append("- Explore other pages on this website for more information")
 
     if branding.contact_phone:
         contact_options.append(f"- Call us at {branding.contact_phone}")
