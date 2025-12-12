@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, ThumbsUp, ThumbsDown, Sparkles, Pause } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { getSessionId } from '../../utils/session';
 import { slideInRight, fadeInUp } from '../../utils/animations';
 import type { ChatMessage, Source, ChatResponse, Feedback } from '../../types';
 import axios from 'axios';
+
 
 interface ChatWidgetProps {
   adminMode?: boolean; // Show sources and feedback for internal testing
@@ -69,11 +70,24 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [backendUrl]);
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(embedMode); // Auto-open if embedMode
+  const [sessionId] = useState(getSessionId());
+
+  // Messages stored in memory only - cleared on page refresh
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId] = useState(getSessionId());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+
+  // Detect mobile device
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           window.innerWidth < 768;
+  }, []);
 
   // Comment modal state
   const [showCommentModal, setShowCommentModal] = useState(false);
@@ -92,9 +106,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [pausedMessage, setPausedMessage] = useState('');
 
+  // Track if we've already notified parent of load (prevent duplicate messages on remount)
+  const hasNotifiedParent = useRef(false);
+
   // Notify parent when widget is fully loaded (for embed mode)
+  // Only send once per page load to prevent iframe reopening on mobile
   useEffect(() => {
-    if (embedMode && window.parent !== window) {
+    if (embedMode && window.parent !== window && !hasNotifiedParent.current) {
+      hasNotifiedParent.current = true;
       // Small delay to ensure React has finished rendering
       requestAnimationFrame(() => {
         window.parent.postMessage({ type: 'githaf-chat-loaded' }, '*');
@@ -123,9 +142,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (greetingOverride !== undefined) setGreeting(greetingOverride);
   }, [titleOverride, subtitleOverride, greetingOverride]);
 
-  // Fetch chatbot status to check if paused
+  // Track if we've already fetched chatbot status (prevent duplicate API calls)
+  const hasFetchedStatus = useRef(false);
+
+  // Fetch chatbot status to check if paused (only once per mount)
   useEffect(() => {
-    if (!chatbotId) return;
+    if (!chatbotId || hasFetchedStatus.current) return;
+    hasFetchedStatus.current = true;
 
     const fetchChatbotStatus = async () => {
       try {
@@ -184,15 +207,27 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+    // Auto-focus input after new message is added and loading is complete
+    // Only on desktop - on mobile the keyboard takes too much space
+    if (!loading && messages.length > 0 && !isMobile) {
+      inputRef.current?.focus();
+    }
+  }, [messages, loading, isMobile]);
 
-  // End conversation when component unmounts or window closes
+  // Track if we've already ended the conversation (prevent duplicate calls)
+  const hasEndedConversation = useRef(false);
+
+  // End conversation when window closes (not on component unmount in embed mode)
+  // On mobile, beforeunload is unreliable and fires on gestures, so we skip it
   useEffect(() => {
+    // Skip beforeunload on mobile - it causes false triggers on scroll/gesture
+    if (isMobile || embedMode) return;
+
     const handleBeforeUnload = () => {
-      // Only end conversation if there are messages (conversation actually started)
-      if (messages.length > 0) {
+      // Only end conversation if there are messages and we haven't already ended
+      if (messages.length > 0 && !hasEndedConversation.current) {
+        hasEndedConversation.current = true;
         // Use sendBeacon for reliable delivery on page unload
-        // Use backendUrl if provided (embed mode), otherwise use VITE_API_BASE_URL
         const baseUrl = backendUrl || import.meta.env.VITE_API_BASE_URL || '';
         const data = JSON.stringify({ session_id: sessionId });
         const blob = new Blob([data], { type: 'application/json' });
@@ -200,19 +235,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       }
     };
 
-    // Handle window close/refresh
     window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Also end conversation when component unmounts (e.g., when chat widget closes)
-      if (messages.length > 0) {
-        api.endConversation(sessionId).catch(() => {
-          // Silently fail - conversation ending is best-effort
-        });
-      }
-    };
-  }, [sessionId, messages.length, backendUrl, api]);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [sessionId, messages.length, backendUrl, isMobile, embedMode]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -404,10 +429,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            ref={containerRef}
             className={embedMode
-              ? "w-full h-full bg-slate-800 flex flex-col border border-slate-700 overflow-hidden"
-              : "fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-[400px] h-[calc(100vh-2rem)] sm:h-[600px] max-h-[700px] bg-slate-800 rounded-2xl shadow-strong flex flex-col z-50 no-print border border-slate-700"
+              ? "w-full h-full bg-slate-800 flex flex-col border-0 overflow-hidden"
+              : "fixed bottom-0 right-0 sm:bottom-6 sm:right-6 w-full sm:w-[400px] h-full sm:h-[600px] sm:max-h-[700px] sm:rounded-2xl bg-slate-800 shadow-strong flex flex-col z-50 no-print border-0 sm:border border-slate-700"
             }
+            style={embedMode ? { height: '100%' } : undefined}
             variants={embedMode ? undefined : slideInRight}
             initial={embedMode ? undefined : "hidden"}
             animate={embedMode ? undefined : "visible"}
@@ -415,7 +442,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
           >
             {/* Header */}
             <motion.div
-              className={`bg-gradient-to-br from-primary-600 to-secondary-600 text-white p-4 sm:p-5 flex justify-between items-center ${!embedMode ? 'rounded-t-2xl' : ''}`}
+              className={`bg-gradient-to-br from-primary-600 to-secondary-600 text-white p-4 sm:p-5 flex justify-between items-center flex-shrink-0 ${!embedMode ? 'sm:rounded-t-2xl' : ''}`}
               initial={embedMode ? undefined : { opacity: 0, y: -20 }}
               animate={embedMode ? undefined : { opacity: 1, y: 0 }}
               transition={embedMode ? undefined : { delay: 0.1 }}
@@ -458,7 +485,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             </motion.div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-slate-900/50">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-slate-900/50 overscroll-contain">
               <AnimatePresence mode="popLayout">
                 {/* Paused State */}
                 {isPaused && messages.length === 0 && (
@@ -612,22 +639,22 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                   >
-                    <div className="bg-slate-700 rounded-2xl py-3 px-4 shadow-md border border-slate-600">
-                      <div className="flex space-x-2">
+                    <div className="bg-slate-700 rounded-2xl rounded-tl-sm py-3 px-4 shadow-md border border-slate-600">
+                      <div className="flex space-x-1.5">
                         <motion.div
-                          className="w-2 h-2 bg-primary-400 rounded-full"
-                          animate={{ y: [0, -8, 0] }}
-                          transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                          className="w-2 h-2 bg-blue-400 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: 0 }}
                         />
                         <motion.div
-                          className="w-2 h-2 bg-primary-400 rounded-full"
-                          animate={{ y: [0, -8, 0] }}
-                          transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                          className="w-2 h-2 bg-blue-400 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: 0.15 }}
                         />
                         <motion.div
-                          className="w-2 h-2 bg-primary-400 rounded-full"
-                          animate={{ y: [0, -8, 0] }}
-                          transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                          className="w-2 h-2 bg-blue-400 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: 0.3 }}
                         />
                       </div>
                     </div>
@@ -640,13 +667,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
             {/* Input */}
             <motion.div
-              className={`border-t border-slate-700 p-3 sm:p-4 bg-slate-800 ${!embedMode ? 'rounded-b-2xl' : ''} ${isPaused ? 'opacity-50' : ''}`}
+              className={`border-t border-slate-700 p-3 sm:p-4 bg-slate-800 flex-shrink-0 ${!embedMode ? 'sm:rounded-b-2xl' : ''} ${isPaused ? 'opacity-50' : ''} pb-safe`}
               initial={embedMode ? undefined : { opacity: 0, y: 20 }}
               animate={embedMode ? undefined : { opacity: isPaused ? 0.5 : 1, y: 0 }}
               transition={embedMode ? undefined : { delay: 0.2 }}
             >
               <div className="flex gap-2">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
