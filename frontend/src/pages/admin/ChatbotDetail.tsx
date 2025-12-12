@@ -34,6 +34,7 @@ import {
   ExternalLink,
   EyeOff,
   Eye,
+  Pencil,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -1363,19 +1364,96 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({ chatbot }) => {
   );
 };
 
-// Training Tab Component - Live Interactive Chatbot
+// Training Tab Component - Live Interactive Chatbot with Session Persistence
 interface TrainingTabProps {
   chatbot: Chatbot;
 }
 
+interface TrainingMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: any[];
+  timestamp?: string;
+}
+
+interface TrainingSession {
+  id: string;
+  chatbotId: string;
+  name?: string; // Optional custom name for the session
+  messages: TrainingMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Helper functions for localStorage persistence
+const getStorageKey = (chatbotId: string) => `training-sessions-${chatbotId}`;
+
+const loadSessions = (chatbotId: string): TrainingSession[] => {
+  try {
+    const stored = localStorage.getItem(getStorageKey(chatbotId));
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveSessions = (chatbotId: string, sessions: TrainingSession[]) => {
+  localStorage.setItem(getStorageKey(chatbotId), JSON.stringify(sessions));
+};
+
 const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; sources?: any[] }>>([
-    { role: 'assistant', content: chatbot.greeting_message }
-  ]);
+  const [sessions, setSessions] = useState<TrainingSession[]>(() => loadSessions(chatbot.id));
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
+    const existing = loadSessions(chatbot.id);
+    return existing.length > 0 ? existing[0].id : null;
+  });
+  const [messages, setMessages] = useState<TrainingMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() => `training-${chatbot.id}-${Date.now()}`);
+  const [showSessionDropdown, setShowSessionDropdown] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
+  // Load current session messages on mount or session change
+  useEffect(() => {
+    if (currentSessionId) {
+      const session = sessions.find(s => s.id === currentSessionId);
+      if (session) {
+        setMessages(session.messages);
+      }
+    } else if (sessions.length === 0) {
+      // No sessions exist - create initial one
+      createNewSession();
+    }
+  }, [currentSessionId]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (currentSessionId && messages.length > 0) {
+      const updatedSessions = sessions.map(s =>
+        s.id === currentSessionId
+          ? { ...s, messages, updatedAt: new Date().toISOString() }
+          : s
+      );
+      setSessions(updatedSessions);
+      saveSessions(chatbot.id, updatedSessions);
+    }
+  }, [messages]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowSessionDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1383,28 +1461,121 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+    // Auto-focus input after new message is added and loading is complete
+    if (!isLoading && messages.length > 0) {
+      chatInputRef.current?.focus();
+    }
+  }, [messages, isLoading]);
+
+  const createNewSession = () => {
+    const newSession: TrainingSession = {
+      id: `training-${chatbot.id}-${Date.now()}`,
+      chatbotId: chatbot.id,
+      messages: [{ role: 'assistant', content: chatbot.greeting_message, timestamp: new Date().toISOString() }],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const updatedSessions = [newSession, ...sessions];
+    setSessions(updatedSessions);
+    saveSessions(chatbot.id, updatedSessions);
+    setCurrentSessionId(newSession.id);
+    setMessages(newSession.messages);
+    setShowSessionDropdown(false);
+    toast.success('New training session started');
+  };
+
+  const switchSession = (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setCurrentSessionId(sessionId);
+      setMessages(session.messages);
+      setShowSessionDropdown(false);
+    }
+  };
+
+  const deleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (sessions.length === 1) {
+      toast.error('Cannot delete the only session');
+      return;
+    }
+    const updatedSessions = sessions.filter(s => s.id !== sessionId);
+    setSessions(updatedSessions);
+    saveSessions(chatbot.id, updatedSessions);
+
+    // If deleting current session, switch to the first available
+    if (currentSessionId === sessionId && updatedSessions.length > 0) {
+      setCurrentSessionId(updatedSessions[0].id);
+      setMessages(updatedSessions[0].messages);
+    }
+    toast.success('Session deleted');
+  };
+
+  const startEditingSession = (sessionId: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(sessionId);
+    setEditingName(currentName);
+    // Focus input after render
+    setTimeout(() => editInputRef.current?.focus(), 0);
+  };
+
+  const saveSessionName = (sessionId: string) => {
+    const trimmedName = editingName.trim();
+    const updatedSessions = sessions.map(s =>
+      s.id === sessionId
+        ? { ...s, name: trimmedName || undefined, updatedAt: new Date().toISOString() }
+        : s
+    );
+    setSessions(updatedSessions);
+    saveSessions(chatbot.id, updatedSessions);
+    setEditingSessionId(null);
+    setEditingName('');
+    if (trimmedName) {
+      toast.success('Session renamed');
+    }
+  };
+
+  const handleEditKeyPress = (e: React.KeyboardEvent, sessionId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveSessionName(sessionId);
+    } else if (e.key === 'Escape') {
+      setEditingSessionId(null);
+      setEditingName('');
+    }
+  };
+
+  const getSessionDisplayName = (session: TrainingSession) => {
+    if (session.name) return session.name;
+    // Fallback to first user message or "New session"
+    const firstUserMsg = session.messages.find(m => m.role === 'user');
+    return firstUserMsg ? firstUserMsg.content.substring(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '') : 'New session';
+  };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !currentSessionId) return;
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    const newUserMsg: TrainingMessage = { role: 'user', content: userMessage, timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, newUserMsg]);
     setIsLoading(true);
 
     try {
-      const response = await apiService.sendMessage(userMessage, sessionId, chatbot.id);
-      setMessages(prev => [...prev, {
+      const response = await apiService.sendMessage(userMessage, currentSessionId, chatbot.id);
+      const newAssistantMsg: TrainingMessage = {
         role: 'assistant',
         content: response.response,
-        sources: response.sources
-      }]);
+        sources: response.sources,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, newAssistantMsg]);
     } catch (error: any) {
       console.error('Failed to send message:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.'
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date().toISOString()
       }]);
       toast.error('Failed to get response');
     } finally {
@@ -1419,8 +1590,23 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
     }
   };
 
-  const handleReset = () => {
-    setMessages([{ role: 'assistant', content: chatbot.greeting_message }]);
+  const handleClearSession = () => {
+    if (!currentSessionId) return;
+    const clearedMessages: TrainingMessage[] = [{ role: 'assistant', content: chatbot.greeting_message, timestamp: new Date().toISOString() }];
+    setMessages(clearedMessages);
+    const updatedSessions = sessions.map(s =>
+      s.id === currentSessionId
+        ? { ...s, messages: clearedMessages, updatedAt: new Date().toISOString() }
+        : s
+    );
+    setSessions(updatedSessions);
+    saveSessions(chatbot.id, updatedSessions);
+    toast.success('Session cleared');
+  };
+
+  const formatSessionDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const primaryColor = chatbot.primary_color || '#1E40AF';
@@ -1445,13 +1631,87 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
               <p className="text-xs opacity-80">Test your chatbot with live AI responses</p>
             </div>
           </div>
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Reset
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Session Dropdown */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowSessionDropdown(!showSessionDropdown)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm transition-colors"
+              >
+                <Clock className="w-4 h-4" />
+                Sessions ({sessions.length})
+              </button>
+              {showSessionDropdown && (
+                <div className="absolute right-0 mt-2 w-72 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                  <div className="p-2 border-b border-slate-700">
+                    <button
+                      onClick={createNewSession}
+                      className="w-full flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Start New Session
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {sessions.map((session) => (
+                      <div
+                        key={session.id}
+                        onClick={() => editingSessionId !== session.id && switchSession(session.id)}
+                        className={`flex items-center justify-between p-3 cursor-pointer hover:bg-slate-700 transition-colors ${
+                          currentSessionId === session.id ? 'bg-slate-700/50 border-l-2 border-blue-500' : ''
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          {editingSessionId === session.id ? (
+                            <input
+                              ref={editInputRef}
+                              type="text"
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onKeyDown={(e) => handleEditKeyPress(e, session.id)}
+                              onBlur={() => saveSessionName(session.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              placeholder="Session name..."
+                              className="w-full px-2 py-1 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:outline-none focus:border-blue-500"
+                            />
+                          ) : (
+                            <p className="text-sm text-white truncate">
+                              {getSessionDisplayName(session)}
+                            </p>
+                          )}
+                          <p className="text-xs text-slate-400 mt-0.5">{formatSessionDate(session.createdAt)} • {session.messages.length} msgs</p>
+                        </div>
+                        <div className="flex items-center gap-1 ml-2">
+                          <button
+                            onClick={(e) => startEditingSession(session.id, session.name || '', e)}
+                            className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                            title="Rename session"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => deleteSession(session.id, e)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                            title="Delete session"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleClearSession}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm transition-colors"
+              title="Clear current session"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Clear
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -1505,6 +1765,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
         <div className="p-4 border-t border-slate-700 bg-slate-800">
           <div className="flex items-center gap-2">
             <input
+              ref={chatInputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -1553,8 +1814,9 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
         </div>
 
         <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4 text-sm text-blue-200">
-          <p className="font-medium mb-1">Session ID:</p>
-          <p className="text-xs text-blue-400 font-mono break-all">{sessionId}</p>
+          <p className="font-medium mb-1">Current Session:</p>
+          <p className="text-xs text-blue-400 font-mono break-all">{currentSessionId || 'No session'}</p>
+          <p className="text-xs text-slate-400 mt-2">Sessions are saved automatically and persist across tabs.</p>
         </div>
       </div>
     </motion.div>

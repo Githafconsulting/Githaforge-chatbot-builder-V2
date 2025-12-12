@@ -74,6 +74,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [loading, setLoading] = useState(false);
   const [sessionId] = useState(getSessionId());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Comment modal state
   const [showCommentModal, setShowCommentModal] = useState(false);
@@ -184,7 +185,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+    // Auto-focus input after new message is added and loading is complete
+    if (!loading && messages.length > 0) {
+      inputRef.current?.focus();
+    }
+  }, [messages, loading]);
 
   // End conversation when component unmounts or window closes
   useEffect(() => {
@@ -612,22 +617,22 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                   >
-                    <div className="bg-slate-700 rounded-2xl py-3 px-4 shadow-md border border-slate-600">
-                      <div className="flex space-x-2">
+                    <div className="bg-slate-700 rounded-2xl rounded-tl-sm py-3 px-4 shadow-md border border-slate-600">
+                      <div className="flex space-x-1.5">
                         <motion.div
-                          className="w-2 h-2 bg-primary-400 rounded-full"
-                          animate={{ y: [0, -8, 0] }}
-                          transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                          className="w-2 h-2 bg-blue-400 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: 0 }}
                         />
                         <motion.div
-                          className="w-2 h-2 bg-primary-400 rounded-full"
-                          animate={{ y: [0, -8, 0] }}
-                          transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                          className="w-2 h-2 bg-blue-400 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: 0.15 }}
                         />
                         <motion.div
-                          className="w-2 h-2 bg-primary-400 rounded-full"
-                          animate={{ y: [0, -8, 0] }}
-                          transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                          className="w-2 h-2 bg-blue-400 rounded-full"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: 0.3 }}
                         />
                       </div>
                     </div>
@@ -647,6 +652,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             >
               <div className="flex gap-2">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
