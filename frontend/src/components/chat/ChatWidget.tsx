@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, ThumbsUp, ThumbsDown, Sparkles, Pause } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +6,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { apiService } from '../../services/api';
 import { getSessionId } from '../../utils/session';
 import { slideInRight, fadeInUp } from '../../utils/animations';
-import type { ChatMessage, Source } from '../../types';
+import type { ChatMessage, Source, ChatResponse, Feedback } from '../../types';
+import axios from 'axios';
 
 interface ChatWidgetProps {
   adminMode?: boolean; // Show sources and feedback for internal testing
@@ -15,7 +16,40 @@ interface ChatWidgetProps {
   subtitleOverride?: string; // Override subtitle from widget settings (for live preview)
   greetingOverride?: string; // Override greeting from widget settings (for live preview)
   chatbotId?: string; // Chatbot ID to use for this widget (required for deployed bots)
+  backendUrl?: string; // Backend API URL (for tunneling/remote deployments)
 }
+
+/**
+ * Create API functions that use the provided backendUrl
+ * This is needed for embed mode when the widget runs on a different domain
+ */
+const createEmbedApi = (backendUrl: string) => {
+  const api = axios.create({
+    baseURL: backendUrl,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  return {
+    sendMessage: async (message: string, sessionId: string, chatbotId?: string): Promise<ChatResponse> => {
+      const response = await api.post('/api/v1/chat/', {
+        message,
+        session_id: sessionId,
+        chatbot_id: chatbotId,
+      });
+      return response.data;
+    },
+    endConversation: async (sessionId: string): Promise<void> => {
+      await api.post('/api/v1/conversations/end', { session_id: sessionId });
+    },
+    submitFeedback: async (feedback: Feedback): Promise<void> => {
+      await api.post('/api/v1/feedback/', feedback);
+    },
+    getChatbot: async (chatbotId: string) => {
+      const response = await api.get(`/api/v1/chatbots/${chatbotId}/public`);
+      return response.data;
+    },
+  };
+};
 
 export const ChatWidget: React.FC<ChatWidgetProps> = ({
   adminMode = false,
@@ -23,8 +57,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   titleOverride,
   subtitleOverride,
   greetingOverride,
-  chatbotId
+  chatbotId,
+  backendUrl
 }) => {
+  // Use dynamic API when backendUrl is provided (embed mode with tunneling)
+  const api = useMemo(() => {
+    if (backendUrl) {
+      return createEmbedApi(backendUrl);
+    }
+    return apiService;
+  }, [backendUrl]);
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(embedMode); // Auto-open if embedMode
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -49,6 +91,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Chatbot status (paused, deployed, etc.)
   const [isPaused, setIsPaused] = useState(false);
   const [pausedMessage, setPausedMessage] = useState('');
+
+  // Notify parent when widget is fully loaded (for embed mode)
+  useEffect(() => {
+    if (embedMode && window.parent !== window) {
+      // Small delay to ensure React has finished rendering
+      requestAnimationFrame(() => {
+        window.parent.postMessage({ type: 'githaf-chat-loaded' }, '*');
+      });
+    }
+  }, [embedMode]);
 
   // Listen for postMessage updates (for live preview)
   useEffect(() => {
@@ -77,7 +129,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
     const fetchChatbotStatus = async () => {
       try {
-        const chatbot = await apiService.getChatbot(chatbotId);
+        const chatbot = await api.getChatbot(chatbotId);
         if (chatbot.deploy_status === 'paused') {
           setIsPaused(true);
           setPausedMessage(chatbot.paused_message || 'This chatbot is currently unavailable. Please try again later or contact support.');
@@ -92,7 +144,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     };
 
     fetchChatbotStatus();
-  }, [chatbotId]);
+  }, [chatbotId, api]);
 
   // Listen for live updates via BroadcastChannel (for deploy/pause status changes)
   useEffect(() => {
@@ -140,9 +192,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       // Only end conversation if there are messages (conversation actually started)
       if (messages.length > 0) {
         // Use sendBeacon for reliable delivery on page unload
+        // Use backendUrl if provided (embed mode), otherwise use VITE_API_BASE_URL
+        const baseUrl = backendUrl || import.meta.env.VITE_API_BASE_URL || '';
         const data = JSON.stringify({ session_id: sessionId });
         const blob = new Blob([data], { type: 'application/json' });
-        navigator.sendBeacon(`${import.meta.env.VITE_API_BASE_URL}/api/v1/conversations/end`, blob);
+        navigator.sendBeacon(`${baseUrl}/api/v1/conversations/end`, blob);
       }
     };
 
@@ -153,12 +207,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       window.removeEventListener('beforeunload', handleBeforeUnload);
       // Also end conversation when component unmounts (e.g., when chat widget closes)
       if (messages.length > 0) {
-        apiService.endConversation(sessionId).catch(() => {
+        api.endConversation(sessionId).catch(() => {
           // Silently fail - conversation ending is best-effort
         });
       }
     };
-  }, [sessionId, messages.length]);
+  }, [sessionId, messages.length, backendUrl, api]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -175,7 +229,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     setLoading(true);
 
     try {
-      const response = await apiService.sendMessage(input, sessionId, chatbotId);
+      const response = await api.sendMessage(input, sessionId, chatbotId);
 
       const botMessage: ChatMessage = {
         message: input,
@@ -214,7 +268,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
     // For thumbs up (rating=1), submit immediately
     try {
-      await apiService.submitFeedback({ message_id: messageId, rating });
+      await api.submitFeedback({ message_id: messageId, rating });
       // Remove msg.id after successful submission
       setMessages((prev) =>
         prev.map((msg) =>
@@ -251,7 +305,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (!commentingMessageId) return;
 
     try {
-      await apiService.submitFeedback({
+      await api.submitFeedback({
         message_id: commentingMessageId,
         rating: 0,
         comment: commentText.trim() || undefined, // Send comment if provided

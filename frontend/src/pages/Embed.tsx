@@ -16,6 +16,7 @@ import { ChatWidget } from '../components/chat/ChatWidget';
  * - subtitle: Widget subtitle
  * - greeting: Initial greeting message
  * - adminPreview: Set to 'true' to enable admin mode (shows sources)
+ * - backendUrl: Backend API URL (for tunneling/remote deployments)
  */
 export const EmbedPage: React.FC = () => {
   const [widgetConfig, setWidgetConfig] = useState({
@@ -23,7 +24,8 @@ export const EmbedPage: React.FC = () => {
     subtitle: '',
     greeting: '',
     adminMode: false,
-    chatbotId: ''
+    chatbotId: '',
+    backendUrl: ''
   });
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export const EmbedPage: React.FC = () => {
     const greeting = params.get('greeting');
     const adminPreview = params.get('adminPreview');
     const chatbotId = params.get('chatbotId');
+    const backendUrl = params.get('backendUrl');
 
     if (primaryColor) {
       document.documentElement.style.setProperty('--primary-color', primaryColor);
@@ -50,13 +53,12 @@ export const EmbedPage: React.FC = () => {
       subtitle: subtitle || '',
       greeting: greeting || '',
       adminMode: adminPreview === 'true', // Enable admin mode (sources display) when in admin panel preview
-      chatbotId: chatbotId || ''
+      chatbotId: chatbotId || '',
+      backendUrl: backendUrl?.trim() || '' // Backend URL for API calls (tunneling support)
     });
 
-    // Notify parent that embed is loaded
-    if (window.parent !== window) {
-      window.parent.postMessage({ type: 'githaf-chat-loaded' }, '*');
-    }
+    // Note: The 'githaf-chat-loaded' message is now sent from ChatWidget
+    // after it fully mounts, ensuring the parent knows React has rendered
   }, []);
 
   return (
@@ -75,6 +77,7 @@ export const EmbedPage: React.FC = () => {
         subtitleOverride={widgetConfig.subtitle}
         greetingOverride={widgetConfig.greeting}
         chatbotId={widgetConfig.chatbotId}
+        backendUrl={widgetConfig.backendUrl}
       />
 
       {/* Optional: Background styling */}

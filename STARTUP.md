@@ -365,10 +365,28 @@ ngrok http 5173 --config C:\ngrok-configs\ngrok-account1.yml --log=stdout --log-
 # or
 ngrok http 5173 --config C:\ngrok-configs\ngrok-account1.yml
 ------------------------------------------------------------------------------------------
-# Account1: 
+# Account2: 
 ngrok http 8000 --config C:\ngrok-configs\ngrok-account2.yml --log=stdout --log-level=info --web-port=4041
 
 # or
 ngrok http 8000 --config C:\ngrok-configs\ngrok-account2.yml
 
 -----------------------------------------------------------------------------------------------
+
+# Cloudflare Tunnel Setup
+1. Download cloudflared:
+Go to: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+Or use: winget install cloudflare.cloudflared
+2. Run tunnels for both services:
+
+# Terminal 1 - Frontend (port 5173)
+cloudflared tunnel --url http://localhost:5173
+
+# Terminal 2 - Backend (port 8000)
+cloudflared tunnel --url http://localhost:8000
+
+3. Get the URLs - Cloudflare will output URLs like:
+https://something-random.trycloudflare.com (frontend)
+https://another-random.trycloudflare.com (backend)
+4. Update the client's layout.tsx with those URLs
+Let me know once you have the Cloudflare tunnel URLs and I can help update the client code.

@@ -1674,6 +1674,7 @@ const EmbedTab: React.FC<EmbedTabProps> = ({ embedCode, onCopy, copied }) => {
 
         <p className="text-slate-400 mb-4">
           Copy and paste this code into your website to embed the chatbot.
+          The widget will automatically fetch its configuration from our servers.
         </p>
 
         <pre className="bg-slate-900 border border-slate-700 rounded-lg p-4 overflow-x-auto">
@@ -1681,13 +1682,35 @@ const EmbedTab: React.FC<EmbedTabProps> = ({ embedCode, onCopy, copied }) => {
         </pre>
       </div>
 
+      <div className="bg-green-900/20 border border-green-700/50 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-green-300 mb-2">How It Works</h4>
+        <ul className="text-sm text-green-200 space-y-2 list-disc list-inside">
+          <li>The script tag contains your chatbot's unique ID</li>
+          <li>All settings (colors, position, messages) are loaded automatically from our servers</li>
+          <li>Changes you make in the dashboard apply immediately - no need to update the embed code!</li>
+          <li>Works with tunneling services (Cloudflare Tunnel, ngrok) out of the box</li>
+        </ul>
+      </div>
+
       <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
         <h4 className="text-sm font-medium text-blue-300 mb-2">Installation Instructions</h4>
         <ol className="text-sm text-blue-200 space-y-2 list-decimal list-inside">
           <li>Copy the embed code above</li>
-          <li>Paste it just before the closing <code className="bg-slate-800 px-1 rounded">&lt;/body&gt;</code> tag</li>
-          <li>The chat widget will appear automatically on your website</li>
+          <li>Paste it just before the closing <code className="bg-slate-800 px-1 rounded">&lt;/body&gt;</code> tag on your website</li>
+          <li>The chat widget will appear automatically</li>
           <li>Make sure to deploy your chatbot first!</li>
+        </ol>
+      </div>
+
+      <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-amber-300 mb-2">Tunneling / Remote Testing</h4>
+        <p className="text-sm text-amber-200 mb-2">
+          For testing with remote clients via Cloudflare Tunnel or similar:
+        </p>
+        <ol className="text-sm text-amber-200 space-y-1 list-decimal list-inside">
+          <li>Update <code className="bg-slate-800 px-1 rounded">FRONTEND_URL</code> in your backend config to the tunnel URL</li>
+          <li>Refresh this page to get the updated embed code</li>
+          <li>The embed script will automatically detect the correct URLs</li>
         </ol>
       </div>
     </motion.div>

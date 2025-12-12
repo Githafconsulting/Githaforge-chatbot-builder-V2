@@ -79,51 +79,43 @@ class ChatbotService:
     def _generate_embed_code(self, chatbot: Chatbot) -> str:
         """Generate JavaScript embed code for chatbot widget
 
-        The embed code:
-        1. Sets configuration options via window.GithafChatConfig
-        2. Loads the embed.js script which creates an iframe pointing to /embed
-        3. Passes chatbotId and customization params to the iframe
+        SIMPLIFIED ARCHITECTURE (Klaviyo-style):
+        - Single script tag with data-chatbot-id attribute
+        - Script auto-detects its URL to determine backend/frontend URLs
+        - All configuration is fetched dynamically from /api/v1/chatbots/{id}/widget-config
+        - No hardcoded URLs in client code!
+
+        Optional: data-backend-url attribute for split frontend/backend deployments
         """
-        # Frontend URL where the embed page is hosted
+        # Frontend URL where the embed script is hosted
         frontend_url = settings.FRONTEND_URL or "http://localhost:5173"
-        # Backend URL for API calls (status check, chat, etc.)
+        # Backend URL for API calls (only needed if different from frontend)
         backend_url = settings.API_BASE_URL or "http://localhost:8000"
 
-        # Widget configuration
-        primary_color = chatbot.primary_color or '#1e40af'
-        accent_color = chatbot.secondary_color or '#0ea5e9'
-        greeting = chatbot.greeting_message or 'Hi! How can I help you today?'
-        position = chatbot.widget_position or 'bottom-right'
-        button_size = chatbot.button_size or 'medium'
-        theme = chatbot.widget_theme or 'modern'
-        title = chatbot.widget_title or chatbot.name
-        subtitle = chatbot.widget_subtitle or 'Always here to help'
-        padding_x = chatbot.padding_x if chatbot.padding_x is not None else 20
-        padding_y = chatbot.padding_y if chatbot.padding_y is not None else 20
-        z_index = chatbot.z_index if chatbot.z_index is not None else 9999
-        show_badge = 'true' if chatbot.show_notification_badge else 'false'
+        # Check if frontend and backend are on different hosts
+        # If same host, no need for data-backend-url attribute
+        frontend_host = frontend_url.replace("http://", "").replace("https://", "").split("/")[0]
+        backend_host = backend_url.replace("http://", "").replace("https://", "").split("/")[0]
+        same_host = frontend_host == backend_host
 
-        embed_code = f"""<!-- Githaforge Chatbot Widget -->
-<script>
-  window.GithafChatConfig = {{
-    chatbotId: "{chatbot.id}",
-    apiUrl: "{frontend_url}",
-    backendUrl: "{backend_url}",
-    primaryColor: "{primary_color}",
-    accentColor: "{accent_color}",
-    greeting: "{greeting}",
-    title: "{title}",
-    subtitle: "{subtitle}",
-    position: "{position}",
-    buttonSize: "{button_size}",
-    theme: "{theme}",
-    paddingX: {padding_x},
-    paddingY: {padding_y},
-    zIndex: {z_index},
-    showNotificationBadge: {show_badge}
-  }};
+        if same_host:
+            # Simple case: frontend serves both embed.js and proxies API calls
+            embed_code = f"""<!-- Githaforge Chatbot Widget -->
+<script
+  src="{frontend_url}/widget/embed.js"
+  data-chatbot-id="{chatbot.id}"
+  async>
 </script>
-<script src="{frontend_url}/widget/embed.js" async></script>
+"""
+        else:
+            # Split deployment: frontend and backend on different hosts
+            embed_code = f"""<!-- Githaforge Chatbot Widget -->
+<script
+  src="{frontend_url}/widget/embed.js"
+  data-chatbot-id="{chatbot.id}"
+  data-backend-url="{backend_url}"
+  async>
+</script>
 """
         return embed_code
 
