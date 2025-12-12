@@ -26,6 +26,98 @@ class ChatbotPublicStatus(BaseModel):
     deploy_status: str
 
 
+class ChatbotWidgetConfig(BaseModel):
+    """
+    Public widget configuration for embed script.
+    This endpoint enables the Klaviyo-style simplified embed approach.
+    """
+    chatbot_id: str
+    is_active: bool
+    deploy_status: str
+    paused_message: Optional[str] = None
+
+    # Widget appearance
+    primary_color: Optional[str] = "#1e40af"
+    secondary_color: Optional[str] = "#0ea5e9"
+    widget_theme: Optional[str] = "modern"
+    widget_position: Optional[str] = "bottom-right"
+    button_size: Optional[str] = "medium"
+    show_notification_badge: Optional[bool] = True
+    widget_title: Optional[str] = "Chat with us"
+    widget_subtitle: Optional[str] = "We're here to help"
+    greeting_message: Optional[str] = "Hi! How can I help you today?"
+    padding_x: Optional[int] = 20
+    padding_y: Optional[int] = 20
+    z_index: Optional[int] = 9999
+    logo_url: Optional[str] = None
+
+
+@router.get("/{chatbot_id}/widget-config", response_model=ChatbotWidgetConfig)
+async def get_widget_config(chatbot_id: str):
+    """
+    Get public widget configuration (no authentication required).
+
+    This endpoint enables a simplified embed approach like Klaviyo:
+    ```html
+    <script src="https://yourdomain.com/widget/embed.js" data-chatbot-id="xxx"></script>
+    ```
+
+    The embed script fetches all configuration dynamically from this endpoint,
+    so clients don't need to hardcode any settings or URLs.
+
+    Changes made in the admin dashboard apply immediately without
+    requiring clients to update their embed code.
+
+    - **chatbot_id**: UUID of the chatbot
+
+    Returns all widget configuration needed to render the chat widget.
+    """
+    try:
+        from app.core.database import get_supabase_client
+        client = get_supabase_client()
+
+        response = client.table("chatbots").select(
+            "id, is_active, deploy_status, paused_message, "
+            "primary_color, secondary_color, widget_theme, widget_position, "
+            "button_size, show_notification_badge, widget_title, widget_subtitle, "
+            "greeting_message, padding_x, padding_y, z_index, logo_url"
+        ).eq("id", chatbot_id).single().execute()
+
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Chatbot {chatbot_id} not found"
+            )
+
+        data = response.data
+        return ChatbotWidgetConfig(
+            chatbot_id=data.get("id"),
+            is_active=data.get("is_active", True),
+            deploy_status=data.get("deploy_status", "draft"),
+            paused_message=data.get("paused_message"),
+            primary_color=data.get("primary_color") or "#1e40af",
+            secondary_color=data.get("secondary_color") or "#0ea5e9",
+            widget_theme=data.get("widget_theme") or "modern",
+            widget_position=data.get("widget_position") or "bottom-right",
+            button_size=data.get("button_size") or "medium",
+            show_notification_badge=data.get("show_notification_badge", True),
+            widget_title=data.get("widget_title") or "Chat with us",
+            widget_subtitle=data.get("widget_subtitle") or "We're here to help",
+            greeting_message=data.get("greeting_message") or "Hi! How can I help you today?",
+            padding_x=data.get("padding_x") or 20,
+            padding_y=data.get("padding_y") or 20,
+            z_index=data.get("z_index") or 9999,
+            logo_url=data.get("logo_url")
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch widget config: {str(e)}"
+        )
+
+
 @router.get("/{chatbot_id}/public", response_model=ChatbotPublicStatus)
 async def get_chatbot_public_status(chatbot_id: str):
     """

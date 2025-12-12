@@ -11,7 +11,8 @@ export default defineConfig({
         // local dev backend config
         target: 'http://localhost:8000',
         changeOrigin: true,
-        secure: true
+        // secure: true
+        secure: false, //with cloudflare tunnel, need secure false
 
         // Ngrok config
         // target: 'https://emely-unmorphological-unconsiderablely.ngrok-free.dev',
@@ -28,10 +29,12 @@ export default defineConfig({
         secure: false,
       }
     },
-    allowedHosts: [
-      "*.ngrok-free.app",
-      "*.ngrok-free.dev",
-      "maren-unpricked-percy.ngrok-free.dev"
-    ]
+    allowedHosts: true, 
+    // allowedHosts: [
+    //   "*.trycloudflare.com",
+    //   "*.ngrok-free.app",
+    //   "*.ngrok-free.dev",
+    //   "maren-unpricked-percy.ngrok-free.dev"
+    // ]
   }
 })
