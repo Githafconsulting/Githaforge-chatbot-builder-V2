@@ -1459,13 +1459,20 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Detect mobile device
+  const isMobile = typeof window !== 'undefined' && (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768
+  );
+
   useEffect(() => {
     scrollToBottom();
     // Auto-focus input after new message is added and loading is complete
-    if (!isLoading && messages.length > 0) {
+    // Only on desktop - on mobile the keyboard takes too much space
+    if (!isLoading && messages.length > 0 && !isMobile) {
       chatInputRef.current?.focus();
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, isMobile]);
 
   const createNewSession = () => {
     const newSession: TrainingSession = {

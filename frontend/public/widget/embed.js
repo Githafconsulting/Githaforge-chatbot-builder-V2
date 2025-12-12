@@ -386,9 +386,12 @@
 
     // Toggle widget
     let isOpen = false;
+    let userHasOpened = false; // Track if user explicitly clicked to open
+
     button.addEventListener('click', function() {
       isOpen = !isOpen;
       if (isOpen) {
+        userHasOpened = true; // User explicitly opened the widget
         button.style.display = 'none'; // Hide button when chat is open - use X in chat header to close
         // Remove badge when opened
         const badge = document.getElementById('githaf-chat-badge');
@@ -416,24 +419,41 @@
     container.appendChild(button);
     document.body.appendChild(container);
 
-    // Function to switch from skeleton to iframe
+    // Function to mark iframe as loaded and switch from skeleton to iframe if widget is open
     const showIframe = () => {
       iframeLoaded = true;
-      if (isOpen) {
+      // Only switch display if:
+      // 1. User has explicitly opened the widget at least once
+      // 2. Widget is currently supposed to be open
+      // 3. Skeleton is currently showing (waiting for iframe)
+      if (userHasOpened && isOpen && skeleton.style.display === 'block') {
         skeleton.style.display = 'none';
         iframe.style.display = 'block';
       }
     };
 
-    // Listen for messages from iframe
+    // Listen for messages from iframe (with origin check to prevent stray messages)
     window.addEventListener('message', function(event) {
-      // Handle iframe ready message (React app fully loaded)
-      if (event.data && event.data.type === 'githaf-chat-loaded') {
-        showIframe();
+      // Only accept messages from our iframe's origin
+      try {
+        const iframeOrigin = new URL(effectiveFrontendUrl).origin;
+        if (event.origin !== iframeOrigin) return;
+      } catch (e) {
+        // If origin check fails, still process known message types carefully
       }
 
-      // Handle close chat message
-      if (event.data === 'closeChat' || (event.data && event.data.type === 'closeChat')) {
+      // Handle iframe ready message (React app fully loaded)
+      // Only process once - ignore subsequent messages (prevents reopening on mobile)
+      if (event.data && event.data.type === 'githaf-chat-loaded') {
+        if (!iframeLoaded) {
+          showIframe();
+        }
+        // If already loaded, ignore - this prevents the widget from reopening
+        // when the iframe sends the message again (e.g., on React remount)
+      }
+
+      // Handle close chat message (only from explicit close button click)
+      if (event.data && event.data.type === 'closeChat') {
         isOpen = false;
         iframe.style.display = 'none';
         skeleton.style.display = 'none';
@@ -445,20 +465,26 @@
     // Fallback: Also listen for iframe's native load event
     // This fires when HTML is loaded (React may still be hydrating)
     iframe.addEventListener('load', function() {
-      // Give React a moment to hydrate, then show iframe
+      // Give React a moment to hydrate, then mark as loaded
       setTimeout(() => {
         if (!iframeLoaded) {
           console.log('[Githaf Chat] Iframe loaded via fallback');
-          showIframe();
+          iframeLoaded = true;
+          // Only show if user has opened AND widget is currently supposed to be open
+          if (userHasOpened && isOpen && skeleton.style.display === 'block') {
+            skeleton.style.display = 'none';
+            iframe.style.display = 'block';
+          }
         }
       }, 500);
     });
 
-    // Ultimate fallback: If nothing works after 5 seconds, show iframe anyway
+    // Ultimate fallback: If nothing works after 5 seconds, mark iframe as loaded
     setTimeout(() => {
       if (!iframeLoaded) {
-        console.log('[Githaf Chat] Iframe loaded via timeout fallback');
-        showIframe();
+        console.log('[Githaf Chat] Iframe marked loaded via timeout fallback');
+        iframeLoaded = true;
+        // Don't auto-show - wait for user to click button
       }
     }, 5000);
   } // End of renderWidget function
