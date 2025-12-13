@@ -225,6 +225,7 @@ async def _apply_document_filters(
 ) -> List[Dict[str, Any]]:
     """
     Filter embedding search results by document metadata (company_id, scope, chatbot_id, KB mode)
+    Also enriches results with document metadata (title, scope, source_url) for context awareness.
 
     Args:
         embedding_results: List of embedding matches from similarity search
@@ -235,7 +236,7 @@ async def _apply_document_filters(
         selected_document_ids: When use_shared_kb=False, only these documents are allowed
 
     Returns:
-        Filtered list of embeddings
+        Filtered list of embeddings enriched with document metadata
     """
     try:
         if not embedding_results:
@@ -254,15 +255,34 @@ async def _apply_document_filters(
         if not use_shared_kb and selected_document_ids:
             # Filter embeddings to only those from selected documents
             selected_set = set(selected_document_ids)
-            filtered_embeddings = [
-                emb for emb in embedding_results
-                if emb.get("document_id") in selected_set
-            ]
+
+            # Still fetch metadata for enrichment
+            meta_response = client.table("documents").select(
+                "id, title, scope, source_url, category"
+            ).in_("id", list(selected_set)).execute()
+
+            doc_metadata = {doc["id"]: doc for doc in (meta_response.data or [])}
+
+            filtered_embeddings = []
+            for emb in embedding_results:
+                doc_id = emb.get("document_id")
+                if doc_id in selected_set:
+                    # Enrich with metadata
+                    meta = doc_metadata.get(doc_id, {})
+                    emb["doc_title"] = meta.get("title", "")
+                    emb["doc_scope"] = meta.get("scope", "")
+                    emb["doc_category"] = meta.get("category", "")
+                    emb["doc_source_url"] = meta.get("source_url", "")
+                    filtered_embeddings.append(emb)
+
             logger.info(f"Non-shared KB mode: filtered to {len(filtered_embeddings)} embeddings from {len(selected_document_ids)} selected documents")
             return filtered_embeddings
 
         # Shared KB mode: Fetch document metadata with filters
-        query = client.table("documents").select("id, company_id, scope, chatbot_id, is_shared").in_("id", document_ids)
+        # Include additional fields for context awareness
+        query = client.table("documents").select(
+            "id, company_id, scope, chatbot_id, is_shared, title, source_url, category"
+        ).in_("id", document_ids)
 
         # Apply company filter (CRITICAL for multitenancy isolation)
         if company_id:
@@ -290,16 +310,23 @@ async def _apply_document_filters(
             logger.info(f"No documents matched filters (company_id={company_id}, scopes={allowed_scopes}, chatbot_id={chatbot_id}, use_shared_kb={use_shared_kb})")
             return []
 
-        # Create set of allowed document IDs for fast lookup
-        allowed_doc_ids = set([doc["id"] for doc in allowed_documents])
+        # Create lookup dict for metadata enrichment
+        doc_metadata = {doc["id"]: doc for doc in allowed_documents}
+        allowed_doc_ids = set(doc_metadata.keys())
 
         logger.info(f"Allowed documents after filtering: {len(allowed_doc_ids)} out of {len(document_ids)}")
 
-        # Filter embeddings to only include those from allowed documents
-        filtered_embeddings = [
-            emb for emb in embedding_results
-            if emb.get("document_id") in allowed_doc_ids
-        ]
+        # Filter embeddings and enrich with document metadata
+        filtered_embeddings = []
+        for emb in embedding_results:
+            doc_id = emb.get("document_id")
+            if doc_id in allowed_doc_ids:
+                meta = doc_metadata[doc_id]
+                emb["doc_title"] = meta.get("title", "")
+                emb["doc_scope"] = meta.get("scope", "")
+                emb["doc_category"] = meta.get("category", "")
+                emb["doc_source_url"] = meta.get("source_url", "")
+                filtered_embeddings.append(emb)
 
         return filtered_embeddings
 

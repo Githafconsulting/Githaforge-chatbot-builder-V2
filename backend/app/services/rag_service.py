@@ -657,7 +657,7 @@ async def get_rag_response(
                 "intent": intent.value
             }
 
-        # 10. Build context from retrieved documents
+        # 10. Build context from retrieved documents with category awareness
         context_parts = []
         sources = []
 
@@ -666,12 +666,34 @@ async def get_rag_response(
             similarity = doc.get("similarity", 0)
             doc_id = doc.get("id", "")
 
-            context_parts.append(f"[Source {i}] {content}")
+            # Extract document metadata for context awareness
+            doc_title = doc.get("doc_title", "")
+            doc_category = doc.get("doc_category", "")
+            doc_scope = doc.get("doc_scope", "")
+            doc_source_url = doc.get("doc_source_url", "")
+
+            # Build context label with category info when available
+            # This helps LLM distinguish between "our services" vs "directory listings"
+            category_label = ""
+            if doc_category:
+                category_label = f" (Category: {doc_category})"
+            elif doc_scope:
+                category_label = f" (Section: {doc_scope})"
+
+            # Include source URL if available (for smart page references)
+            url_label = ""
+            if doc_source_url:
+                url_label = f" [URL: {doc_source_url}]"
+
+            context_parts.append(f"[Source {i}{category_label}]{url_label} {content}")
 
             sources.append({
                 "id": doc_id,
                 "content": content[:200] + "..." if len(content) > 200 else content,
-                "similarity": similarity
+                "similarity": similarity,
+                "title": doc_title,
+                "category": doc_category,
+                "source_url": doc_source_url
             })
 
         context = "\n\n".join(context_parts)
@@ -733,6 +755,19 @@ FORMATTING RULES (Apply intelligently based on context):
 """
         rag_system_prompt = f"{rag_system_prompt}\n{formatting_rules}"
         logger.debug("[FORMATTING] Injected universal formatting rules")
+
+        # 12d. Inject source context rules for distinguishing content types
+        # Helps LLM differentiate between organization's core services vs directory listings
+        source_context_rules = """
+SOURCE CONTEXT RULES:
+- Sources marked with "(Category: Business Directory)" or similar directory/listing categories are THIRD-PARTY businesses listed on our platform - NOT our own services
+- When asked "what are YOUR services", only describe what the organization itself offers, NOT third-party listings
+- If the only relevant sources are from a directory/listing category, clarify that these are businesses we list/feature, not our own services
+- Sources with URLs can be referenced naturally: "You can find more details on our [page name] page" instead of generic "visit our website"
+- If a source has a URL, prefer directing users to that specific page rather than the homepage
+"""
+        rag_system_prompt = f"{rag_system_prompt}\n{source_context_rules}"
+        logger.debug("[SOURCE_CONTEXT] Injected source context rules")
 
         # Helper function for safe string substitution (avoids .format() issues with LLM-generated prompts)
         def safe_substitute(template: str, **kwargs) -> str:
