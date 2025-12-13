@@ -68,15 +68,25 @@ async def similarity_search(
 
         # Call the match_documents RPC function
         # Note: query_embedding is sent as a Python list, Supabase converts it to vector type
+        # CRITICAL: Pass company_id to filter AT DATABASE LEVEL (not post-search filtering)
         try:
             for i, current_threshold in enumerate(fallback_thresholds):
+                # Build RPC parameters
+                rpc_params = {
+                    'query_embedding': query_embedding,  # Send as list, Supabase handles conversion
+                    'match_threshold': current_threshold,
+                    'match_count': top_k * 2  # Get more results for filtering (doubled to account for filters)
+                }
+
+                # MULTITENANCY: Filter at database level for true isolation
+                # This prevents other companies' embeddings from filling up the result set
+                if company_id:
+                    rpc_params['filter_company_id'] = company_id
+                    logger.debug(f"RPC filtering by company_id: {company_id}")
+
                 response = client.rpc(
                     'match_documents',
-                    {
-                        'query_embedding': query_embedding,  # Send as list, Supabase handles conversion
-                        'match_threshold': current_threshold,
-                        'match_count': top_k * 2  # Get more results for filtering (doubled to account for filters)
-                    }
+                    rpc_params
                 ).execute()
 
                 results = response.data if response.data else []
@@ -131,7 +141,8 @@ async def similarity_search(
 async def store_embedding(
     document_id: str,
     chunk_text: str,
-    embedding: List[float]
+    embedding: List[float],
+    company_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Store an embedding in the database
@@ -140,6 +151,7 @@ async def store_embedding(
         document_id: ID of the source document
         chunk_text: Text chunk
         embedding: Embedding vector
+        company_id: Company ID for multi-tenant isolation (CRITICAL for search performance)
 
     Returns:
         Dict: Created embedding record
@@ -153,9 +165,13 @@ async def store_embedding(
             "embedding": embedding  # Store as list, Supabase/PostgreSQL handles vector conversion
         }
 
+        # MULTITENANCY: Store company_id for efficient database-level filtering
+        if company_id:
+            data["company_id"] = company_id
+
         response = client.table("embeddings").insert(data).execute()
 
-        logger.info(f"Stored embedding for document {document_id}")
+        logger.info(f"Stored embedding for document {document_id} (company_id: {company_id})")
 
         return response.data[0] if response.data else None
 
@@ -171,13 +187,28 @@ async def store_embeddings_batch(
     Store multiple embeddings in batch
 
     Args:
-        embeddings_data: List of embedding records
+        embeddings_data: List of embedding records. Each record should contain:
+            - document_id: str (required)
+            - chunk_text: str (required)
+            - embedding: List[float] (required)
+            - company_id: str (CRITICAL for multi-tenant isolation)
+
+    Note:
+        MULTITENANCY: Ensure each embedding record includes company_id for
+        efficient database-level filtering during similarity search.
+        Without company_id, embeddings may not be found by the tenant's queries.
 
     Returns:
         List[Dict]: Created embedding records
     """
     try:
         client = get_supabase_client()
+
+        # Log company_id presence for debugging
+        if embeddings_data:
+            has_company_id = any("company_id" in emb for emb in embeddings_data)
+            if not has_company_id:
+                logger.warning("Storing embeddings without company_id - they may not be found in multi-tenant searches")
 
         # Supabase/PostgreSQL will automatically convert list to vector type
         response = client.table("embeddings").insert(embeddings_data).execute()
