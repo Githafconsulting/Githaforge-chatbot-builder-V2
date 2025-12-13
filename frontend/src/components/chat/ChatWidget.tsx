@@ -82,11 +82,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
 
-  // Detect mobile device
+  // Detect mobile device (user agent only - window.innerWidth unreliable in iframes)
   const isMobile = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           window.innerWidth < 768;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }, []);
 
   // Comment modal state
@@ -207,12 +206,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-    // Auto-focus input after new message is added and loading is complete
-    // Only on desktop - on mobile the keyboard takes too much space
-    if (!loading && messages.length > 0 && !isMobile) {
-      inputRef.current?.focus();
-    }
-  }, [messages, loading, isMobile]);
+  }, [messages]);
 
   // Track if we've already ended the conversation (prevent duplicate calls)
   const hasEndedConversation = useRef(false);
@@ -278,6 +272,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 

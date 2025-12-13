@@ -1467,12 +1467,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
 
   useEffect(() => {
     scrollToBottom();
-    // Auto-focus input after new message is added and loading is complete
-    // Only on desktop - on mobile the keyboard takes too much space
-    if (!isLoading && messages.length > 0 && !isMobile) {
-      chatInputRef.current?.focus();
-    }
-  }, [messages, isLoading, isMobile]);
+  }, [messages]);
 
   const createNewSession = () => {
     const newSession: TrainingSession = {
@@ -1587,6 +1582,10 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
       toast.error('Failed to get response');
     } finally {
       setIsLoading(false);
+      // Refocus input on desktop after message sent (delay to allow React re-render)
+      if (!isMobile) {
+        setTimeout(() => chatInputRef.current?.focus(), 0);
+      }
     }
   };
 
