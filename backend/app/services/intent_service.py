@@ -521,7 +521,11 @@ async def classify_intent_hybrid(
     Returns:
         Tuple of (Intent, confidence_score)
     """
-    # Step 0: Check for context-based intent override (NEW)
+    # Step 1: Fast pattern matching FIRST (needed for context override check)
+    pattern_intent = classify_intent(query)
+
+    # Step 2: Check for context-based intent override
+    # Now we pass the detected intent so override logic can respect greetings/farewells
     if session_id:
         try:
             from app.services.dialog_state_service import (
@@ -532,10 +536,10 @@ async def classify_intent_hybrid(
             # Get conversation context
             context = await get_conversation_context(session_id)
 
-            # Check if we should override based on state
+            # Check if we should override based on state AND detected intent
             override_intent_str = should_override_intent_with_context(
                 context.current_state,
-                "",  # Don't have detected intent yet
+                pattern_intent.value,  # Pass the detected intent so farewell/greeting are respected
                 query
             )
 
@@ -543,7 +547,7 @@ async def classify_intent_hybrid(
                 # Map string to Intent enum
                 try:
                     override_intent = Intent(override_intent_str.lower())
-                    logger.info(f"Context override: {context.current_state.value} → {override_intent.value}")
+                    logger.info(f"Context override: {context.current_state.value} + {pattern_intent.value} → {override_intent.value}")
                     return override_intent, 0.9  # High confidence from context
                 except ValueError:
                     logger.warning(f"Could not map override intent: {override_intent_str}")
@@ -552,10 +556,7 @@ async def classify_intent_hybrid(
             logger.warning(f"Error checking dialog state: {e}")
             # Continue with normal classification
 
-    # Step 1: Fast pattern matching
-    pattern_intent = classify_intent(query)
-
-    # High-confidence pattern matches (don't need LLM)
+    # Step 3: High-confidence pattern matches (don't need LLM)
     if pattern_intent in [Intent.GREETING, Intent.FAREWELL, Intent.GRATITUDE]:
         logger.info(f"Pattern match: {pattern_intent.value} (high confidence)")
         return pattern_intent, 0.95

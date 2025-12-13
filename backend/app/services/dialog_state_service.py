@@ -25,11 +25,14 @@ class DialogState(Enum):
 
     State Transitions:
     IDLE → GREETING → AWAITING_QUESTION → ANSWERING → FOLLOWUP → CLOSING
+                                              ↓
+                                    AWAITING_SELECTION (bot asked clarifying question)
     """
     IDLE = "idle"                      # No active conversation
     GREETING = "greeting"              # User initiated with greeting
     AWAITING_QUESTION = "awaiting_q"   # User signaled question intent ("I have a question")
     ANSWERING = "answering"            # Bot provided answer to question
+    AWAITING_SELECTION = "awaiting_sel"  # Bot asked clarifying question, waiting for user selection
     FOLLOWUP = "followup"              # User asking related/follow-up question
     CLOSING = "closing"                # Conversation ending (farewell)
     HELP = "help"                      # User requested guidance
@@ -380,7 +383,21 @@ def should_override_intent_with_context(
         logger.info(f"State override: AWAITING_QUESTION -> treating '{query[:50]}...' as QUESTION")
         return "question"
 
-    # Case 2: User in ANSWERING/FOLLOWUP state with continuation signal
+    # Case 2: User in AWAITING_SELECTION state (bot asked clarifying question)
+    if current_state == DialogState.AWAITING_SELECTION:
+        # Bot asked something like "Which category are you interested in?"
+        # User's response (even short ones like "retail") should go to RAG
+
+        # Check if it's actually a greeting/farewell (user changed topic)
+        if detected_intent in ["greeting", "farewell"]:
+            return None  # Don't override, they changed direction
+
+        # Selection/answer patterns - treat as QUESTION to go through RAG
+        # This catches: "retail", "let's go for retail", "the first one", "option 2", etc.
+        logger.info(f"State override: AWAITING_SELECTION -> treating '{query[:50]}...' as QUESTION (follow-up selection)")
+        return "question"
+
+    # Case 3: User in ANSWERING/FOLLOWUP state with continuation signal
     if current_state in [DialogState.ANSWERING, DialogState.FOLLOWUP]:
         # Check for follow-up signals
         followup_signals = ["also", "additionally", "and", "plus", "furthermore"]
@@ -392,6 +409,41 @@ def should_override_intent_with_context(
 
     # No override needed
     return None
+
+
+def response_asks_clarifying_question(response: str) -> bool:
+    """
+    Detect if bot's response ends with a clarifying question.
+
+    This is used to set AWAITING_SELECTION state so the next user
+    message (even short ones like "retail") is treated as a follow-up.
+
+    Args:
+        response: Bot's response text
+
+    Returns:
+        True if response asks for user selection/clarification
+    """
+    if not response:
+        return False
+
+    response_lower = response.lower().strip()
+
+    # Check if response ends with a question mark
+    if not response_lower.rstrip().endswith('?'):
+        return False
+
+    # Patterns that indicate bot is asking for user selection/clarification
+    clarifying_patterns = [
+        "which", "what type", "what kind", "specify", "interested in",
+        "looking for", "prefer", "choose", "select", "particular",
+        "specific", "more details", "can you tell me more",
+        "would you like", "do you want", "are you looking",
+        "category", "option"
+    ]
+
+    # Check if any clarifying pattern is in the response
+    return any(pattern in response_lower for pattern in clarifying_patterns)
 
 
 # Cache cleanup (optional, for long-running servers)

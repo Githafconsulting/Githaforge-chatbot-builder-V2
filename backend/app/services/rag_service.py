@@ -899,14 +899,32 @@ Generate your personalized response now:"""
             }
         }
 
-        # Add dialog state if available (NEW)
+        # Add dialog state and check for clarifying questions (NEW)
         if session_id:
             try:
-                from app.services.dialog_state_service import get_conversation_context
-                context = await get_conversation_context(session_id)
-                result["dialog_state"] = context.current_state.value
-            except:
-                pass
+                from app.services.dialog_state_service import (
+                    get_conversation_context,
+                    update_conversation_state,
+                    response_asks_clarifying_question,
+                    DialogState
+                )
+
+                # Check if bot's response asks a clarifying question
+                if response_asks_clarifying_question(response_text):
+                    # Update state to AWAITING_SELECTION so next user message
+                    # (even short ones like "retail") is treated as follow-up
+                    await update_conversation_state(
+                        session_id,
+                        DialogState.AWAITING_SELECTION,
+                        intent=intent.value
+                    )
+                    logger.info(f"[STATE] Response asks clarifying question -> AWAITING_SELECTION")
+                    result["dialog_state"] = DialogState.AWAITING_SELECTION.value
+                else:
+                    context = await get_conversation_context(session_id)
+                    result["dialog_state"] = context.current_state.value
+            except Exception as e:
+                logger.warning(f"Error updating dialog state for clarifying question: {e}")
 
         return result
 
