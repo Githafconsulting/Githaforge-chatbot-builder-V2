@@ -581,6 +581,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                 {messages.map((msg, idx) => (
                   <motion.div
                     key={idx}
+                    className={`flex ${msg.is_user ? 'justify-end' : 'justify-start'}`}
                     variants={fadeInUp}
                     initial="hidden"
                     animate="visible"
@@ -588,25 +589,24 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                     layout
                   >
                     {msg.is_user ? (
-                      <div className="flex justify-end">
-                        <motion.div
-                          className="bg-gradient-to-br from-primary-600 to-primary-700 text-white rounded-2xl rounded-tr-sm py-2.5 px-4 max-w-[85%] sm:max-w-[80%] shadow-md"
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                        >
-                          <p className="text-sm sm:text-base">{msg.message}</p>
-                        </motion.div>
-                      </div>
+                      <motion.div
+                        className="rounded-lg p-3 text-white max-w-[80%]"
+                        style={{ backgroundColor: secondaryColor }}
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                      </motion.div>
                     ) : (
                       <div className="flex flex-col items-start">
                         <motion.div
-                          className="bg-slate-700 rounded-2xl rounded-tl-sm py-2.5 px-4 max-w-[85%] sm:max-w-[80%] shadow-md border border-slate-600"
+                          className="rounded-lg p-3 bg-slate-800 border border-slate-700 text-slate-200 max-w-[80%]"
                           initial={{ scale: 0.8, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                         >
-                          <p className="text-sm sm:text-base text-white">{msg.response}</p>
+                          <p className="text-sm whitespace-pre-wrap">{msg.response}</p>
                         </motion.div>
 
                         {/* Sources (only visible in admin mode) */}
