@@ -741,7 +741,20 @@ async def get_rag_response(
         rag_system_prompt = f"{rag_system_prompt}\n\n{style_instruction}"
         logger.info(f"[STYLE] Using response_style={response_style}")
 
-        # 12c. Inject universal formatting rules (applies to both persona and default prompts)
+        # 12c. Inject universal conversation continuity rules
+        conversation_continuity_rules = """
+CONVERSATION CONTINUITY (CRITICAL):
+- CHECK THE CONVERSATION HISTORY before responding
+- DO NOT repeat information you already provided in previous messages
+- If you already greeted the user, DO NOT greet them again
+- If you already explained what the company is, DO NOT explain it again - just answer the new question directly
+- Build on previous context - assume user remembers what you told them
+- For follow-up questions, jump straight to the NEW information being requested
+"""
+        rag_system_prompt = f"{rag_system_prompt}\n{conversation_continuity_rules}"
+        logger.debug("[CONVERSATION] Injected universal conversation continuity rules")
+
+        # 12d. Inject universal formatting rules (applies to both persona and default prompts)
         # These rules ensure consistent, readable formatting across all chatbots
         formatting_rules = """
 FORMATTING RULES (Apply intelligently based on context):
@@ -756,7 +769,7 @@ FORMATTING RULES (Apply intelligently based on context):
         rag_system_prompt = f"{rag_system_prompt}\n{formatting_rules}"
         logger.debug("[FORMATTING] Injected universal formatting rules")
 
-        # 12d. Inject source context rules for distinguishing content types
+        # 12e. Inject source context rules for distinguishing content types
         # Helps LLM differentiate between organization's core services vs directory listings
         source_context_rules = """
 SOURCE CONTEXT RULES:
