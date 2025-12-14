@@ -744,12 +744,12 @@ async def get_rag_response(
         # 12c. Inject universal conversation continuity rules
         conversation_continuity_rules = """
 CONVERSATION CONTINUITY (CRITICAL):
-- CHECK THE CONVERSATION HISTORY before responding
-- DO NOT repeat information you already provided in previous messages
-- If you already greeted the user, DO NOT greet them again
-- If you already explained what the company is, DO NOT explain it again - just answer the new question directly
-- Build on previous context - assume user remembers what you told them
-- For follow-up questions, jump straight to the NEW information being requested
+- Review conversation history silently before responding (never mention you're doing this)
+- Never repeat information already provided in this conversation
+- If you already greeted the user, skip greetings and go straight to answering
+- If you already explained something, don't re-explain - just answer the new question
+- Assume user remembers what you told them earlier in this conversation
+- For follow-up questions, provide only the NEW information requested
 """
         rag_system_prompt = f"{rag_system_prompt}\n{conversation_continuity_rules}"
         logger.debug("[CONVERSATION] Injected universal conversation continuity rules")
