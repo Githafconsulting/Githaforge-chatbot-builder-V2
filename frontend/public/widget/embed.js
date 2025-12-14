@@ -476,15 +476,14 @@
             iframe.style.display = 'block';
           }
         }
-      }, 500);
+      }, 2000);
     });
 
     // Ultimate fallback: If nothing works after 5 seconds, mark iframe as loaded
     setTimeout(() => {
       if (!iframeLoaded) {
         console.log('[Githaf Chat] Iframe marked loaded via timeout fallback');
-        iframeLoaded = true;
-        // Don't auto-show - wait for user to click button
+        showIframe();
       }
     }, 5000);
   } // End of renderWidget function
