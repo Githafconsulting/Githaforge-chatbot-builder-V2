@@ -754,6 +754,18 @@ CONVERSATION CONTINUITY (CRITICAL):
         rag_system_prompt = f"{rag_system_prompt}\n{conversation_continuity_rules}"
         logger.debug("[CONVERSATION] Injected universal conversation continuity rules")
 
+        # 12c2. Inject website context rule
+        website_context_rule = """
+WEBSITE CONTEXT (CRITICAL):
+- Users are ALREADY ON the website using this chat widget
+- NEVER say "visit our website" or provide the website URL
+- NEVER tell users to "go to our website" - they're already there
+- Instead, direct them to specific pages: "You can find more on our Services page" or "Check our Contact page"
+- If mentioning a resource, reference the page name, not the full URL
+"""
+        rag_system_prompt = f"{rag_system_prompt}\n{website_context_rule}"
+        logger.debug("[WEBSITE_CONTEXT] Injected website context rule")
+
         # 12d. Inject universal formatting rules (applies to both persona and default prompts)
         # These rules ensure consistent, readable formatting across all chatbots
         formatting_rules = """
