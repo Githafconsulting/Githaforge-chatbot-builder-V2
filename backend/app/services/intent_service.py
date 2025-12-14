@@ -282,6 +282,57 @@ def is_about_chatbot(query: str) -> bool:
     return False
 
 
+def extract_question_after_greeting(query: str) -> Optional[str]:
+    """
+    Extract the question part from a compound query (greeting + question)
+
+    Examples:
+        "hello what are your services?" → "what are your services?"
+        "hi there" → None
+        "hey can you help me?" → "can you help me?"
+
+    Args:
+        query: User input text
+
+    Returns:
+        The question part if found, None otherwise
+    """
+    if not query:
+        return None
+
+    normalized = query.lower().strip()
+
+    # Greeting patterns that might be followed by a question
+    greeting_prefixes = [
+        r'^hi\b[\s,!.]*',
+        r'^hello\b[\s,!.]*',
+        r'^hey\b[\s,!.]*',
+        r'^good\s+(morning|afternoon|evening|day)[\s,!.]*',
+        r'^greetings\b[\s,!.]*',
+        r'^howdy\b[\s,!.]*',
+        r'^hiya\b[\s,!.]*',
+        r'^yo\b[\s,!.]*',
+    ]
+
+    for pattern in greeting_prefixes:
+        match = re.match(pattern, normalized, re.IGNORECASE)
+        if match:
+            remainder = normalized[match.end():].strip()
+            # Check if remainder looks like a question (has substance)
+            if remainder and len(remainder) > 3:
+                # Check if it starts with question words or has question mark
+                question_indicators = [
+                    'what', 'when', 'where', 'who', 'why', 'which', 'how',
+                    'can', 'could', 'would', 'should', 'is', 'are', 'do', 'does',
+                    'tell', 'explain', 'describe', 'i need', 'i want', 'i have'
+                ]
+                first_word = remainder.split()[0] if remainder.split() else ''
+                if first_word in question_indicators or '?' in remainder:
+                    return remainder
+
+    return None
+
+
 def classify_intent(query: str) -> Intent:
     """
     Classify user intent based on query patterns
@@ -300,6 +351,14 @@ def classify_intent(query: str) -> Intent:
 
     # Remove punctuation for matching
     clean_query = re.sub(r'[!?.,:;]+$', '', normalized)
+
+    # PRIORITY 0: Check for compound queries (greeting + question)
+    # Example: "hello what are your services?" should be treated as QUESTION, not GREETING
+    question_part = extract_question_after_greeting(query)
+    if question_part:
+        logger.debug(f"Compound query detected: greeting + question. Processing question part: '{question_part}'")
+        # Recursively classify the question part
+        return classify_intent(question_part)
 
     # PRIORITY 1: Check GREETING, FAREWELL, GRATITUDE patterns FIRST
     # These are high-confidence conversational intents that should NEVER be overridden
@@ -462,7 +521,11 @@ async def classify_intent_hybrid(
     Returns:
         Tuple of (Intent, confidence_score)
     """
-    # Step 0: Check for context-based intent override (NEW)
+    # Step 1: Fast pattern matching FIRST (needed for context override check)
+    pattern_intent = classify_intent(query)
+
+    # Step 2: Check for context-based intent override
+    # Now we pass the detected intent so override logic can respect greetings/farewells
     if session_id:
         try:
             from app.services.dialog_state_service import (
@@ -473,10 +536,10 @@ async def classify_intent_hybrid(
             # Get conversation context
             context = await get_conversation_context(session_id)
 
-            # Check if we should override based on state
+            # Check if we should override based on state AND detected intent
             override_intent_str = should_override_intent_with_context(
                 context.current_state,
-                "",  # Don't have detected intent yet
+                pattern_intent.value,  # Pass the detected intent so farewell/greeting are respected
                 query
             )
 
@@ -484,7 +547,7 @@ async def classify_intent_hybrid(
                 # Map string to Intent enum
                 try:
                     override_intent = Intent(override_intent_str.lower())
-                    logger.info(f"Context override: {context.current_state.value} → {override_intent.value}")
+                    logger.info(f"Context override: {context.current_state.value} + {pattern_intent.value} → {override_intent.value}")
                     return override_intent, 0.9  # High confidence from context
                 except ValueError:
                     logger.warning(f"Could not map override intent: {override_intent_str}")
@@ -493,10 +556,7 @@ async def classify_intent_hybrid(
             logger.warning(f"Error checking dialog state: {e}")
             # Continue with normal classification
 
-    # Step 1: Fast pattern matching
-    pattern_intent = classify_intent(query)
-
-    # High-confidence pattern matches (don't need LLM)
+    # Step 3: High-confidence pattern matches (don't need LLM)
     if pattern_intent in [Intent.GREETING, Intent.FAREWELL, Intent.GRATITUDE]:
         logger.info(f"Pattern match: {pattern_intent.value} (high confidence)")
         return pattern_intent, 0.95

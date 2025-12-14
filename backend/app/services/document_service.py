@@ -201,13 +201,18 @@ async def process_and_store_document(
         embeddings = await get_embeddings_batch(chunks)
 
         # Step 6: Prepare embedding records (Layer 3)
+        # MULTITENANCY: Include company_id for database-level filtering during similarity search
         embedding_records = []
         for chunk, embedding in zip(chunks, embeddings):
-            embedding_records.append({
+            record = {
                 "document_id": document_id,
                 "chunk_text": chunk,
                 "embedding": embedding  # Stored as list, Supabase converts to vector
-            })
+            }
+            # CRITICAL: Add company_id for efficient multi-tenant searches
+            if company_id:
+                record["company_id"] = company_id
+            embedding_records.append(record)
 
         # Step 7: Store embeddings in batch
         logger.info(f"Storing {len(embedding_records)} embeddings")
@@ -671,6 +676,9 @@ async def update_document(
         if content:
             logger.info(f"Content updated, regenerating embeddings for document: {document_id}")
 
+            # Get company_id from document for multi-tenant embedding storage
+            doc_company_id = document.get("company_id")
+
             # Step 1: Delete old embeddings
             logger.info(f"Deleting old embeddings")
             await delete_embeddings_by_document(document_id)
@@ -685,13 +693,18 @@ async def update_document(
             embeddings = await get_embeddings_batch(chunks)
 
             # Step 4: Prepare embedding records
+            # MULTITENANCY: Include company_id for database-level filtering during similarity search
             embedding_records = []
             for chunk, embedding in zip(chunks, embeddings):
-                embedding_records.append({
+                record = {
                     "document_id": document_id,
                     "chunk_text": chunk,
                     "embedding": embedding
-                })
+                }
+                # CRITICAL: Add company_id for efficient multi-tenant searches
+                if doc_company_id:
+                    record["company_id"] = doc_company_id
+                embedding_records.append(record)
 
             # Step 5: Store new embeddings
             logger.info(f"Storing {len(embedding_records)} new embeddings")

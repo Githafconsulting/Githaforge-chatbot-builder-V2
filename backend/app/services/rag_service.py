@@ -657,7 +657,7 @@ async def get_rag_response(
                 "intent": intent.value
             }
 
-        # 10. Build context from retrieved documents
+        # 10. Build context from retrieved documents with category awareness
         context_parts = []
         sources = []
 
@@ -666,12 +666,34 @@ async def get_rag_response(
             similarity = doc.get("similarity", 0)
             doc_id = doc.get("id", "")
 
-            context_parts.append(f"[Source {i}] {content}")
+            # Extract document metadata for context awareness
+            doc_title = doc.get("doc_title", "")
+            doc_category = doc.get("doc_category", "")
+            doc_scope = doc.get("doc_scope", "")
+            doc_source_url = doc.get("doc_source_url", "")
+
+            # Build context label with category info when available
+            # This helps LLM distinguish between "our services" vs "directory listings"
+            category_label = ""
+            if doc_category:
+                category_label = f" (Category: {doc_category})"
+            elif doc_scope:
+                category_label = f" (Section: {doc_scope})"
+
+            # Include source URL if available (for smart page references)
+            url_label = ""
+            if doc_source_url:
+                url_label = f" [URL: {doc_source_url}]"
+
+            context_parts.append(f"[Source {i}{category_label}]{url_label} {content}")
 
             sources.append({
                 "id": doc_id,
                 "content": content[:200] + "..." if len(content) > 200 else content,
-                "similarity": similarity
+                "similarity": similarity,
+                "title": doc_title,
+                "category": doc_category,
+                "source_url": doc_source_url
             })
 
         context = "\n\n".join(context_parts)
@@ -718,6 +740,34 @@ async def get_rag_response(
         style_instruction = RESPONSE_STYLE_INSTRUCTIONS.get(response_style, RESPONSE_STYLE_INSTRUCTIONS["standard"])
         rag_system_prompt = f"{rag_system_prompt}\n\n{style_instruction}"
         logger.info(f"[STYLE] Using response_style={response_style}")
+
+        # 12c. Inject universal formatting rules (applies to both persona and default prompts)
+        # These rules ensure consistent, readable formatting across all chatbots
+        formatting_rules = """
+FORMATTING RULES (Apply intelligently based on context):
+- When listing 3+ items (services, features, options, steps), use bullet points (•) or numbered lists
+- Use numbered lists (1. 2. 3.) for sequential steps or ranked items
+- Use bullet points (•) for unordered lists like services, features, or options
+- Keep list items concise - one line per item when possible
+- For 1-2 items, write them naturally in a sentence - no list needed
+- Example: "We offer web development, mobile apps, and consulting" → use bullets
+- Example: "We offer consulting services" → keep as sentence (only 1 item)
+"""
+        rag_system_prompt = f"{rag_system_prompt}\n{formatting_rules}"
+        logger.debug("[FORMATTING] Injected universal formatting rules")
+
+        # 12d. Inject source context rules for distinguishing content types
+        # Helps LLM differentiate between organization's core services vs directory listings
+        source_context_rules = """
+SOURCE CONTEXT RULES:
+- Sources marked with "(Category: Business Directory)" or similar directory/listing categories are THIRD-PARTY businesses listed on our platform - NOT our own services
+- When asked "what are YOUR services", only describe what the organization itself offers, NOT third-party listings
+- If the only relevant sources are from a directory/listing category, clarify that these are businesses we list/feature, not our own services
+- Sources with URLs can be referenced naturally: "You can find more details on our [page name] page" instead of generic "visit our website"
+- If a source has a URL, prefer directing users to that specific page rather than the homepage
+"""
+        rag_system_prompt = f"{rag_system_prompt}\n{source_context_rules}"
+        logger.debug("[SOURCE_CONTEXT] Injected source context rules")
 
         # Helper function for safe string substitution (avoids .format() issues with LLM-generated prompts)
         def safe_substitute(template: str, **kwargs) -> str:
@@ -849,14 +899,32 @@ Generate your personalized response now:"""
             }
         }
 
-        # Add dialog state if available (NEW)
+        # Add dialog state and check for clarifying questions (NEW)
         if session_id:
             try:
-                from app.services.dialog_state_service import get_conversation_context
-                context = await get_conversation_context(session_id)
-                result["dialog_state"] = context.current_state.value
-            except:
-                pass
+                from app.services.dialog_state_service import (
+                    get_conversation_context,
+                    update_conversation_state,
+                    response_asks_clarifying_question,
+                    DialogState
+                )
+
+                # Check if bot's response asks a clarifying question
+                if response_asks_clarifying_question(response_text):
+                    # Update state to AWAITING_SELECTION so next user message
+                    # (even short ones like "retail") is treated as follow-up
+                    await update_conversation_state(
+                        session_id,
+                        DialogState.AWAITING_SELECTION,
+                        intent=intent.value
+                    )
+                    logger.info(f"[STATE] Response asks clarifying question -> AWAITING_SELECTION")
+                    result["dialog_state"] = DialogState.AWAITING_SELECTION.value
+                else:
+                    context = await get_conversation_context(session_id)
+                    result["dialog_state"] = context.current_state.value
+            except Exception as e:
+                logger.warning(f"Error updating dialog state for clarifying question: {e}")
 
         return result
 

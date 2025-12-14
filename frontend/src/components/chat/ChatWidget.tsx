@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, ThumbsUp, ThumbsDown, Sparkles, Pause } from 'lucide-react';
+import { MessageCircle, X, Send, ThumbsUp, ThumbsDown, Pause, Bot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast, { Toaster } from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -82,11 +82,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
 
-  // Detect mobile device
+  // Detect mobile device (user agent only - window.innerWidth unreliable in iframes)
   const isMobile = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           window.innerWidth < 768;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }, []);
 
   // Comment modal state
@@ -105,6 +104,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Chatbot status (paused, deployed, etc.)
   const [isPaused, setIsPaused] = useState(false);
   const [pausedMessage, setPausedMessage] = useState('');
+
+  // Chatbot branding (colors and logo)
+  const [primaryColor, setPrimaryColor] = useState<string>('#1E40AF');
+  const [secondaryColor, setSecondaryColor] = useState<string>('#3B82F6');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // Track if we've already notified parent of load (prevent duplicate messages on remount)
   const hasNotifiedParent = useRef(false);
@@ -160,6 +164,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
           setIsPaused(false);
           setPausedMessage('');
         }
+
+        // Set branding colors and logo
+        if (chatbot.primary_color) setPrimaryColor(chatbot.primary_color);
+        if (chatbot.secondary_color) setSecondaryColor(chatbot.secondary_color);
+        if (chatbot.logo_url) setLogoUrl(chatbot.logo_url);
       } catch (error) {
         // If we can't fetch status, assume not paused (will get paused message from API on send)
         console.error('Failed to fetch chatbot status:', error);
@@ -190,6 +199,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
           if (chatbot.widget_title) setTitle(chatbot.widget_title);
           if (chatbot.widget_subtitle) setSubtitle(chatbot.widget_subtitle);
           if (chatbot.greeting_message) setGreeting(chatbot.greeting_message);
+
+          // Update branding
+          if (chatbot.primary_color) setPrimaryColor(chatbot.primary_color);
+          if (chatbot.secondary_color) setSecondaryColor(chatbot.secondary_color);
+          if (chatbot.logo_url) setLogoUrl(chatbot.logo_url);
         }
       };
 
@@ -201,18 +215,48 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [chatbotId]);
 
+  // Close widget when clicking outside
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    // Add event listener with a small delay to prevent immediate closing
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Focus input when widget opens (desktop only, not mobile to avoid keyboard pop-up)
+  useEffect(() => {
+    if (isOpen && !isMobile) {
+      // Delay to ensure widget spring animation completes and input is fully rendered
+      const focusTimeout = setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 500);
+
+      return () => clearTimeout(focusTimeout);
+    }
+  }, [isOpen, isMobile]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
     scrollToBottom();
-    // Auto-focus input after new message is added and loading is complete
-    // Only on desktop - on mobile the keyboard takes too much space
-    if (!loading && messages.length > 0 && !isMobile) {
-      inputRef.current?.focus();
-    }
-  }, [messages, loading, isMobile]);
+  }, [messages]);
 
   // Track if we've already ended the conversation (prevent duplicate calls)
   const hasEndedConversation = useRef(false);
@@ -278,6 +322,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
+      // Refocus input on desktop after message sent (avoid keyboard pop-up on mobile)
+      if (!isMobile) {
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
     }
   };
 
@@ -442,19 +490,22 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
           >
             {/* Header */}
             <motion.div
-              className={`bg-gradient-to-br from-primary-600 to-secondary-600 text-white p-4 sm:p-5 flex justify-between items-center flex-shrink-0 ${!embedMode ? 'sm:rounded-t-2xl' : ''}`}
+              className={`text-white p-4 sm:p-5 flex justify-between items-center flex-shrink-0 ${!embedMode ? 'sm:rounded-t-2xl' : ''}`}
+              style={{
+                background: `linear-gradient(to bottom right, ${primaryColor}, ${secondaryColor})`
+              }}
               initial={embedMode ? undefined : { opacity: 0, y: -20 }}
               animate={embedMode ? undefined : { opacity: 1, y: 0 }}
               transition={embedMode ? undefined : { delay: 0.1 }}
             >
               <div className="flex items-center gap-3">
-                <motion.div
-                  className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                >
-                  <Sparkles size={20} />
-                </motion.div>
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Bot" className="w-full h-full object-cover" />
+                  ) : (
+                    <Bot size={20} />
+                  )}
+                </div>
                 <div>
                   <h3 className="font-semibold text-base sm:text-lg">
                     {title || t('chat.title')}
@@ -530,6 +581,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                 {messages.map((msg, idx) => (
                   <motion.div
                     key={idx}
+                    className={`flex ${msg.is_user ? 'justify-end' : 'justify-start'}`}
                     variants={fadeInUp}
                     initial="hidden"
                     animate="visible"
@@ -537,25 +589,24 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                     layout
                   >
                     {msg.is_user ? (
-                      <div className="flex justify-end">
-                        <motion.div
-                          className="bg-gradient-to-br from-primary-600 to-primary-700 text-white rounded-2xl rounded-tr-sm py-2.5 px-4 max-w-[85%] sm:max-w-[80%] shadow-md"
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                        >
-                          <p className="text-sm sm:text-base">{msg.message}</p>
-                        </motion.div>
-                      </div>
+                      <motion.div
+                        className="rounded-lg p-3 text-white max-w-[80%]"
+                        style={{ backgroundColor: secondaryColor }}
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                      </motion.div>
                     ) : (
                       <div className="flex flex-col items-start">
                         <motion.div
-                          className="bg-slate-700 rounded-2xl rounded-tl-sm py-2.5 px-4 max-w-[85%] sm:max-w-[80%] shadow-md border border-slate-600"
+                          className="rounded-lg p-3 bg-slate-800 border border-slate-700 text-slate-200 max-w-[80%]"
                           initial={{ scale: 0.8, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                         >
-                          <p className="text-sm sm:text-base text-white">{msg.response}</p>
+                          <p className="text-sm whitespace-pre-wrap">{msg.response}</p>
                         </motion.div>
 
                         {/* Sources (only visible in admin mode) */}

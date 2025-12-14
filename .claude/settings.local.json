@@ -16,7 +16,10 @@
       "Bash(del /f \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\backend\\app\\services\\scope_service.py\")",
       "Bash(del /f \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\backend\\app\\services\\scope_prompt_service.py\")",
       "Bash(del /f \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\backend\\app\\api\\routes\\scopes.py\")",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(dir /s /b \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\frontend\\src\\*.tsx\")",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

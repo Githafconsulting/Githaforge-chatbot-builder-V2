@@ -22,7 +22,6 @@ import {
   GraduationCap,
   X,
   RefreshCw,
-  Sparkles,
   Database,
   Globe,
   FileText,
@@ -35,6 +34,7 @@ import {
   EyeOff,
   Eye,
   Pencil,
+  Bot,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -1302,8 +1302,12 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({ chatbot }) => {
             style={{ background: `linear-gradient(to bottom right, ${primaryColor}, ${secondaryColor})` }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <Sparkles className="w-5 h-5" />
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+                {chatbot.logo_url ? (
+                  <img src={chatbot.logo_url} alt="Bot" className="w-full h-full object-cover" />
+                ) : (
+                  <Bot className="w-5 h-5" />
+                )}
               </div>
               <div>
                 <span className="font-semibold text-base block">{chatbot.widget_title || chatbot.name}</span>
@@ -1467,12 +1471,7 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
 
   useEffect(() => {
     scrollToBottom();
-    // Auto-focus input after new message is added and loading is complete
-    // Only on desktop - on mobile the keyboard takes too much space
-    if (!isLoading && messages.length > 0 && !isMobile) {
-      chatInputRef.current?.focus();
-    }
-  }, [messages, isLoading, isMobile]);
+  }, [messages]);
 
   const createNewSession = () => {
     const newSession: TrainingSession = {
@@ -1587,6 +1586,10 @@ const TrainingTab: React.FC<TrainingTabProps> = ({ chatbot }) => {
       toast.error('Failed to get response');
     } finally {
       setIsLoading(false);
+      // Refocus input on desktop after message sent (delay to allow React re-render)
+      if (!isMobile) {
+        setTimeout(() => chatInputRef.current?.focus(), 0);
+      }
     }
   };
 
