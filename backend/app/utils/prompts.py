@@ -207,10 +207,15 @@ INTENT_CLASSIFICATION_PROMPT = """You are an intent classifier for a {brand_name
 - Examples: "what services do you offer", "how much does it cost", "when are you open", "tell me about your company", "how do I get started"
 - IMPORTANT: Questions about the company name itself (e.g., "what is {brand_name}?", "tell me about {brand_name}") are KNOWLEDGE_SEEKING, not OUT_OF_SCOPE
 - Even misspelled company names should be treated as KNOWLEDGE_SEEKING if they're close to {brand_name}
+- ANY question about {brand_name}'s staff, leadership, team, employees, board, or organizational structure is KNOWLEDGE_SEEKING
+- Questions with possessive pronouns (YOUR, OUR, THEIR) referring to {brand_name} are ALWAYS KNOWLEDGE_SEEKING
+- Examples: "who is YOUR president", "who's your CEO", "your staff", "your board", "your team", "your members"
 
 **OUT_OF_SCOPE** - Questions completely unrelated to {brand_name} or general knowledge questions:
-- Examples: "who is the president", "what's the weather", "tell me a joke", "what's 2+2", "who won the game"
-- Note: Do NOT classify questions about the company/brand as OUT_OF_SCOPE
+- Examples: "what's the weather", "tell me a joke", "what's 2+2", "who won the game"
+- Questions about world leaders, government officials, or politics of countries (e.g., "who is the president of France")
+- Questions about celebrities, sports, or entertainment
+- CRITICAL: Questions with "YOUR/OUR" are about {brand_name} = KNOWLEDGE_SEEKING, not OUT_OF_SCOPE
 
 **AMBIGUOUS** - Unclear or too vague to classify confidently:
 - Examples: "help me", "I need information", "tell me more" (without prior context)
