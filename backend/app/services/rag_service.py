@@ -544,6 +544,8 @@ async def get_rag_response(
                         persona_system_prompt = persona_data.get("system_prompt")
                         persona_name = persona_data.get("name")
                         logger.info(f"[PERSONA] Using persona '{persona_name}' system prompt for chatbot")
+                        # Debug: Log first 500 chars of persona prompt to see what instructions it contains
+                        logger.info(f"[PERSONA_PROMPT_PREVIEW] {persona_system_prompt[:500] if persona_system_prompt else 'None'}...")
 
                     logger.info(f"[ISOLATION] Chatbot {chatbot_id[:8] if chatbot_id else 'None'}...: allowed_scopes={allowed_scopes}, company_id={company_id[:8] if company_id else 'None'}..., use_shared_kb={use_shared_kb}, response_style={response_style}")
 
@@ -794,6 +796,18 @@ SOURCE CONTEXT RULES:
         rag_system_prompt = f"{rag_system_prompt}\n{source_context_rules}"
         logger.debug("[SOURCE_CONTEXT] Injected source context rules")
 
+        # 12f. Inject response style rules (applies globally to all personas)
+        response_style_rules = """
+RESPONSE STYLE RULES (CRITICAL - APPLY TO ALL RESPONSES):
+- NO FOLLOW-UP QUESTIONS: Do not end with "Would you like to know more?", "How can I help you further?", "Do you have any questions?", or similar - just answer and stop.
+- NO PREAMBLES: Do not start with "I'd be happy to help...", "You asked about...", "Based on the conversation...", "According to our documentation...", "I understand you're looking for..." - start with the actual answer.
+- NO FILLER ENDINGS: Do not end with "If you'd like more information, you can check our Services page" or similar generic suggestions unless the user specifically asked for resources.
+- START WITH THE ANSWER: Your first sentence should contain the actual answer, not a pleasantry or acknowledgment.
+- Only ask a clarifying question if the user's query is genuinely ambiguous and you cannot answer without more information.
+"""
+        rag_system_prompt = f"{rag_system_prompt}\n{response_style_rules}"
+        logger.debug("[RESPONSE_STYLE] Injected universal response style rules")
+
         # Helper function for safe string substitution (avoids .format() issues with LLM-generated prompts)
         def safe_substitute(template: str, **kwargs) -> str:
             """Replace placeholders without breaking on unescaped braces"""
@@ -830,6 +844,22 @@ Generate your personalized response now:"""
                 history=history_text,
                 query=query  # Use original query in prompt for natural response
             )
+
+        # 12g. Add final instruction override (highest priority - last thing LLM sees)
+        final_instruction = """
+
+=== CRITICAL OVERRIDE (MUST FOLLOW) ===
+STOP adding filler text. Your response must:
+1. NOT start with "Based on the conversation history..." or similar
+2. NOT end with "If you need more information..." or "Feel free to reach out..."
+3. NOT include email addresses unless the user asked for contact info
+4. NOT suggest checking pages unless the user asked where to find something
+5. Just answer the question in 2-3 sentences and STOP.
+=== END OVERRIDE ==="""
+        prompt = f"{prompt}\n{final_instruction}"
+
+        # Debug: Log final prompt length to verify injection
+        logger.debug(f"[FINAL_PROMPT] Total prompt length: {len(prompt)} chars")
 
         # 13. Generate response using LLM (Phase 6: Track LLM latency)
         async with MetricsContext("llm", session_id=session_id) as ctx:
