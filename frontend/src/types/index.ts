@@ -665,13 +665,20 @@ export interface UnifiedSignupRequest {
   first_name?: string;
   last_name?: string;
   full_name?: string;  // Deprecated, use first_name + last_name
+  // Contact information
+  contact_email?: string;  // Optional contact email (if different from sign-in email)
+  phone?: string;  // Phone number
+  // Company-specific fields
   company_name?: string;  // Required for company accounts
   website?: string;
   industry?: string;
   company_size?: '1-10' | '11-50' | '51-200' | '201-500' | '500+';
   subscription_tier?: 'free' | 'pro' | 'enterprise';
-  // Optional contact email (if different from sign-in email)
-  contact_email?: string;
+  // Consent and preferences
+  marketing_consent?: boolean;  // User opted in to marketing communications
+  wants_consultation?: boolean;  // User requested a live consultation/walkthrough
+  // reCAPTCHA token for bot protection
+  recaptcha_token?: string;
 }
 
 export interface SignupResponse {

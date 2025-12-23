@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import ReCAPTCHA from 'react-google-recaptcha';
 import { Input, Badge, GlowButton, GlowBox, Select } from '../components/ui';
 import {
   Building2,
@@ -22,13 +23,19 @@ import {
   Zap,
   Camera,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Phone
 } from 'lucide-react';
 import { NavigationNew } from '../components/NavigationNew';
 import { Footer } from '../components/Footer';
 import { useAuth } from '../contexts/AuthContext';
+import { apiService } from '../services/api';
 import type { AccountType, UnifiedSignupRequest } from '../types';
 import toast from 'react-hot-toast';
+
+// reCAPTCHA site key - replace with your actual key from Google reCAPTCHA admin
+// For development, you can use the test key: 6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
 // Step configuration
 const STEPS = [
@@ -407,6 +414,18 @@ const Step2Details: React.FC<{
         fullWidth
       />
 
+      {/* Phone Field */}
+      <Input
+        label={accountType === 'company' ? "Company Phone Number (Optional)" : "Phone Number (Optional)"}
+        type="tel"
+        placeholder="+1 (555) 123-4567"
+        icon={<Phone className="w-5 h-5" />}
+        value={formData.phone}
+        onChange={(e) => handleInputChange('phone', e.target.value)}
+        error={errors.phone}
+        fullWidth
+      />
+
       {/* Company Details (only for company accounts) */}
       {accountType === 'company' && (
         <>
@@ -570,6 +589,7 @@ const Step3Workspace: React.FC<{
 const Step4Security: React.FC<{
   formData: any;
   handleInputChange: (field: string, value: string) => void;
+  handleCheckboxChange: (field: string, checked: boolean) => void;
   errors: Record<string, string>;
   showPassword: boolean;
   setShowPassword: (show: boolean) => void;
@@ -578,7 +598,10 @@ const Step4Security: React.FC<{
   useDifferentSigninEmail: boolean;
   setUseDifferentSigninEmail: (use: boolean) => void;
   profilePhotoPreview: string;
-}> = ({ formData, handleInputChange, errors, showPassword, setShowPassword, showConfirmPassword, setShowConfirmPassword, useDifferentSigninEmail, setUseDifferentSigninEmail, profilePhotoPreview }) => {
+  recaptchaRef: React.RefObject<ReCAPTCHA | null>;
+  onRecaptchaChange: (token: string | null) => void;
+  onRecaptchaExpired: () => void;
+}> = ({ formData, handleInputChange, handleCheckboxChange, errors, showPassword, setShowPassword, showConfirmPassword, setShowConfirmPassword, useDifferentSigninEmail, setUseDifferentSigninEmail, profilePhotoPreview, recaptchaRef, onRecaptchaChange, onRecaptchaExpired }) => {
   const passwordStrength = calculatePasswordStrength(formData.password);
 
   return (
@@ -752,6 +775,76 @@ const Step4Security: React.FC<{
           </div>
         )}
       </div>
+
+      {/* Consent Checkboxes */}
+      <div className="space-y-4 pt-4 border-t border-slate-700/50">
+        {/* Marketing Consent */}
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <div className="relative mt-0.5">
+            <input
+              type="checkbox"
+              checked={formData.marketingConsent}
+              onChange={(e) => handleCheckboxChange('marketingConsent', e.target.checked)}
+              className="sr-only"
+            />
+            <div className={`
+              w-5 h-5 rounded border-2 transition-all flex items-center justify-center
+              ${formData.marketingConsent
+                ? 'bg-purple-500 border-purple-500'
+                : 'border-slate-600 group-hover:border-purple-500/50'
+              }
+            `}>
+              {formData.marketingConsent && <Check className="w-3 h-3 text-white" />}
+            </div>
+          </div>
+          <span className="text-sm text-slate-400 leading-relaxed">
+            Sign up for Githaforge's marketing communications including newsletters, blog posts, product news, webinars, and targeted advertising. You can unsubscribe from email marketing via the "Unsubscribe" link in the emails.
+          </span>
+        </label>
+
+        {/* Live Consultation Request */}
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <div className="relative mt-0.5">
+            <input
+              type="checkbox"
+              checked={formData.wantsConsultation}
+              onChange={(e) => handleCheckboxChange('wantsConsultation', e.target.checked)}
+              className="sr-only"
+            />
+            <div className={`
+              w-5 h-5 rounded border-2 transition-all flex items-center justify-center
+              ${formData.wantsConsultation
+                ? 'bg-purple-500 border-purple-500'
+                : 'border-slate-600 group-hover:border-purple-500/50'
+              }
+            `}>
+              {formData.wantsConsultation && <Check className="w-3 h-3 text-white" />}
+            </div>
+          </div>
+          <span className="text-sm text-slate-400 leading-relaxed">
+            I would like a live consultation/walkthrough of the platform.
+          </span>
+        </label>
+      </div>
+
+      {/* reCAPTCHA */}
+      <div className="flex flex-col items-center pt-6">
+        <div className="recaptcha-container">
+          <ReCAPTCHA
+            ref={recaptchaRef}
+            sitekey={RECAPTCHA_SITE_KEY}
+            onChange={onRecaptchaChange}
+            onExpired={onRecaptchaExpired}
+            theme="dark"
+          />
+        </div>
+        {errors.recaptcha && (
+          <p className="mt-3 text-sm text-amber-400 flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            {errors.recaptcha}
+          </p>
+        )}
+      </div>
     </motion.div>
   );
 };
@@ -774,9 +867,12 @@ export const Signup: React.FC = () => {
     website: '',
     workspaceName: '',
     email: '',
+    phone: '',
     signinEmail: '', // Separate signin email (optional)
     password: '',
     confirmPassword: '',
+    marketingConsent: false,
+    wantsConsultation: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -790,12 +886,33 @@ export const Signup: React.FC = () => {
   const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
   const [companyLogoPreview, setCompanyLogoPreview] = useState<string>('');
 
+  // reCAPTCHA state
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+
   const handleInputChange = useCallback((field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
   }, [errors]);
+
+  const handleCheckboxChange = useCallback((field: string, checked: boolean) => {
+    setFormData(prev => ({ ...prev, [field]: checked }));
+  }, []);
+
+  const handleRecaptchaChange = useCallback((token: string | null) => {
+    setRecaptchaToken(token);
+    if (token && errors.recaptcha) {
+      setErrors(prev => ({ ...prev, recaptcha: '' }));
+    }
+  }, [errors]);
+
+  const handleRecaptchaExpired = useCallback(() => {
+    setRecaptchaToken(null);
+    // Reset the reCAPTCHA to show fresh checkbox instead of expired error
+    recaptchaRef.current?.reset();
+  }, []);
 
   // Image upload handlers
   const handleProfilePhotoSelect = useCallback((file: File) => {
@@ -872,6 +989,10 @@ export const Signup: React.FC = () => {
         if (formData.password !== formData.confirmPassword) {
           newErrors.confirmPassword = 'Passwords do not match';
         }
+        // Validate reCAPTCHA
+        if (!recaptchaToken) {
+          newErrors.recaptcha = 'Please complete the reCAPTCHA verification';
+        }
         break;
     }
 
@@ -920,6 +1041,11 @@ export const Signup: React.FC = () => {
         subscription_tier: (planFromUrl as 'free' | 'pro' | 'enterprise') || 'free',
         // Store contact email if different from signin email
         contact_email: useDifferentSigninEmail ? formData.email : undefined,
+        // New fields
+        phone: formData.phone || undefined,
+        marketing_consent: formData.marketingConsent,
+        wants_consultation: formData.wantsConsultation,
+        recaptcha_token: recaptchaToken || undefined,
       };
 
       if (accountType === 'company') {
@@ -935,9 +1061,25 @@ export const Signup: React.FC = () => {
 
       await authSignup(signupData);
 
-      // TODO: After signup, upload profile photo and company logo if provided
-      // This would require additional API endpoints for image uploads
-      // For now, the images are stored locally and can be uploaded after signup
+      // Upload profile photo if provided
+      if (profilePhotoFile) {
+        try {
+          await apiService.uploadUserAvatar(profilePhotoFile);
+        } catch (uploadError) {
+          console.error('Failed to upload profile photo:', uploadError);
+          // Don't block signup if photo upload fails
+        }
+      }
+
+      // Upload company logo if provided (for company accounts)
+      if (accountType === 'company' && companyLogoFile) {
+        try {
+          await apiService.uploadCompanyLogo(companyLogoFile);
+        } catch (uploadError) {
+          console.error('Failed to upload company logo:', uploadError);
+          // Don't block signup if logo upload fails
+        }
+      }
 
       navigate('/admin');
     } catch (error: any) {
@@ -984,6 +1126,7 @@ export const Signup: React.FC = () => {
           <Step4Security
             formData={formData}
             handleInputChange={handleInputChange}
+            handleCheckboxChange={handleCheckboxChange}
             errors={errors}
             showPassword={showPassword}
             setShowPassword={setShowPassword}
@@ -992,6 +1135,9 @@ export const Signup: React.FC = () => {
             useDifferentSigninEmail={useDifferentSigninEmail}
             setUseDifferentSigninEmail={setUseDifferentSigninEmail}
             profilePhotoPreview={profilePhotoPreview}
+            recaptchaRef={recaptchaRef}
+            onRecaptchaChange={handleRecaptchaChange}
+            onRecaptchaExpired={handleRecaptchaExpired}
           />
         );
       default:

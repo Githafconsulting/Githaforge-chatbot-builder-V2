@@ -368,6 +368,18 @@ class ApiService {
     await this.api.delete(`/api/v1/users/${userId}`);
   }
 
+  async uploadUserAvatar(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await this.api.post('/api/v1/users/upload-avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+
   // New Analytics APIs
   async getDailyStats(startDate: string, endDate: string): Promise<DailyStats[]> {
     const response = await this.api.get('/api/v1/analytics/daily', {

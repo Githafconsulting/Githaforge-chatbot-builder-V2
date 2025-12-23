@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     API_BASE_URL: str = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # reCAPTCHA Configuration
+    RECAPTCHA_SECRET_KEY: str = ""  # Google reCAPTCHA v2 secret key
+    RECAPTCHA_ENABLED: bool = False  # Set to True in production
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_allowed_origins(cls, v):

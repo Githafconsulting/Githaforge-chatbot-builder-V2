@@ -78,13 +78,17 @@ class UnifiedSignup(BaseModel):
     - Full multi-tenant features
     """
     account_type: str = Field(..., pattern=r'^(company|individual)$', description="Account type: 'company' or 'individual'")
-    email: EmailStr = Field(..., description="User email address")
+    email: EmailStr = Field(..., description="Sign-in email address (used for authentication)")
     password: str = Field(..., min_length=8, description="User password (minimum 8 characters)")
 
     # Name fields - support both first_name/last_name and full_name for backward compatibility
     first_name: Optional[str] = Field(None, max_length=100, description="User first name")
     last_name: Optional[str] = Field(None, max_length=100, description="User last name")
     full_name: Optional[str] = Field(None, min_length=2, description="User full name (deprecated, use first_name + last_name)")
+
+    # Contact information
+    contact_email: Optional[EmailStr] = Field(None, description="Contact email if different from sign-in email")
+    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
 
     # Company-specific fields (required for company, optional for individual)
     company_name: Optional[str] = Field(None, min_length=2, max_length=100, description="Company name (required for company accounts)")
@@ -94,6 +98,13 @@ class UnifiedSignup(BaseModel):
 
     # Subscription tier from pricing page
     subscription_tier: Optional[str] = Field("free", pattern=r'^(free|pro|enterprise)$', description="Subscription tier")
+
+    # Consent and preferences
+    marketing_consent: bool = Field(False, description="User opted in to marketing communications")
+    wants_consultation: bool = Field(False, description="User requested a live consultation/walkthrough")
+
+    # reCAPTCHA token for bot protection
+    recaptcha_token: Optional[str] = Field(None, description="Google reCAPTCHA v2 response token")
 
 
 class SignupResponse(BaseModel):
