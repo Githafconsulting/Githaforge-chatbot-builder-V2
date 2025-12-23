@@ -659,7 +659,7 @@ export type AccountType = 'company' | 'individual';
 
 export interface UnifiedSignupRequest {
   account_type: AccountType;
-  email: string;
+  email: string;  // Sign-in email (used for authentication)
   password: string;
   // Name fields - support both first_name/last_name and full_name for backward compatibility
   first_name?: string;
@@ -670,6 +670,8 @@ export interface UnifiedSignupRequest {
   industry?: string;
   company_size?: '1-10' | '11-50' | '51-200' | '201-500' | '500+';
   subscription_tier?: 'free' | 'pro' | 'enterprise';
+  // Optional contact email (if different from sign-in email)
+  contact_email?: string;
 }
 
 export interface SignupResponse {
