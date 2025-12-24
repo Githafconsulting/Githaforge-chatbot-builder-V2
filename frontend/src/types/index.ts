@@ -620,17 +620,22 @@ export interface PromptHistoryEntry {
 
 export interface Persona {
   id: string;
-  company_id: string;
+  company_id?: string | null;  // NULL for system personas
   name: string;
   description?: string;
   system_prompt: string;
   is_default: boolean;
+  is_system: boolean;  // TRUE = global system persona (read-only), FALSE = company-specific
   default_prompt?: string;
   prompt_history: PromptHistoryEntry[];
   regenerate_context?: string;
   created_at: string;
   updated_at: string;
   chatbot_count?: number;  // Optional - included when listing with counts
+}
+
+export interface PersonaCloneRequest {
+  new_name?: string;  // Optional custom name for the cloned persona
 }
 
 export interface PersonaCreate {

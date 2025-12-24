@@ -125,16 +125,16 @@ export const Pricing: React.FC = () => {
                       }
                     }}
                   >
-                    {plan.featured && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                        <Badge variant="primary" size="md" rounded>
-                          <Star className="w-3 h-3" />
-                          <span className="ml-1">Most Popular</span>
-                        </Badge>
+                    <div className="p-8">
+                      {/* Badge row - same height for all cards to align content */}
+                      <div className="flex justify-center mb-4 h-7">
+                        {plan.featured && (
+                          <Badge variant="primary" size="md" rounded>
+                            <Star className="w-3 h-3" />
+                            <span className="ml-1">Most Popular</span>
+                          </Badge>
+                        )}
                       </div>
-                    )}
-
-                    <div className="p-8 pt-12">
                       <h3 className="text-2xl font-bold text-theme-primary mb-2">{plan.name}</h3>
 
                       <div className="mt-4 mb-2">
@@ -142,17 +142,20 @@ export const Pricing: React.FC = () => {
                         <span className="text-theme-muted">/{billingCycle === 'yearly' ? 'mo' : 'month'}</span>
                       </div>
 
-                      {billingCycle === 'yearly' && plan.price > 0 && (
-                        <p className="text-sm text-green-600 dark:text-green-400 mb-4">
-                          Billed ${price}/year (save ${Math.round(plan.price * 12 * discount)})
-                        </p>
-                      )}
+                      {/* Fixed height container for yearly billing text to keep alignment */}
+                      <div className="h-6 mb-4">
+                        {billingCycle === 'yearly' && plan.price > 0 && (
+                          <p className="text-sm text-green-600 dark:text-green-400">
+                            Billed ${price}/year (save ${Math.round(plan.price * 12 * discount)})
+                          </p>
+                        )}
+                      </div>
 
                       <p className="text-theme-secondary mb-6">{plan.description}</p>
 
                       <GlowButton
                         glowColor="#a855f7"
-                        glowVariant={plan.featured ? 'gradient' : 'outline'}
+                        glowVariant="gradient"
                         fullWidth
                         size="large"
                         onClick={() => navigate(`/signup?plan=${plan.name.toLowerCase()}&billing=${billingCycle}`)}

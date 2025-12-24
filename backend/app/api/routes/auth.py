@@ -475,7 +475,7 @@ async def unified_signup(signup_data: UnifiedSignup):
             "sub": str(user_id),
             "company_id": str(company_id),
             "role": "owner",
-            "full_name": signup_data.full_name
+            "full_name": full_name  # Use computed full_name (from first_name + last_name), not signup_data.full_name
         }
         access_token = create_access_token(
             data=token_data,

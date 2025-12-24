@@ -718,6 +718,13 @@ class ApiService {
     return response.data;
   }
 
+  async clonePersona(personaId: string, newName?: string): Promise<Persona> {
+    const response = await this.api.post(`/api/v1/personas/${personaId}/clone`,
+      newName ? { new_name: newName } : {}
+    );
+    return response.data;
+  }
+
   // Cloud Integration APIs
   async getIntegrations(): Promise<IntegrationConnection[]> {
     const response = await this.api.get('/api/v1/integrations/');
@@ -779,6 +786,36 @@ class ApiService {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data;
+  }
+
+  // Super Admin - System Personas APIs
+  async getSystemPersonas(): Promise<Persona[]> {
+    const response = await this.api.get('/api/v1/super-admin/system-personas');
+    return response.data;
+  }
+
+  async getSystemPersona(personaId: string): Promise<Persona> {
+    const response = await this.api.get(`/api/v1/super-admin/system-personas/${personaId}`);
+    return response.data;
+  }
+
+  async createSystemPersona(data: { name: string; description: string; system_prompt: string }): Promise<Persona> {
+    const response = await this.api.post('/api/v1/super-admin/system-personas', data);
+    return response.data;
+  }
+
+  async updateSystemPersona(personaId: string, data: { name?: string; description?: string; system_prompt?: string }): Promise<Persona> {
+    const response = await this.api.put(`/api/v1/super-admin/system-personas/${personaId}`, data);
+    return response.data;
+  }
+
+  async deleteSystemPersona(personaId: string): Promise<void> {
+    await this.api.delete(`/api/v1/super-admin/system-personas/${personaId}`);
+  }
+
+  async getSystemPersonaUsage(personaId: string): Promise<{ persona_id: string; persona_name: string; total_chatbots: number; chatbots: any[] }> {
+    const response = await this.api.get(`/api/v1/super-admin/system-personas/${personaId}/usage`);
     return response.data;
   }
 

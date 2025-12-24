@@ -1,7 +1,10 @@
 """
-Personas API routes for role-based chatbot prompt management.
+Personas API routes for company users.
 
-Follows KISS, YAGNI, DRY, and SOLID principles.
+Architecture:
+- System personas: Global defaults (read-only for companies)
+- Company personas: Custom personas created by companies (full CRUD)
+- Companies can clone system personas to create editable copies
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
@@ -11,9 +14,9 @@ from app.models.persona import (
     PersonaCreate,
     PersonaUpdate,
     PersonaRegenerateRequest,
-    PersonaList
+    PersonaCloneRequest
 )
-from app.services.persona_service import get_persona_service, PersonaService, clear_persona_cache
+from app.services.persona_service import get_persona_service, clear_persona_cache
 from app.services.persona_prompt_service import generate_persona_prompt, regenerate_persona_prompt
 from app.core.dependencies import get_current_user, require_permission
 from app.models.user import User
@@ -37,21 +40,28 @@ async def _get_company_name(company_id: str) -> str:
 
 
 # ============================================================================
-# PERSONA CRUD ENDPOINTS
+# LIST PERSONAS (System + Company)
 # ============================================================================
 
 @router.get("/", response_model=List[Persona])
 async def list_personas(
+    include_system: bool = True,
     include_chatbot_count: bool = False,
     current_user: User = Depends(get_current_user),
     _: None = Depends(require_permission("view_chatbots"))
 ):
     """
-    List all personas for the current user's company.
+    List all personas available to the company.
 
+    Returns:
+    - System personas (global defaults, read-only) - if include_system=True
+    - Company's custom personas (editable)
+
+    System personas are marked with `is_system=True`.
+
+    Query Parameters:
+    - **include_system**: Include system personas (default: True)
     - **include_chatbot_count**: Include count of chatbots using each persona
-
-    Returns personas ordered by: default personas first, then alphabetically by name.
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -63,10 +73,51 @@ async def list_personas(
     service = get_persona_service()
     personas = await service.list_company_personas(
         company_id=str(company_id),
+        include_system=include_system,
         include_chatbot_count=include_chatbot_count
     )
     return personas
 
+
+# ============================================================================
+# GET SINGLE PERSONA
+# ============================================================================
+
+@router.get("/{persona_id}", response_model=Persona)
+async def get_persona(
+    persona_id: str,
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("view_chatbots"))
+):
+    """
+    Get a persona by ID.
+
+    Can retrieve:
+    - System personas (read-only)
+    - Company's own personas
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User must be associated with a company"
+        )
+
+    service = get_persona_service()
+    persona = await service.get_persona(persona_id, str(company_id))
+
+    if not persona:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Persona {persona_id} not found"
+        )
+
+    return persona
+
+
+# ============================================================================
+# CREATE CUSTOM PERSONA
+# ============================================================================
 
 @router.post("/", response_model=Persona, status_code=status.HTTP_201_CREATED)
 async def create_persona(
@@ -75,12 +126,14 @@ async def create_persona(
     _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
-    Create a new persona for the company.
+    Create a new custom persona for the company.
 
-    - **name**: Persona name (e.g., "HR Support", "Technical Support")
+    - **name**: Persona name (e.g., "Technical Support", "Onboarding Assistant")
     - **description**: Description of the persona's purpose (used for LLM prompt generation)
 
     The system_prompt is automatically generated from the name and description using LLM.
+
+    Note: To create a persona based on a system default, use the clone endpoint instead.
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -102,7 +155,7 @@ async def create_persona(
     # Create the persona
     service = get_persona_service()
     try:
-        persona = await service.create_persona(
+        persona = await service.create_company_persona(
             company_id=str(company_id),
             persona_data=persona_data,
             system_prompt=system_prompt
@@ -120,16 +173,25 @@ async def create_persona(
         )
 
 
-@router.get("/{persona_id}", response_model=Persona)
-async def get_persona(
+# ============================================================================
+# CLONE SYSTEM PERSONA
+# ============================================================================
+
+@router.post("/{persona_id}/clone", response_model=Persona, status_code=status.HTTP_201_CREATED)
+async def clone_persona(
     persona_id: str,
+    request: PersonaCloneRequest = None,
     current_user: User = Depends(get_current_user),
-    _: None = Depends(require_permission("view_chatbots"))
+    _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
-    Get a persona by ID.
+    Clone a system persona to create an editable company copy.
 
-    - **persona_id**: UUID of the persona
+    - **persona_id**: UUID of the system persona to clone
+    - **new_name**: Optional custom name for the cloned persona (default: "{Original Name} (Custom)")
+
+    This creates a copy of the system persona that the company can fully edit.
+    The original system prompt is saved in `default_prompt` for reference.
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -139,16 +201,52 @@ async def get_persona(
         )
 
     service = get_persona_service()
-    persona = await service.get_persona(persona_id, str(company_id))
 
+    # Verify it's a system persona
+    persona = await service.get_persona(persona_id, str(company_id))
     if not persona:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Persona {persona_id} not found"
         )
 
-    return persona
+    if not persona.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only system personas can be cloned. Use the create endpoint for custom personas."
+        )
 
+    try:
+        new_name = request.new_name if request else None
+        cloned_persona = await service.clone_system_persona(
+            persona_id=persona_id,
+            company_id=str(company_id),
+            new_name=new_name
+        )
+
+        if not cloned_persona:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to clone persona"
+            )
+
+        return cloned_persona
+
+    except Exception as e:
+        if "duplicate key" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A persona with this name already exists. Please provide a different name."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clone persona: {str(e)}"
+        )
+
+
+# ============================================================================
+# UPDATE COMPANY PERSONA
+# ============================================================================
 
 @router.put("/{persona_id}", response_model=Persona)
 async def update_persona(
@@ -158,14 +256,13 @@ async def update_persona(
     _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
-    Update persona settings.
+    Update a company persona.
 
-    - **persona_id**: UUID of the persona
     - **name**: New name (optional)
     - **description**: New description (optional)
     - **system_prompt**: Direct prompt edit (optional) - previous prompt is saved to history
 
-    Note: Use the /regenerate endpoint to regenerate the prompt using LLM.
+    **Note:** System personas cannot be edited. Clone them first to create an editable copy.
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -174,24 +271,43 @@ async def update_persona(
             detail="User must be associated with a company"
         )
 
-    user_id = current_user.get("id")
-
     service = get_persona_service()
-    persona = await service.update_persona(
-        persona_id=persona_id,
-        persona_data=persona_data,
-        company_id=str(company_id),
-        user_id=str(user_id) if user_id else None
-    )
 
+    # Check if it's a system persona
+    persona = await service.get_persona(persona_id, str(company_id))
     if not persona:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Persona {persona_id} not found"
         )
 
-    return persona
+    if persona.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="System personas cannot be edited. Clone it first to create an editable copy."
+        )
 
+    user_id = current_user.get("id")
+
+    updated_persona = await service.update_company_persona(
+        persona_id=persona_id,
+        persona_data=persona_data,
+        company_id=str(company_id),
+        user_id=str(user_id) if user_id else None
+    )
+
+    if not updated_persona:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Persona {persona_id} not found"
+        )
+
+    return updated_persona
+
+
+# ============================================================================
+# DELETE COMPANY PERSONA
+# ============================================================================
 
 @router.delete("/{persona_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_persona(
@@ -200,12 +316,10 @@ async def delete_persona(
     _: None = Depends(require_permission("delete_chatbots"))
 ):
     """
-    Delete a persona.
+    Delete a company persona.
 
-    - **persona_id**: UUID of the persona
-
-    **Note:** Default personas cannot be deleted. Chatbots using this persona will
-    have their persona_id set to NULL.
+    **Note:** System personas cannot be deleted.
+    Chatbots using this persona will have their persona_id set to NULL.
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -215,12 +329,27 @@ async def delete_persona(
         )
 
     service = get_persona_service()
-    success = await service.delete_persona(persona_id, str(company_id))
+
+    # Check if it's a system persona
+    persona = await service.get_persona(persona_id, str(company_id))
+    if not persona:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Persona {persona_id} not found"
+        )
+
+    if persona.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="System personas cannot be deleted"
+        )
+
+    success = await service.delete_company_persona(persona_id, str(company_id))
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Persona {persona_id} not found or is a default persona (cannot be deleted)"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete persona"
         )
 
     return None
@@ -238,12 +367,13 @@ async def regenerate_prompt(
     _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
-    Regenerate a persona's system prompt using LLM.
+    Regenerate a company persona's system prompt using LLM.
 
-    - **persona_id**: UUID of the persona
     - **context**: Optional additional instructions for the regeneration
 
     The previous prompt is saved to history before regenerating.
+
+    **Note:** System personas cannot be modified. Clone them first.
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -261,6 +391,12 @@ async def regenerate_prompt(
             detail=f"Persona {persona_id} not found"
         )
 
+    if persona.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="System personas cannot be modified. Clone it first to create an editable copy."
+        )
+
     # Get company name
     company_name = await _get_company_name(str(company_id))
 
@@ -275,12 +411,9 @@ async def regenerate_prompt(
 
     # Update persona with new prompt (saves old to history)
     user_id = current_user.get("id")
-    updated_persona = await service.update_persona(
+    updated_persona = await service.update_company_persona(
         persona_id=persona_id,
-        persona_data=PersonaUpdate(
-            system_prompt=new_prompt,
-            regenerate_context=request.context
-        ),
+        persona_data=PersonaUpdate(system_prompt=new_prompt),
         company_id=str(company_id),
         user_id=str(user_id) if user_id else None
     )
@@ -295,11 +428,10 @@ async def restore_to_default(
     _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
-    Restore a persona's system prompt to its default value.
+    Restore a cloned persona's system prompt to its original default value.
 
-    - **persona_id**: UUID of the persona
-
-    **Note:** Only works for default personas (is_default=True).
+    Only works for personas that were cloned from system personas
+    (have a `default_prompt` stored).
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -309,15 +441,36 @@ async def restore_to_default(
         )
 
     service = get_persona_service()
-    persona = await service.restore_to_default(persona_id, str(company_id))
 
+    # Check if it's a system persona
+    persona = await service.get_persona(persona_id, str(company_id))
     if not persona:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Persona {persona_id} not found or is not a default persona"
+            detail=f"Persona {persona_id} not found"
         )
 
-    return persona
+    if persona.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="System personas are already at their default state"
+        )
+
+    if not persona.default_prompt:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This persona was not cloned from a system persona and has no default to restore"
+        )
+
+    restored_persona = await service.restore_to_default(persona_id, str(company_id))
+
+    if not restored_persona:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to restore persona to default"
+        )
+
+    return restored_persona
 
 
 @router.post("/{persona_id}/restore-last-saved", response_model=Persona)
@@ -327,11 +480,11 @@ async def restore_to_last_saved(
     _: None = Depends(require_permission("edit_chatbots"))
 ):
     """
-    Restore a persona's system prompt to the last saved version.
-
-    - **persona_id**: UUID of the persona
+    Restore a company persona's system prompt to the last saved version.
 
     Restores from the prompt_history array.
+
+    **Note:** System personas cannot be modified.
     """
     company_id = current_user.get("company_id")
     if not company_id:
@@ -340,63 +493,34 @@ async def restore_to_last_saved(
             detail="User must be associated with a company"
         )
 
-    user_id = current_user.get("id")
-
     service = get_persona_service()
-    persona = await service.restore_to_last_saved(
-        persona_id=persona_id,
-        company_id=str(company_id),
-        user_id=str(user_id) if user_id else None
-    )
 
+    # Check if it's a system persona
+    persona = await service.get_persona(persona_id, str(company_id))
     if not persona:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Persona {persona_id} not found"
         )
 
-    return persona
-
-
-# ============================================================================
-# SEED DEFAULTS ENDPOINT
-# ============================================================================
-
-@router.post("/seed-defaults", response_model=List[Persona])
-async def seed_default_personas(
-    current_user: User = Depends(get_current_user),
-    _: None = Depends(require_permission("edit_chatbots"))
-):
-    """
-    Create default personas for the company.
-
-    Creates the following default personas if they don't exist:
-    - General
-    - Sales
-    - Support
-    - HR
-    - Product
-    - Billing
-
-    Existing personas with the same name are not overwritten.
-    """
-    company_id = current_user.get("company_id")
-    if not company_id:
+    if persona.is_system:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User must be associated with a company"
+            detail="System personas cannot be modified"
         )
 
-    service = get_persona_service()
-    success = await service.seed_defaults_for_company(str(company_id))
+    user_id = current_user.get("id")
 
-    if not success:
+    restored_persona = await service.restore_to_last_saved(
+        persona_id=persona_id,
+        company_id=str(company_id),
+        user_id=str(user_id) if user_id else None
+    )
+
+    if not restored_persona:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to seed default personas"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Persona {persona_id} not found or has no history"
         )
 
-    # Clear cache and return updated list
-    clear_persona_cache()
-    personas = await service.list_company_personas(str(company_id))
-    return personas
+    return restored_persona

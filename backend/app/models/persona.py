@@ -51,12 +51,25 @@ class PersonaRegenerateRequest(BaseModel):
     context: Optional[str] = Field(None, max_length=1000, description="Additional instructions for prompt regeneration")
 
 
+class PersonaCloneRequest(BaseModel):
+    """Schema for cloning a system persona to create an editable company copy"""
+    new_name: Optional[str] = Field(None, min_length=1, max_length=100, description="Optional new name for the cloned persona")
+
+
+class SystemPersonaUpdate(BaseModel):
+    """Schema for super admin updating system personas"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    system_prompt: Optional[str] = Field(None, max_length=10000)
+
+
 class Persona(PersonaBase):
     """Full persona model with database fields"""
     id: UUID
-    company_id: UUID
+    company_id: Optional[UUID] = None  # NULL for system personas
     system_prompt: str
     is_default: bool = False
+    is_system: bool = False  # TRUE = global system persona, FALSE = company-specific
     default_prompt: Optional[str] = None
     prompt_history: List[PromptHistoryEntry] = Field(default_factory=list)
     regenerate_context: Optional[str] = None

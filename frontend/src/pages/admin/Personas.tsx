@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, RefreshCw, RotateCcw, Bot, Sparkles, ChevronDown, ChevronUp, Copy, Check, Clock } from 'lucide-react';
+import { Plus, Trash2, Edit2, RefreshCw, RotateCcw, Bot, Sparkles, ChevronDown, ChevronUp, Copy, Check, Clock, Lock, GitBranch } from 'lucide-react';
 import { apiService } from '../../services/api';
 import type { Persona, PersonaCreate, PersonaUpdate } from '../../types';
 
@@ -31,6 +31,10 @@ export const PersonasPage: React.FC = () => {
   const [updating, setUpdating] = useState(false);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [personaToClone, setPersonaToClone] = useState<Persona | null>(null);
+  const [cloneName, setCloneName] = useState('');
+  const [cloning, setCloning] = useState(false);
 
   // Form state for create
   const [createForm, setCreateForm] = useState<PersonaCreate>({
@@ -106,8 +110,8 @@ export const PersonasPage: React.FC = () => {
   };
 
   const handleDeletePersona = async (persona: Persona) => {
-    if (persona.is_default) {
-      setError('Cannot delete default personas');
+    if (persona.is_system) {
+      setError('System personas cannot be deleted. Clone it to create an editable copy.');
       return;
     }
 
@@ -120,6 +124,31 @@ export const PersonasPage: React.FC = () => {
       await loadPersonas();
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to delete persona');
+    }
+  };
+
+  const openCloneModal = (persona: Persona) => {
+    setPersonaToClone(persona);
+    setCloneName(`${persona.name} (Custom)`);
+    setShowCloneModal(true);
+  };
+
+  const handleClonePersona = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!personaToClone) return;
+
+    try {
+      setCloning(true);
+      setError('');
+      await apiService.clonePersona(personaToClone.id, cloneName || undefined);
+      await loadPersonas();
+      setShowCloneModal(false);
+      setPersonaToClone(null);
+      setCloneName('');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to clone persona');
+    } finally {
+      setCloning(false);
     }
   };
 
@@ -153,19 +182,11 @@ export const PersonasPage: React.FC = () => {
     }
   };
 
-  const handleSeedDefaults = async () => {
-    try {
-      setLoading(true);
-      await apiService.seedDefaultPersonas();
-      await loadPersonas();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to seed default personas');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const openEditModal = (persona: Persona) => {
+    if (persona.is_system) {
+      setError('System personas cannot be edited. Clone it to create an editable copy.');
+      return;
+    }
     setSelectedPersona(persona);
     setEditForm({
       name: persona.name,
@@ -199,22 +220,13 @@ export const PersonasPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex gap-3">
-          <button
-            onClick={handleSeedDefaults}
-            className="bg-slate-700 text-slate-200 px-4 py-2 rounded-lg hover:bg-slate-600 flex items-center gap-2"
-          >
-            <RotateCcw size={18} />
-            Restore Defaults
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          >
-            <Plus size={20} />
-            Create Persona
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Create Persona
+        </button>
       </div>
 
       {error && (
@@ -232,11 +244,12 @@ export const PersonasPage: React.FC = () => {
         ) : personas.length === 0 ? (
           <div className="bg-slate-800 rounded-lg p-8 text-center text-slate-400">
             <Sparkles size={48} className="mx-auto mb-4 text-slate-500" />
-            <p>No personas configured. Click "Restore Defaults" to create default personas.</p>
+            <p>No personas available. System default personas should appear automatically.</p>
+            <p className="text-sm mt-2">Click "Create Persona" to add a custom persona.</p>
           </div>
         ) : (
           personas.map((persona) => (
-            <div key={persona.id} className="bg-slate-800 rounded-lg overflow-hidden">
+            <div key={persona.id} className={`bg-slate-800 rounded-lg overflow-hidden ${persona.is_system ? 'border border-purple-500/30' : ''}`}>
               {/* Persona Header */}
               <div
                 className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-700/50"
@@ -244,16 +257,22 @@ export const PersonasPage: React.FC = () => {
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    persona.is_default ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
+                    persona.is_system ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
                   }`}>
-                    <Bot size={20} />
+                    {persona.is_system ? <Lock size={20} /> : <Bot size={20} />}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold text-slate-50">{persona.name}</h3>
-                      {persona.is_default && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-400">
-                          Default
+                      {persona.is_system && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-400 flex items-center gap-1">
+                          <Lock size={10} />
+                          System Default
+                        </span>
+                      )}
+                      {!persona.is_system && persona.default_prompt && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400">
+                          Cloned
                         </span>
                       )}
                       {persona.chatbot_count !== undefined && persona.chatbot_count > 0 && (
@@ -273,14 +292,28 @@ export const PersonasPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); openEditModal(persona); }}
-                    className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-700 rounded-lg"
-                    title="Edit persona"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  {!persona.is_default && (
+                  {/* Clone button for system personas */}
+                  {persona.is_system && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openCloneModal(persona); }}
+                      className="p-2 text-slate-400 hover:text-green-400 hover:bg-slate-700 rounded-lg"
+                      title="Clone to create editable copy"
+                    >
+                      <GitBranch size={18} />
+                    </button>
+                  )}
+                  {/* Edit button only for company personas */}
+                  {!persona.is_system && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEditModal(persona); }}
+                      className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-700 rounded-lg"
+                      title="Edit persona"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                  )}
+                  {/* Delete button only for company personas */}
+                  {!persona.is_system && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeletePersona(persona); }}
                       className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg"
@@ -300,6 +333,26 @@ export const PersonasPage: React.FC = () => {
               {/* Expanded Content */}
               {expandedPersonaId === persona.id && (
                 <div className="border-t border-slate-700 p-4 space-y-4">
+                  {/* System persona info banner */}
+                  {persona.is_system && (
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 flex items-center gap-3">
+                      <Lock size={18} className="text-purple-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm text-purple-300">This is a system default persona (read-only)</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          To customize this persona, click the clone button to create your own editable copy.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => openCloneModal(persona)}
+                        className="ml-auto px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                      >
+                        <GitBranch size={14} />
+                        Clone
+                      </button>
+                    </div>
+                  )}
+
                   {/* System Prompt */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -319,44 +372,48 @@ export const PersonasPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Regenerate Section */}
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-slate-300 block mb-2">
-                        Regenerate with context (optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={regenerateContext}
-                        onChange={(e) => setRegenerateContext(e.target.value)}
-                        placeholder="e.g., Make it more friendly, add pricing info..."
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <button
-                      onClick={() => handleRegeneratePrompt(persona)}
-                      disabled={regenerating === persona.id}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      <RefreshCw size={18} className={regenerating === persona.id ? 'animate-spin' : ''} />
-                      {regenerating === persona.id ? 'Regenerating...' : 'Regenerate'}
-                    </button>
-                    {persona.prompt_history.length > 0 && (
-                      <button
-                        onClick={() => handleRestoreLastSaved(persona)}
-                        className="px-4 py-2 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 flex items-center gap-2"
-                      >
-                        <RotateCcw size={18} />
-                        Restore Previous
-                      </button>
-                    )}
-                  </div>
+                  {/* Regenerate Section - only for company personas */}
+                  {!persona.is_system && (
+                    <>
+                      <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-slate-300 block mb-2">
+                            Regenerate with context (optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={regenerateContext}
+                            onChange={(e) => setRegenerateContext(e.target.value)}
+                            placeholder="e.g., Make it more friendly, add pricing info..."
+                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleRegeneratePrompt(persona)}
+                          disabled={regenerating === persona.id}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <RefreshCw size={18} className={regenerating === persona.id ? 'animate-spin' : ''} />
+                          {regenerating === persona.id ? 'Regenerating...' : 'Regenerate'}
+                        </button>
+                        {persona.prompt_history.length > 0 && (
+                          <button
+                            onClick={() => handleRestoreLastSaved(persona)}
+                            className="px-4 py-2 bg-slate-700 text-slate-200 rounded-lg hover:bg-slate-600 flex items-center gap-2"
+                          >
+                            <RotateCcw size={18} />
+                            Restore Previous
+                          </button>
+                        )}
+                      </div>
 
-                  {/* History Info */}
-                  {persona.prompt_history.length > 0 && (
-                    <p className="text-xs text-slate-500">
-                      {persona.prompt_history.length} previous version{persona.prompt_history.length !== 1 ? 's' : ''} saved
-                    </p>
+                      {/* History Info */}
+                      {persona.prompt_history.length > 0 && (
+                        <p className="text-xs text-slate-500">
+                          {persona.prompt_history.length} previous version{persona.prompt_history.length !== 1 ? 's' : ''} saved
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -503,6 +560,98 @@ export const PersonasPage: React.FC = () => {
                     setError('');
                   }}
                   disabled={updating}
+                  className="flex-1 bg-slate-700 text-slate-200 px-4 py-2 rounded-lg hover:bg-slate-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Clone Persona Modal */}
+      {showCloneModal && personaToClone && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <GitBranch size={20} className="text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-slate-50">Clone Persona</h3>
+                <p className="text-sm text-slate-400">Create an editable copy of "{personaToClone.name}"</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleClonePersona} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-200 mb-1">
+                  New Persona Name
+                </label>
+                <input
+                  type="text"
+                  value={cloneName}
+                  onChange={(e) => setCloneName(e.target.value)}
+                  placeholder={`${personaToClone.name} (Custom)`}
+                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Leave blank to use default name
+                </p>
+              </div>
+
+              <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
+                <p className="text-sm text-slate-300 mb-2">This will create a copy that you can:</p>
+                <ul className="text-xs text-slate-400 space-y-1">
+                  <li className="flex items-center gap-2">
+                    <Edit2 size={12} className="text-blue-400" />
+                    Edit the name, description, and system prompt
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <RefreshCw size={12} className="text-purple-400" />
+                    Regenerate the prompt with custom context
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <RotateCcw size={12} className="text-slate-400" />
+                    Restore to the original default at any time
+                  </li>
+                </ul>
+              </div>
+
+              {error && (
+                <div className="bg-red-900/50 border border-red-700 text-red-200 px-3 py-2 rounded text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={cloning}
+                  className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {cloning ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      Cloning...
+                    </>
+                  ) : (
+                    <>
+                      <GitBranch size={16} />
+                      Clone Persona
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCloneModal(false);
+                    setPersonaToClone(null);
+                    setCloneName('');
+                    setError('');
+                  }}
+                  disabled={cloning}
                   className="flex-1 bg-slate-700 text-slate-200 px-4 py-2 rounded-lg hover:bg-slate-600"
                 >
                   Cancel

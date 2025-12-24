@@ -1,7 +1,8 @@
 """
 Company CRUD API routes for multi-tenant management
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Optional
 from app.models.company import (
     CompanyCreate,
@@ -13,7 +14,9 @@ from app.models.company import (
 from app.services.company_service import CompanyService
 from app.core.dependencies import get_current_user
 from app.core.multitenancy import verify_company_access
+from app.core.database import get_supabase_client
 from app.models.user import User
+from app.utils.logger import logger
 
 router = APIRouter()
 
@@ -288,3 +291,97 @@ async def get_company_with_stats(
     )
 
     return company_with_stats
+
+
+@router.post("/upload-logo")
+async def upload_company_logo(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload company logo.
+
+    - Accepts image files (PNG, JPG, GIF, WebP)
+    - Max file size: 2MB
+    - Returns the URL of the uploaded logo
+
+    The logo is stored in Supabase Storage and the URL is saved to the company record.
+    """
+    try:
+        client = get_supabase_client()
+        company_id = current_user.get("company_id")
+
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not associated with a company"
+            )
+
+        # Validate file type
+        allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file type. Allowed: PNG, JPG, GIF, WebP"
+            )
+
+        # Read file content
+        content = await file.read()
+
+        # Validate file size (2MB max)
+        if len(content) > 2 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File too large. Maximum size is 2MB"
+            )
+
+        # Generate unique filename
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "png"
+        unique_filename = f"{company_id}/{uuid.uuid4()}.{file_ext}"
+        storage_path = unique_filename
+
+        # Upload to Supabase Storage
+        try:
+            # Upload new logo
+            upload_response = client.storage.from_("company-logos").upload(
+                storage_path,
+                content,
+                {"content-type": file.content_type}
+            )
+        except Exception as storage_error:
+            logger.error(f"Storage upload error: {storage_error}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload file to storage: {str(storage_error)}"
+            )
+
+        # Get public URL
+        public_url = client.storage.from_("company-logos").get_public_url(storage_path)
+
+        # Update company record with logo URL
+        update_response = client.table("companies").update({
+            "logo_url": public_url
+        }).eq("id", company_id).execute()
+
+        if not update_response.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update company logo URL"
+            )
+
+        logger.info(f"Logo uploaded for company: {company_id}")
+
+        return {
+            "success": True,
+            "url": public_url,
+            "message": "Company logo uploaded successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading company logo: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload company logo: {str(e)}"
+        )
