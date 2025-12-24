@@ -37,6 +37,14 @@ import type {
   PersonaCreate,
   PersonaUpdate,
   PersonaRegenerateRequest,
+  Blog,
+  BlogCreate,
+  BlogUpdate,
+  BlogListResponse,
+  BlogCategory,
+  BlogCategoryCreate,
+  BlogCategoryUpdate,
+  BlogStatus,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -817,6 +825,103 @@ class ApiService {
   async getSystemPersonaUsage(personaId: string): Promise<{ persona_id: string; persona_name: string; total_chatbots: number; chatbots: any[] }> {
     const response = await this.api.get(`/api/v1/super-admin/system-personas/${personaId}/usage`);
     return response.data;
+  }
+
+  // ==================== BLOG APIs (Public) ====================
+
+  async getPublicBlogs(params?: {
+    page?: number;
+    page_size?: number;
+    category?: string;
+    tag?: string;
+    featured?: boolean;
+    search?: string;
+  }): Promise<BlogListResponse> {
+    const response = await this.api.get('/api/v1/blogs/', { params });
+    return response.data;
+  }
+
+  async getFeaturedBlogs(limit?: number): Promise<Blog[]> {
+    const response = await this.api.get('/api/v1/blogs/featured', { params: { limit } });
+    return response.data;
+  }
+
+  async getRecentBlogs(limit?: number, excludeFeatured?: boolean): Promise<Blog[]> {
+    const response = await this.api.get('/api/v1/blogs/recent', {
+      params: { limit, exclude_featured: excludeFeatured }
+    });
+    return response.data;
+  }
+
+  async getBlogCategories(): Promise<BlogCategory[]> {
+    const response = await this.api.get('/api/v1/blogs/categories');
+    return response.data;
+  }
+
+  async getBlogTags(): Promise<string[]> {
+    const response = await this.api.get('/api/v1/blogs/tags');
+    return response.data;
+  }
+
+  async getBlogBySlug(slug: string): Promise<Blog> {
+    const response = await this.api.get(`/api/v1/blogs/slug/${slug}`);
+    return response.data;
+  }
+
+  async getRelatedBlogs(blogId: string, limit?: number): Promise<Blog[]> {
+    const response = await this.api.get(`/api/v1/blogs/${blogId}/related`, { params: { limit } });
+    return response.data;
+  }
+
+  // ==================== BLOG APIs (Admin) ====================
+
+  async getAdminBlogs(params?: {
+    page?: number;
+    page_size?: number;
+    status?: BlogStatus;
+    category?: string;
+    search?: string;
+  }): Promise<BlogListResponse> {
+    const response = await this.api.get('/api/v1/blogs/admin/all', { params });
+    return response.data;
+  }
+
+  async getAdminBlog(blogId: string): Promise<Blog> {
+    const response = await this.api.get(`/api/v1/blogs/admin/${blogId}`);
+    return response.data;
+  }
+
+  async createBlog(blog: BlogCreate): Promise<Blog> {
+    const response = await this.api.post('/api/v1/blogs/admin', blog);
+    return response.data;
+  }
+
+  async updateBlog(blogId: string, blog: BlogUpdate): Promise<Blog> {
+    const response = await this.api.put(`/api/v1/blogs/admin/${blogId}`, blog);
+    return response.data;
+  }
+
+  async publishBlog(blogId: string, publish: boolean = true): Promise<Blog> {
+    const response = await this.api.post(`/api/v1/blogs/admin/${blogId}/publish`, { publish });
+    return response.data;
+  }
+
+  async deleteBlog(blogId: string): Promise<void> {
+    await this.api.delete(`/api/v1/blogs/admin/${blogId}`);
+  }
+
+  async createBlogCategory(category: BlogCategoryCreate): Promise<BlogCategory> {
+    const response = await this.api.post('/api/v1/blogs/admin/categories', category);
+    return response.data;
+  }
+
+  async updateBlogCategory(categoryId: string, category: BlogCategoryUpdate): Promise<BlogCategory> {
+    const response = await this.api.put(`/api/v1/blogs/admin/categories/${categoryId}`, category);
+    return response.data;
+  }
+
+  async deleteBlogCategory(categoryId: string): Promise<void> {
+    await this.api.delete(`/api/v1/blogs/admin/categories/${categoryId}`);
   }
 
   // Generic HTTP methods for custom endpoints

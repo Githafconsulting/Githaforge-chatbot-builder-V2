@@ -39,7 +39,7 @@ export const NavigationNew: React.FC = () => {
     { label: 'Features', path: '/features' },
     { label: 'Pricing', path: '/pricing' },
     { label: 'FAQs', path: '/faqs' },
-    { label: 'Blogs', path: '#' },
+    { label: 'Blog', path: '/blogs' },
     { label: 'Contact', path: '/contact' },
   ];
 
@@ -130,7 +130,7 @@ export const NavigationNew: React.FC = () => {
                 variant="primary"
                 size="md"
                 onClick={() => navigate('/signup')}
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg font-medium rounded-3xl"
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg shadow-purple-500/40 font-medium rounded-3xl"
               >
                 Get Started Free
               </Button>
@@ -242,7 +242,7 @@ export const NavigationNew: React.FC = () => {
                       navigate('/signup');
                       setIsMenuOpen(false);
                     }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg shadow-purple-500/40"
                   >
                     Get Started Free
                   </Button>

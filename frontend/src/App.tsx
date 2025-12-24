@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './contexts/AuthContext';
 import { SuperAdminAuthProvider } from './contexts/SuperAdminAuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -12,6 +13,8 @@ import { Features } from './pages/Features';
 import { Pricing } from './pages/Pricing';
 import { FAQs } from './pages/FAQs';
 import { Contact } from './pages/Contact';
+import { Blogs } from './pages/Blogs';
+import { BlogPost } from './pages/BlogPost';
 import { Signup } from './pages/Signup';
 import { Onboarding } from './pages/Onboarding';
 import { Login } from './pages/Login';
@@ -20,6 +23,7 @@ import { Companies } from './pages/superAdmin/Companies';
 import { PlatformChatbot } from './pages/superAdmin/PlatformChatbot';
 import { ChatbotConfiguration } from './pages/superAdmin/ChatbotConfiguration';
 import { SystemPersonas } from './pages/superAdmin/SystemPersonas';
+import { BlogManagement } from './pages/superAdmin/BlogManagement';
 import { AnalyticsPage } from './pages/admin/Analytics';
 import { ChatbotsUnifiedPage } from './pages/admin/ChatbotsUnified';
 import { ChatbotDetailPage } from './pages/admin/ChatbotDetail';
@@ -41,24 +45,27 @@ import './i18n'; // Initialize i18n
 
 function App() {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <AuthProvider>
-          <SuperAdminAuthProvider>
-            <BrowserRouter>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<HomeNew />} />
-                <Route path="/features" element={<Features />} />
-                <Route path="/pricing" element={<Pricing />} />
-                <Route path="/faqs" element={<FAQs />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/super-admin-login" element={<SuperAdminLogin />} />
-                <Route path="/embed" element={<EmbedPage />} />
-                <Route path="/chatbot-test" element={<ChatbotTestPage />} />
-                <Route path="/oauth/callback" element={<OAuthCallback />} />
+    <HelmetProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <SuperAdminAuthProvider>
+              <BrowserRouter>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<HomeNew />} />
+                  <Route path="/features" element={<Features />} />
+                  <Route path="/pricing" element={<Pricing />} />
+                  <Route path="/faqs" element={<FAQs />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/blogs" element={<Blogs />} />
+                  <Route path="/blog/:slug" element={<BlogPost />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+                  <Route path="/embed" element={<EmbedPage />} />
+                  <Route path="/chatbot-test" element={<ChatbotTestPage />} />
+                  <Route path="/oauth/callback" element={<OAuthCallback />} />
 
           {/* Glow Components Demo Pages */}
           <Route path="/glow-showcase" element={<GlowComponentsShowcase />} />
@@ -109,6 +116,7 @@ function App() {
             <Route path="system-personas" element={<SystemPersonas />} />
             <Route path="platform-chatbot" element={<PlatformChatbot />} />
             <Route path="chatbot-config" element={<ChatbotConfiguration />} />
+            <Route path="blogs" element={<BlogManagement />} />
             <Route path="users" element={<div className="text-white p-8">All Users Coming Soon</div>} />
             <Route path="billing" element={<div className="text-white p-8">Billing & Plans Coming Soon</div>} />
             <Route path="logs" element={<div className="text-white p-8">System Logs Coming Soon</div>} />
@@ -116,12 +124,13 @@ function App() {
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </BrowserRouter>
-          </SuperAdminAuthProvider>
-        </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+                </Routes>
+              </BrowserRouter>
+            </SuperAdminAuthProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </HelmetProvider>
   );
 }
 

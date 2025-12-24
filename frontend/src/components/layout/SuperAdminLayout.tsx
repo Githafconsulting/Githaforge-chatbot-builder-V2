@@ -14,7 +14,8 @@ import {
   DollarSign,
   Bot,
   Settings,
-  Sparkles
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 import { useSuperAdminAuth } from '../../contexts/SuperAdminAuthContext';
 import { slideInLeft } from '../../utils/animations';
@@ -35,6 +36,7 @@ export const SuperAdminLayout: React.FC = () => {
     { path: '/super-admin', label: 'Platform Analytics', icon: BarChart3, color: 'text-blue-400' },
     { path: '/super-admin/companies', label: 'Companies', icon: Building2, color: 'text-purple-400' },
     { path: '/super-admin/system-personas', label: 'System Personas', icon: Sparkles, color: 'text-pink-400' },
+    { path: '/super-admin/blogs', label: 'Blog Management', icon: BookOpen, color: 'text-orange-400' },
     { path: '/super-admin/platform-chatbot', label: 'Platform Chatbot', icon: Bot, color: 'text-emerald-400' },
     { path: '/super-admin/chatbot-config', label: 'Chatbot Config', icon: Settings, color: 'text-cyan-400' },
     { path: '/super-admin/users', label: 'All Users', icon: Users, color: 'text-green-400' },

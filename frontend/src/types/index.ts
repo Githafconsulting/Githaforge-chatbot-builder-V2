@@ -693,3 +693,108 @@ export interface SignupResponse {
   user_id: string;
   message: string;
 }
+
+// Blog Types
+export type BlogStatus = 'draft' | 'published' | 'archived';
+
+export interface BlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Blog {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  content: string;
+  featured_image_url?: string;
+  featured_image_alt?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string[];
+  canonical_url?: string;
+  category_id?: string;
+  category?: BlogCategory;
+  tags?: string[];
+  author_id?: string;
+  author_name?: string;
+  author_avatar_url?: string;
+  status: BlogStatus;
+  published_at?: string;
+  view_count: number;
+  read_time_minutes: number;
+  is_featured: boolean;
+  allow_comments: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlogCreate {
+  title: string;
+  slug?: string;
+  excerpt?: string;
+  content: string;
+  featured_image_url?: string;
+  featured_image_alt?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string[];
+  canonical_url?: string;
+  category_id?: string;
+  tags?: string[];
+  author_name?: string;
+  author_avatar_url?: string;
+  status?: BlogStatus;
+  is_featured?: boolean;
+  allow_comments?: boolean;
+  read_time_minutes?: number;
+}
+
+export interface BlogUpdate {
+  title?: string;
+  slug?: string;
+  excerpt?: string;
+  content?: string;
+  featured_image_url?: string;
+  featured_image_alt?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string[];
+  canonical_url?: string;
+  category_id?: string;
+  tags?: string[];
+  author_name?: string;
+  author_avatar_url?: string;
+  status?: BlogStatus;
+  is_featured?: boolean;
+  allow_comments?: boolean;
+  read_time_minutes?: number;
+}
+
+export interface BlogListResponse {
+  blogs: Blog[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface BlogCategoryCreate {
+  name: string;
+  slug: string;
+  description?: string;
+  color?: string;
+}
+
+export interface BlogCategoryUpdate {
+  name?: string;
+  slug?: string;
+  description?: string;
+  color?: string;
+}
