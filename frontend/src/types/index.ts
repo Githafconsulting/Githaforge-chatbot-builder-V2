@@ -798,3 +798,76 @@ export interface BlogCategoryUpdate {
   description?: string;
   color?: string;
 }
+
+// FAQ Types
+export interface FAQCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category_id?: string;
+  category?: FAQCategory;
+  display_order: number;
+  is_featured: boolean;
+  is_active: boolean;
+  view_count: number;
+  helpful_count: number;
+  not_helpful_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FAQCreate {
+  question: string;
+  answer: string;
+  category_id?: string;
+  display_order?: number;
+  is_featured?: boolean;
+  is_active?: boolean;
+}
+
+export interface FAQUpdate {
+  question?: string;
+  answer?: string;
+  category_id?: string;
+  display_order?: number;
+  is_featured?: boolean;
+  is_active?: boolean;
+}
+
+export interface FAQListResponse {
+  faqs: FAQ[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface FAQCategoryCreate {
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  display_order?: number;
+  is_active?: boolean;
+}
+
+export interface FAQCategoryUpdate {
+  name?: string;
+  slug?: string;
+  description?: string;
+  icon?: string;
+  display_order?: number;
+  is_active?: boolean;
+}

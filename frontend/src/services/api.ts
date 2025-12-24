@@ -45,6 +45,13 @@ import type {
   BlogCategoryCreate,
   BlogCategoryUpdate,
   BlogStatus,
+  FAQ,
+  FAQCreate,
+  FAQUpdate,
+  FAQListResponse,
+  FAQCategory,
+  FAQCategoryCreate,
+  FAQCategoryUpdate,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -935,6 +942,91 @@ class ApiService {
 
   async deleteBlogImage(filename: string): Promise<void> {
     await this.api.delete(`/api/v1/blogs/admin/delete-image/${filename}`);
+  }
+
+  // ==================== FAQ APIs (Public) ====================
+
+  async getPublicFAQs(category?: string): Promise<FAQ[]> {
+    const response = await this.api.get('/api/v1/faqs/', { params: category ? { category } : {} });
+    return response.data;
+  }
+
+  async getFeaturedFAQs(limit?: number): Promise<FAQ[]> {
+    const response = await this.api.get('/api/v1/faqs/featured', { params: { limit } });
+    return response.data;
+  }
+
+  async getFAQCategories(): Promise<FAQCategory[]> {
+    const response = await this.api.get('/api/v1/faqs/categories');
+    return response.data;
+  }
+
+  async submitFAQFeedback(faqId: string, helpful: boolean): Promise<void> {
+    await this.api.post(`/api/v1/faqs/${faqId}/feedback`, { helpful });
+  }
+
+  async recordFAQView(faqId: string): Promise<void> {
+    await this.api.post(`/api/v1/faqs/${faqId}/view`);
+  }
+
+  // ==================== FAQ APIs (Admin) ====================
+
+  async getAdminFAQs(params?: {
+    page?: number;
+    page_size?: number;
+    category_id?: string;
+    is_active?: boolean;
+    is_featured?: boolean;
+    search?: string;
+  }): Promise<FAQListResponse> {
+    const response = await this.api.get('/api/v1/faqs/admin/all', { params });
+    return response.data;
+  }
+
+  async getAdminFAQCategories(): Promise<FAQCategory[]> {
+    const response = await this.api.get('/api/v1/faqs/admin/categories');
+    return response.data;
+  }
+
+  async getAdminFAQ(faqId: string): Promise<FAQ> {
+    const response = await this.api.get(`/api/v1/faqs/admin/${faqId}`);
+    return response.data;
+  }
+
+  async createFAQ(faq: FAQCreate): Promise<FAQ> {
+    const response = await this.api.post('/api/v1/faqs/admin', faq);
+    return response.data;
+  }
+
+  async updateFAQ(faqId: string, faq: FAQUpdate): Promise<FAQ> {
+    const response = await this.api.put(`/api/v1/faqs/admin/${faqId}`, faq);
+    return response.data;
+  }
+
+  async deleteFAQ(faqId: string): Promise<void> {
+    await this.api.delete(`/api/v1/faqs/admin/${faqId}`);
+  }
+
+  async reorderFAQs(orders: Array<{ id: string; order: number }>): Promise<void> {
+    await this.api.post('/api/v1/faqs/admin/reorder', orders);
+  }
+
+  async createFAQCategory(category: FAQCategoryCreate): Promise<FAQCategory> {
+    const response = await this.api.post('/api/v1/faqs/admin/categories', category);
+    return response.data;
+  }
+
+  async updateFAQCategory(categoryId: string, category: FAQCategoryUpdate): Promise<FAQCategory> {
+    const response = await this.api.put(`/api/v1/faqs/admin/categories/${categoryId}`, category);
+    return response.data;
+  }
+
+  async deleteFAQCategory(categoryId: string): Promise<void> {
+    await this.api.delete(`/api/v1/faqs/admin/categories/${categoryId}`);
+  }
+
+  async reorderFAQCategories(orders: Array<{ id: string; order: number }>): Promise<void> {
+    await this.api.post('/api/v1/faqs/admin/categories/reorder', orders);
   }
 
   // Generic HTTP methods for custom endpoints
