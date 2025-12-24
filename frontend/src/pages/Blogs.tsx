@@ -187,9 +187,12 @@ export const Blogs: React.FC = () => {
     }
   };
 
-  // Handle category filter
+  // Handle category filter - clears tag filter when selecting a category
   const handleCategoryClick = (slug: string) => {
-    if (selectedCategory === slug) {
+    // Clear tag filter when switching to category filter
+    setSelectedTag('');
+
+    if (selectedCategory === slug || slug === '') {
       setSelectedCategory('');
       setSearchParams({});
     } else {
@@ -198,8 +201,11 @@ export const Blogs: React.FC = () => {
     }
   };
 
-  // Handle tag filter
+  // Handle tag filter - clears category filter when selecting a tag
   const handleTagClick = (tag: string) => {
+    // Clear category filter when switching to tag filter
+    setSelectedCategory('');
+
     if (selectedTag === tag) {
       setSelectedTag('');
       setSearchParams({});
