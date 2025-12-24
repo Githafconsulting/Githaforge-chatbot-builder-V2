@@ -236,13 +236,44 @@ def is_about_chatbot(query: str) -> bool:
 
     # Company-related subjects (when after "your")
     company_subjects = [
+        # Services & Offerings
         "response time", "response times", "prices", "pricing", "cost", "costs",
         "services", "service", "offerings", "products", "solutions",
+        # Operations
         "business hours", "hours", "availability", "schedule",
         "location", "address", "office", "offices",
-        "team", "staff", "employees", "experts", "consultants",
         "process", "processes", "approach", "methodology",
+        # Contact
         "contact", "email", "phone", "number",
+        # Team & People
+        "team", "staff", "employees", "experts", "consultants",
+        # Leadership & Governance
+        "president", "ceo", "director", "leadership", "management", "board",
+        "founder", "owner", "executive", "chairman", "chairwoman",
+        "leadership team", "executive team", "board members", "board of directors",
+        # History & Background
+        "history", "founded", "established", "started", "began",
+        "story", "background", "origins", "inception", "creation",
+        "years in business", "how long", "when did",
+        # Mission & Values
+        "mission", "vision", "values", "goals", "purpose",
+        "philosophy", "principles", "beliefs", "culture",
+        # Membership (for Chambers of Commerce)
+        "members", "membership", "join", "become a member",
+        "benefits", "perks", "advantages", "member benefits",
+        "how to join", "joining process", "membership fees",
+        # Events & Programs
+        "events", "programs", "activities", "workshops", "seminars",
+        "conferences", "meetings", "gatherings", "networking",
+        "upcoming events", "event calendar",
+        # Partnerships
+        "partners", "partnerships", "affiliations", "collaborations",
+        "associations", "alliances", "relationships",
+        # Credentials
+        "certified", "accredited", "licensed", "qualified",
+        "credentials", "qualifications", "recognition",
+        "awards", "achievements", "accolades",
+        # Financial
         "experience", "portfolio", "clients", "projects",
         "rates", "fees", "packages", "plans"
     ]

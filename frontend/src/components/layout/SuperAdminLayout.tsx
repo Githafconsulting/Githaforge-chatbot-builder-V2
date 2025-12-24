@@ -13,7 +13,10 @@ import {
   Users,
   DollarSign,
   Bot,
-  Settings
+  Settings,
+  Sparkles,
+  BookOpen,
+  HelpCircle
 } from 'lucide-react';
 import { useSuperAdminAuth } from '../../contexts/SuperAdminAuthContext';
 import { slideInLeft } from '../../utils/animations';
@@ -33,7 +36,10 @@ export const SuperAdminLayout: React.FC = () => {
   const navItems = [
     { path: '/super-admin', label: 'Platform Analytics', icon: BarChart3, color: 'text-blue-400' },
     { path: '/super-admin/companies', label: 'Companies', icon: Building2, color: 'text-purple-400' },
-    { path: '/super-admin/platform-chatbot', label: 'Platform Chatbot', icon: Bot, color: 'text-pink-400' },
+    { path: '/super-admin/system-personas', label: 'System Personas', icon: Sparkles, color: 'text-pink-400' },
+    { path: '/super-admin/blogs', label: 'Blog Management', icon: BookOpen, color: 'text-orange-400' },
+    { path: '/super-admin/faqs', label: 'FAQ Management', icon: HelpCircle, color: 'text-yellow-400' },
+    { path: '/super-admin/platform-chatbot', label: 'Platform Chatbot', icon: Bot, color: 'text-emerald-400' },
     { path: '/super-admin/chatbot-config', label: 'Chatbot Config', icon: Settings, color: 'text-cyan-400' },
     { path: '/super-admin/users', label: 'All Users', icon: Users, color: 'text-green-400' },
     { path: '/super-admin/billing', label: 'Billing & Plans', icon: DollarSign, color: 'text-amber-400' },

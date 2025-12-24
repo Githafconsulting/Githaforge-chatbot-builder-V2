@@ -256,3 +256,19 @@ input:-webkit-autofill:active {
     display: none !important;
   }
 }
+
+/* reCAPTCHA Dark Theme Customization */
+.recaptcha-container {
+  display: flex;
+  justify-content: center;
+}
+
+.recaptcha-container > div {
+  transform: scale(0.95);
+  transform-origin: center;
+}
+
+/* Make reCAPTCHA background transparent and blend with dark theme */
+.recaptcha-container iframe {
+  border-radius: 8px;
+}

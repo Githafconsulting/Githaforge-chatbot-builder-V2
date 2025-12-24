@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { NavigationNew } from '../components/NavigationNew';
 import { Footer } from '../components/Footer';
 import { Card, Badge, Button, GlowButton, GlowBox } from '../components/ui';
-import { Check, Star, Zap, HelpCircle } from 'lucide-react';
+import { Check, Star, Zap } from 'lucide-react';
 
 export const Pricing: React.FC = () => {
   const navigate = useNavigate();
@@ -57,29 +57,29 @@ export const Pricing: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="inline-flex items-center gap-3 glass p-2 rounded-xl"
+              className="inline-flex items-center gap-1 bg-slate-800/80 dark:bg-slate-900/80 p-1.5 rounded-2xl border-2 border-purple-500/50 shadow-lg shadow-purple-500/20"
             >
               <button
                 onClick={() => setBillingCycle('monthly')}
-                className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                className={`px-8 py-3 rounded-xl font-semibold text-base transition-all duration-300 ${
                   billingCycle === 'monthly'
-                    ? 'bg-primary-600 text-white shadow-md'
-                    : 'text-theme-secondary hover:text-theme-primary'
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/40 scale-105'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 Monthly
               </button>
               <button
                 onClick={() => setBillingCycle('yearly')}
-                className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                className={`px-8 py-3 rounded-xl font-semibold text-base transition-all duration-300 flex items-center gap-2 ${
                   billingCycle === 'yearly'
-                    ? 'bg-primary-600 text-white shadow-md'
-                    : 'text-theme-secondary hover:text-theme-primary'
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/40 scale-105'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 Yearly
-                <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">
-                  Save 20%
+                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full font-bold">
+                  -20%
                 </span>
               </button>
             </motion.div>
@@ -125,16 +125,16 @@ export const Pricing: React.FC = () => {
                       }
                     }}
                   >
-                    {plan.featured && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                        <Badge variant="primary" size="md" rounded>
-                          <Star className="w-3 h-3" />
-                          <span className="ml-1">Most Popular</span>
-                        </Badge>
+                    <div className="p-8">
+                      {/* Badge row - same height for all cards to align content */}
+                      <div className="flex justify-center mb-4 h-7">
+                        {plan.featured && (
+                          <Badge variant="primary" size="md" rounded>
+                            <Star className="w-3 h-3" />
+                            <span className="ml-1">Most Popular</span>
+                          </Badge>
+                        )}
                       </div>
-                    )}
-
-                    <div className="p-8 pt-12">
                       <h3 className="text-2xl font-bold text-theme-primary mb-2">{plan.name}</h3>
 
                       <div className="mt-4 mb-2">
@@ -142,17 +142,20 @@ export const Pricing: React.FC = () => {
                         <span className="text-theme-muted">/{billingCycle === 'yearly' ? 'mo' : 'month'}</span>
                       </div>
 
-                      {billingCycle === 'yearly' && plan.price > 0 && (
-                        <p className="text-sm text-green-600 dark:text-green-400 mb-4">
-                          Billed ${price}/year (save ${Math.round(plan.price * 12 * discount)})
-                        </p>
-                      )}
+                      {/* Fixed height container for yearly billing text to keep alignment */}
+                      <div className="h-6 mb-4">
+                        {billingCycle === 'yearly' && plan.price > 0 && (
+                          <p className="text-sm text-green-600 dark:text-green-400">
+                            Billed ${price}/year (save ${Math.round(plan.price * 12 * discount)})
+                          </p>
+                        )}
+                      </div>
 
                       <p className="text-theme-secondary mb-6">{plan.description}</p>
 
                       <GlowButton
                         glowColor="#a855f7"
-                        glowVariant={plan.featured ? 'gradient' : 'outline'}
+                        glowVariant="gradient"
                         fullWidth
                         size="large"
                         onClick={() => navigate(`/signup?plan=${plan.name.toLowerCase()}&billing=${billingCycle}`)}
@@ -181,57 +184,6 @@ export const Pricing: React.FC = () => {
             })}
           </div>
 
-          {/* FAQ Section */}
-          <div className="max-w-3xl mx-auto">
-            <h2 className="text-3xl font-display font-bold text-center mb-12 text-theme-primary">
-              Frequently Asked Questions
-            </h2>
-
-            <div className="space-y-4 px-4">
-              {faqs.map((faq, index) => (
-                <motion.div
-                  key={faq.question}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                >
-                  <GlowBox
-                    glowColor="#a855f7"
-                    glowIntensity="medium"
-                    glowEffect="rotating"
-                    borderGlow
-                    sx={{
-                      background: 'rgba(0, 0, 0, 0.4)',
-                      backdropFilter: 'blur(20px)',
-                      borderRadius: 3,
-                      p: 3,
-                      border: '2px solid #a855f7',
-                      boxShadow: '0 0 15px rgba(168, 85, 247, 0.5), inset 0 0 8px rgba(168, 85, 247, 0.2)',
-                      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        boxShadow: '0 0 30px rgba(168, 85, 247, 0.7), inset 0 0 15px rgba(168, 85, 247, 0.3)',
-                      }
-                    }}
-                  >
-                    <div className="flex items-start gap-4">
-                      <HelpCircle className="w-6 h-6 text-primary-600 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="text-lg font-semibold text-theme-primary mb-2">
-                          {faq.question}
-                        </h3>
-                        <p className="text-theme-secondary">
-                          {faq.answer}
-                        </p>
-                      </div>
-                    </div>
-                  </GlowBox>
-                </motion.div>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
@@ -297,29 +249,3 @@ const pricingPlans = [
   },
 ];
 
-const faqs = [
-  {
-    question: 'Can I change plans later?',
-    answer: 'Yes! You can upgrade, downgrade, or cancel your plan at any time. Changes take effect immediately, and we\'ll prorate any charges.'
-  },
-  {
-    question: 'What happens after the 14-day trial?',
-    answer: 'After your trial ends, you\'ll be automatically subscribed to the Free plan unless you choose a paid plan. Your data and chatbots are always safe.'
-  },
-  {
-    question: 'Do you offer refunds?',
-    answer: 'Yes, we offer a 30-day money-back guarantee on all paid plans. If you\'re not satisfied, we\'ll refund you in full, no questions asked.'
-  },
-  {
-    question: 'How does the message limit work?',
-    answer: 'Message limits reset monthly. If you exceed your limit, your chatbot will still work but you\'ll be prompted to upgrade for continued service.'
-  },
-  {
-    question: 'Is my data secure?',
-    answer: 'Absolutely. We use bank-level encryption, are GDPR and SOC 2 compliant, and never share your data with third parties. Your data belongs to you.'
-  },
-  {
-    question: 'Can I get a custom Enterprise plan?',
-    answer: 'Yes! Contact our sales team to discuss custom pricing, features, and SLAs tailored to your organization\'s needs.'
-  }
-];

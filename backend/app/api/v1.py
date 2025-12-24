@@ -20,7 +20,9 @@ from app.api.routes import (
     chatbots,
     integrations,
     super_admin,
-    personas
+    personas,
+    blogs,
+    faqs
 )
 
 api_router = APIRouter()
@@ -50,3 +52,9 @@ api_router.include_router(super_admin.router, prefix="/super-admin", tags=["Supe
 
 # Cloud integrations
 api_router.include_router(integrations.router, prefix="/integrations", tags=["Cloud Integrations"])
+
+# Public blog routes
+api_router.include_router(blogs.router, prefix="/blogs", tags=["Blogs"])
+
+# Public FAQ routes
+api_router.include_router(faqs.router, prefix="/faqs", tags=["FAQs"])

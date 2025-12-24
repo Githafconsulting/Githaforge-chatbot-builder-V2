@@ -33,7 +33,13 @@ INTENT_EXAMPLES = {
         "Tell me about your services",
         "How much does it cost?",
         "When are you open?",
-        "What's your email address?"
+        "What's your email address?",
+        "Who is your president?",
+        "Who's your CEO?",
+        "Who's your leader?",
+        "Tell me about your team",
+        "Who runs the organization?",
+        "Who are your board members?"
     ],
     "greeting": [
         "Hello",
@@ -65,10 +71,13 @@ INTENT_EXAMPLES = {
     ],
     "out_of_scope": [
         "What's the weather today?",
-        "Who is the president?",
+        "Who is the president of France?",
+        "Who is the president of the USA?",
         "Tell me a joke",
         "What's 2+2?",
-        "Who won the game?"
+        "Who won the game?",
+        "What's the latest news?",
+        "Who won the election?"
     ]
 }
 

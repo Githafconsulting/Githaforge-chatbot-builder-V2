@@ -19,7 +19,9 @@
       "Bash(git branch:*)",
       "Bash(ls:*)",
       "Bash(dir /s /b \"c:\\Users\\Stevey\\Desktop\\Projects\\8. Githaforge-chatbot-builder-V2\\frontend\\src\\*.tsx\")",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "Bash(dir /s /b \"c:\\\\Users\\\\Stevey\\\\Desktop\\\\Projects\\\\8. Githaforge-chatbot-builder-V2\\\\backend\\\\scripts\\\\*.sql\")"
     ],
     "deny": [],
     "ask": []

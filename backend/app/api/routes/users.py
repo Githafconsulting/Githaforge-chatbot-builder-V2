@@ -2,13 +2,14 @@
 User management API endpoints
 """
 from app.core.dependencies import get_current_user, get_current_admin_user
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from app.models.user import UserCreate, User
 from app.core.database import get_supabase_client
 from app.core.security import get_password_hash
 from app.utils.logger import get_logger
 from datetime import datetime
 from typing import List
+import uuid
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -423,4 +424,98 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_adm
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete user: {str(e)}"
+        )
+
+
+@router.post("/upload-avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload user avatar/profile photo.
+
+    - Accepts image files (PNG, JPG, GIF, WebP)
+    - Max file size: 2MB
+    - Returns the URL of the uploaded avatar
+
+    The avatar is stored in Supabase Storage and the URL is saved to the user record.
+    """
+    try:
+        client = get_supabase_client()
+        user_id = current_user["id"]
+
+        # Validate file type
+        allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid file type. Allowed: PNG, JPG, GIF, WebP"
+            )
+
+        # Read file content
+        content = await file.read()
+
+        # Validate file size (2MB max)
+        if len(content) > 2 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File too large. Maximum size is 2MB"
+            )
+
+        # Generate unique filename
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "png"
+        unique_filename = f"{user_id}/{uuid.uuid4()}.{file_ext}"
+        storage_path = f"avatars/{unique_filename}"
+
+        # Upload to Supabase Storage
+        try:
+            # First try to delete any existing avatar in this path
+            try:
+                client.storage.from_("avatars").remove([f"{user_id}"])
+            except:
+                pass  # Ignore if no existing files
+
+            # Upload new avatar
+            upload_response = client.storage.from_("avatars").upload(
+                storage_path,
+                content,
+                {"content-type": file.content_type}
+            )
+        except Exception as storage_error:
+            logger.error(f"Storage upload error: {storage_error}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload file to storage: {str(storage_error)}"
+            )
+
+        # Get public URL
+        public_url = client.storage.from_("avatars").get_public_url(storage_path)
+
+        # Update user record with avatar URL
+        update_response = client.table("users").update({
+            "avatar_url": public_url
+        }).eq("id", user_id).execute()
+
+        if not update_response.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update user avatar URL"
+            )
+
+        logger.info(f"Avatar uploaded for user: {user_id}")
+
+        return {
+            "success": True,
+            "url": public_url,
+            "message": "Avatar uploaded successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading avatar: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload avatar: {str(e)}"
         )

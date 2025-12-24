@@ -18,6 +18,8 @@ from app.services.document_service import (
     get_document_full_content,
     update_document
 )
+from app.services.persona_service import get_persona_service, clear_persona_cache
+from app.models.persona import Persona, PersonaCreate, SystemPersonaUpdate
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -1246,4 +1248,255 @@ async def download_platform_document(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to download document: {str(e)}"
+        )
+
+
+# ===========================
+# SYSTEM PERSONAS MANAGEMENT
+# ===========================
+
+class SystemPersonaCreateRequest(BaseModel):
+    """Request model for creating a system persona"""
+    name: str
+    description: str
+    system_prompt: str
+
+
+@router.get("/system-personas", response_model=List[Persona])
+async def list_system_personas(
+    _: Dict = Depends(require_super_admin)
+):
+    """
+    List all system personas (global defaults).
+
+    System personas are available to all companies as read-only defaults.
+    Companies can clone them to create editable copies.
+    """
+    try:
+        service = get_persona_service()
+        personas = await service.list_system_personas()
+
+        logger.info(f"Super admin listed {len(personas)} system personas")
+
+        return personas
+
+    except Exception as e:
+        logger.error(f"Error listing system personas: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list system personas: {str(e)}"
+        )
+
+
+@router.get("/system-personas/{persona_id}", response_model=Persona)
+async def get_system_persona(
+    persona_id: str,
+    _: Dict = Depends(require_super_admin)
+):
+    """
+    Get a system persona by ID.
+    """
+    try:
+        service = get_persona_service()
+        persona = await service.get_system_persona(persona_id)
+
+        if not persona:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"System persona {persona_id} not found"
+            )
+
+        return persona
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting system persona: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get system persona: {str(e)}"
+        )
+
+
+@router.post("/system-personas", response_model=Persona, status_code=status.HTTP_201_CREATED)
+async def create_system_persona(
+    request: SystemPersonaCreateRequest,
+    _: Dict = Depends(require_super_admin)
+):
+    """
+    Create a new system persona.
+
+    This persona will be available to all companies as a read-only default.
+
+    - **name**: Unique name for the persona (e.g., "Technical Support")
+    - **description**: Brief description of the persona's purpose
+    - **system_prompt**: The full system prompt for the LLM
+    """
+    try:
+        service = get_persona_service()
+        persona = await service.create_system_persona(
+            name=request.name,
+            description=request.description,
+            system_prompt=request.system_prompt
+        )
+
+        logger.info(f"Super admin created system persona: {persona.id} ({persona.name})")
+
+        return persona
+
+    except Exception as e:
+        if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A system persona with name '{request.name}' already exists"
+            )
+        logger.error(f"Error creating system persona: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create system persona: {str(e)}"
+        )
+
+
+@router.put("/system-personas/{persona_id}", response_model=Persona)
+async def update_system_persona(
+    persona_id: str,
+    request: SystemPersonaUpdate,
+    _: Dict = Depends(require_super_admin)
+):
+    """
+    Update a system persona.
+
+    Changes will be reflected immediately for all companies using this persona.
+
+    - **name**: New name (optional)
+    - **description**: New description (optional)
+    - **system_prompt**: New system prompt (optional) - this is what companies will see
+    """
+    try:
+        service = get_persona_service()
+        persona = await service.update_system_persona(persona_id, request)
+
+        if not persona:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"System persona {persona_id} not found"
+            )
+
+        logger.info(f"Super admin updated system persona: {persona_id}")
+
+        return persona
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A system persona with this name already exists"
+            )
+        logger.error(f"Error updating system persona: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update system persona: {str(e)}"
+        )
+
+
+@router.delete("/system-personas/{persona_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_system_persona(
+    persona_id: str,
+    _: Dict = Depends(require_super_admin)
+):
+    """
+    Delete a system persona.
+
+    **Warning:** This will remove the persona from all companies!
+    Companies using this persona for their chatbots will need to select a different one.
+    """
+    try:
+        service = get_persona_service()
+
+        # Verify it exists
+        persona = await service.get_system_persona(persona_id)
+        if not persona:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"System persona {persona_id} not found"
+            )
+
+        success = await service.delete_system_persona(persona_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete system persona"
+            )
+
+        logger.warning(f"Super admin deleted system persona: {persona_id} ({persona.name})")
+
+        return None
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting system persona: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete system persona: {str(e)}"
+        )
+
+
+@router.get("/system-personas/{persona_id}/usage")
+async def get_system_persona_usage(
+    persona_id: str,
+    _: Dict = Depends(require_super_admin)
+):
+    """
+    Get usage statistics for a system persona.
+
+    Shows how many chatbots across all companies are using this persona.
+    """
+    try:
+        client = get_supabase_client()
+        service = get_persona_service()
+
+        # Verify persona exists
+        persona = await service.get_system_persona(persona_id)
+        if not persona:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"System persona {persona_id} not found"
+            )
+
+        # Count chatbots using this persona
+        chatbots_response = client.table("chatbots").select(
+            "id, name, company_id"
+        ).eq("persona_id", persona_id).execute()
+
+        chatbots = chatbots_response.data if chatbots_response.data else []
+
+        # Get company names
+        if chatbots:
+            company_ids = list(set([c["company_id"] for c in chatbots]))
+            companies_response = client.table("companies").select("id, name").in_("id", company_ids).execute()
+            companies_map = {c["id"]: c["name"] for c in companies_response.data} if companies_response.data else {}
+
+            for chatbot in chatbots:
+                chatbot["company_name"] = companies_map.get(chatbot["company_id"], "Unknown")
+
+        logger.info(f"Super admin checked usage for system persona: {persona_id}")
+
+        return {
+            "persona_id": persona_id,
+            "persona_name": persona.name,
+            "total_chatbots": len(chatbots),
+            "chatbots": chatbots
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting system persona usage: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get persona usage: {str(e)}"
         )

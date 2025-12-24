@@ -263,6 +263,46 @@ async def company_signup(signup_data: CompanySignup):
         )
 
 
+async def verify_recaptcha(token: str) -> bool:
+    """
+    Verify reCAPTCHA token with Google's API.
+    Returns True if verification passes, False otherwise.
+    """
+    import httpx
+
+    if not settings.RECAPTCHA_ENABLED:
+        logger.info("reCAPTCHA verification skipped (disabled in settings)")
+        return True
+
+    if not settings.RECAPTCHA_SECRET_KEY:
+        logger.warning("reCAPTCHA secret key not configured")
+        return True  # Allow signup if not configured (dev mode)
+
+    if not token:
+        logger.warning("No reCAPTCHA token provided")
+        return False
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://www.google.com/recaptcha/api/siteverify",
+                data={
+                    "secret": settings.RECAPTCHA_SECRET_KEY,
+                    "response": token
+                }
+            )
+            result = response.json()
+            success = result.get("success", False)
+
+            if not success:
+                logger.warning(f"reCAPTCHA verification failed: {result.get('error-codes', [])}")
+
+            return success
+    except Exception as e:
+        logger.error(f"reCAPTCHA verification error: {e}")
+        return False  # Fail closed - reject if verification fails
+
+
 @router.post("/unified-signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def unified_signup(signup_data: UnifiedSignup):
     """
@@ -280,10 +320,22 @@ async def unified_signup(signup_data: UnifiedSignup):
     - Can invite unlimited team members (based on plan)
     - Full multi-tenant features
 
+    **reCAPTCHA:**
+    - Required when RECAPTCHA_ENABLED=True
+    - Pass recaptcha_token from Google reCAPTCHA v2 widget
+
     Returns JWT access token for immediate login.
     """
     try:
         client = get_supabase_client()
+
+        # Verify reCAPTCHA token
+        if settings.RECAPTCHA_ENABLED:
+            if not await verify_recaptcha(signup_data.recaptcha_token):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="reCAPTCHA verification failed. Please try again."
+                )
 
         # Validate company_name is provided for company accounts
         if signup_data.account_type == "company" and not signup_data.company_name:
@@ -395,7 +447,12 @@ async def unified_signup(signup_data: UnifiedSignup):
             "role_id": role_id,
             "role": "owner",
             "is_active": True,
-            "is_admin": True
+            "is_admin": True,
+            # New fields from enhanced signup
+            "phone": signup_data.phone or None,
+            "contact_email": signup_data.contact_email or None,
+            "marketing_consent": signup_data.marketing_consent,
+            "wants_consultation": signup_data.wants_consultation,
         }
 
         user_response = client.table("users").insert(user_data).execute()
@@ -418,7 +475,7 @@ async def unified_signup(signup_data: UnifiedSignup):
             "sub": str(user_id),
             "company_id": str(company_id),
             "role": "owner",
-            "full_name": signup_data.full_name
+            "full_name": full_name  # Use computed full_name (from first_name + last_name), not signup_data.full_name
         }
         access_token = create_access_token(
             data=token_data,

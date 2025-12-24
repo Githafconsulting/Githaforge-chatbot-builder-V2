@@ -620,17 +620,22 @@ export interface PromptHistoryEntry {
 
 export interface Persona {
   id: string;
-  company_id: string;
+  company_id?: string | null;  // NULL for system personas
   name: string;
   description?: string;
   system_prompt: string;
   is_default: boolean;
+  is_system: boolean;  // TRUE = global system persona (read-only), FALSE = company-specific
   default_prompt?: string;
   prompt_history: PromptHistoryEntry[];
   regenerate_context?: string;
   created_at: string;
   updated_at: string;
   chatbot_count?: number;  // Optional - included when listing with counts
+}
+
+export interface PersonaCloneRequest {
+  new_name?: string;  // Optional custom name for the cloned persona
 }
 
 export interface PersonaCreate {
@@ -659,17 +664,26 @@ export type AccountType = 'company' | 'individual';
 
 export interface UnifiedSignupRequest {
   account_type: AccountType;
-  email: string;
+  email: string;  // Sign-in email (used for authentication)
   password: string;
   // Name fields - support both first_name/last_name and full_name for backward compatibility
   first_name?: string;
   last_name?: string;
   full_name?: string;  // Deprecated, use first_name + last_name
+  // Contact information
+  contact_email?: string;  // Optional contact email (if different from sign-in email)
+  phone?: string;  // Phone number
+  // Company-specific fields
   company_name?: string;  // Required for company accounts
   website?: string;
   industry?: string;
   company_size?: '1-10' | '11-50' | '51-200' | '201-500' | '500+';
   subscription_tier?: 'free' | 'pro' | 'enterprise';
+  // Consent and preferences
+  marketing_consent?: boolean;  // User opted in to marketing communications
+  wants_consultation?: boolean;  // User requested a live consultation/walkthrough
+  // reCAPTCHA token for bot protection
+  recaptcha_token?: string;
 }
 
 export interface SignupResponse {
@@ -678,4 +692,182 @@ export interface SignupResponse {
   company_id: string;
   user_id: string;
   message: string;
+}
+
+// Blog Types
+export type BlogStatus = 'draft' | 'published' | 'archived';
+
+export interface BlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Blog {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  content: string;
+  featured_image_url?: string;
+  featured_image_alt?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string[];
+  canonical_url?: string;
+  category_id?: string;
+  category?: BlogCategory;
+  tags?: string[];
+  author_id?: string;
+  author_name?: string;
+  author_avatar_url?: string;
+  status: BlogStatus;
+  published_at?: string;
+  view_count: number;
+  read_time_minutes: number;
+  is_featured: boolean;
+  allow_comments: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlogCreate {
+  title: string;
+  slug?: string;
+  excerpt?: string;
+  content: string;
+  featured_image_url?: string;
+  featured_image_alt?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string[];
+  canonical_url?: string;
+  category_id?: string;
+  tags?: string[];
+  author_name?: string;
+  author_avatar_url?: string;
+  status?: BlogStatus;
+  is_featured?: boolean;
+  allow_comments?: boolean;
+  read_time_minutes?: number;
+}
+
+export interface BlogUpdate {
+  title?: string;
+  slug?: string;
+  excerpt?: string;
+  content?: string;
+  featured_image_url?: string;
+  featured_image_alt?: string;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string[];
+  canonical_url?: string;
+  category_id?: string;
+  tags?: string[];
+  author_name?: string;
+  author_avatar_url?: string;
+  status?: BlogStatus;
+  is_featured?: boolean;
+  allow_comments?: boolean;
+  read_time_minutes?: number;
+}
+
+export interface BlogListResponse {
+  blogs: Blog[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface BlogCategoryCreate {
+  name: string;
+  slug: string;
+  description?: string;
+  color?: string;
+}
+
+export interface BlogCategoryUpdate {
+  name?: string;
+  slug?: string;
+  description?: string;
+  color?: string;
+}
+
+// FAQ Types
+export interface FAQCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category_id?: string;
+  category?: FAQCategory;
+  display_order: number;
+  is_featured: boolean;
+  is_active: boolean;
+  view_count: number;
+  helpful_count: number;
+  not_helpful_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FAQCreate {
+  question: string;
+  answer: string;
+  category_id?: string;
+  display_order?: number;
+  is_featured?: boolean;
+  is_active?: boolean;
+}
+
+export interface FAQUpdate {
+  question?: string;
+  answer?: string;
+  category_id?: string;
+  display_order?: number;
+  is_featured?: boolean;
+  is_active?: boolean;
+}
+
+export interface FAQListResponse {
+  faqs: FAQ[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface FAQCategoryCreate {
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  display_order?: number;
+  is_active?: boolean;
+}
+
+export interface FAQCategoryUpdate {
+  name?: string;
+  slug?: string;
+  description?: string;
+  icon?: string;
+  display_order?: number;
+  is_active?: boolean;
 }
