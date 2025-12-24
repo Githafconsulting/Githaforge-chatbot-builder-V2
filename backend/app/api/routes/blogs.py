@@ -1,7 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, UploadFile, File
 from typing import Optional, List
 import math
+import uuid
+from datetime import datetime
 
+from app.core.database import get_supabase_client
 from app.models.blog import (
     Blog,
     BlogCreate,
@@ -261,3 +264,87 @@ async def delete_category(
 
     service.delete_category(category_id)
     return {"message": "Category deleted successfully"}
+
+
+# ==================== IMAGE UPLOAD ENDPOINT ====================
+
+ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+@router.post("/admin/upload-image")
+async def upload_blog_image(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Upload an image for blog posts.
+    Returns the public URL of the uploaded image.
+    """
+    # Validate file type
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed types: {', '.join(ALLOWED_IMAGE_TYPES)}"
+        )
+
+    # Read file content
+    content = await file.read()
+
+    # Validate file size
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {MAX_IMAGE_SIZE // (1024 * 1024)}MB"
+        )
+
+    # Generate unique filename
+    file_extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    unique_id = str(uuid.uuid4())[:8]
+    new_filename = f"{timestamp}_{unique_id}.{file_extension}"
+    storage_path = f"blog-images/{new_filename}"
+
+    try:
+        client = get_supabase_client()
+
+        # Upload to Supabase Storage
+        response = client.storage.from_("blog-images").upload(
+            path=new_filename,
+            file=content,
+            file_options={"content-type": file.content_type}
+        )
+
+        # Get public URL
+        public_url = client.storage.from_("blog-images").get_public_url(new_filename)
+
+        return {
+            "success": True,
+            "url": public_url,
+            "filename": new_filename,
+            "size": len(content),
+            "content_type": file.content_type
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload image: {str(e)}"
+        )
+
+
+@router.delete("/admin/delete-image/{filename}")
+async def delete_blog_image(
+    filename: str,
+    current_user=Depends(get_current_user),
+):
+    """Delete an uploaded blog image."""
+    try:
+        client = get_supabase_client()
+        client.storage.from_("blog-images").remove([filename])
+        return {"success": True, "message": "Image deleted successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete image: {str(e)}"
+        )

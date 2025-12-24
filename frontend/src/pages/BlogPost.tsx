@@ -24,6 +24,9 @@ import { apiService } from '../services/api';
 import type { Blog } from '../types';
 import toast from 'react-hot-toast';
 
+// Default placeholder image when no featured image is set
+const DEFAULT_PLACEHOLDER = 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=630&fit=crop';
+
 // Share button component
 const ShareButton: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void }> = ({
   icon,
@@ -353,21 +356,19 @@ export const BlogPost: React.FC = () => {
                 </motion.div>
               )}
 
-              {/* Featured Image */}
-              {blog.featured_image_url && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                  className="mb-12 rounded-2xl overflow-hidden"
-                >
-                  <img
-                    src={blog.featured_image_url}
-                    alt={blog.featured_image_alt || blog.title}
-                    className="w-full h-auto max-h-[500px] object-cover"
-                  />
-                </motion.div>
-              )}
+              {/* Featured Image - Always show (use placeholder if no featured image) */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="mb-12 rounded-2xl overflow-hidden border-2 border-purple-500/30"
+              >
+                <img
+                  src={blog.featured_image_url || DEFAULT_PLACEHOLDER}
+                  alt={blog.featured_image_alt || blog.title}
+                  className="w-full h-auto max-h-[500px] object-cover"
+                />
+              </motion.div>
 
               {/* Content */}
               <motion.div
@@ -387,28 +388,28 @@ export const BlogPost: React.FC = () => {
                   }}
                 >
                   <div className="p-8 sm:p-12">
-                    <div className="prose prose-lg prose-invert max-w-none">
+                    <div className="max-w-none">
                       <ReactMarkdown
                         components={{
                           h1: ({ children }) => (
-                            <h1 className="text-3xl font-bold text-theme-primary mt-8 mb-4">{children}</h1>
+                            <h1 className="text-3xl font-bold text-white mt-8 mb-4">{children}</h1>
                           ),
                           h2: ({ children }) => (
-                            <h2 className="text-2xl font-bold text-theme-primary mt-8 mb-4">{children}</h2>
+                            <h2 className="text-2xl font-bold text-white mt-8 mb-4">{children}</h2>
                           ),
                           h3: ({ children }) => (
-                            <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-3">{children}</h3>
+                            <h3 className="text-xl font-semibold text-white mt-6 mb-3">{children}</h3>
                           ),
                           p: ({ children }) => (
-                            <p className="text-theme-secondary mb-4 leading-relaxed">{children}</p>
+                            <p className="text-gray-200 mb-4 leading-relaxed">{children}</p>
                           ),
                           ul: ({ children }) => (
-                            <ul className="list-disc list-inside text-theme-secondary mb-4 space-y-2">{children}</ul>
+                            <ul className="list-disc list-inside text-gray-200 mb-4 space-y-2">{children}</ul>
                           ),
                           ol: ({ children }) => (
-                            <ol className="list-decimal list-inside text-theme-secondary mb-4 space-y-2">{children}</ol>
+                            <ol className="list-decimal list-inside text-gray-200 mb-4 space-y-2">{children}</ol>
                           ),
-                          li: ({ children }) => <li className="text-theme-secondary">{children}</li>,
+                          li: ({ children }) => <li className="text-gray-200">{children}</li>,
                           a: ({ href, children }) => (
                             <a
                               href={href}
@@ -420,7 +421,7 @@ export const BlogPost: React.FC = () => {
                             </a>
                           ),
                           blockquote: ({ children }) => (
-                            <blockquote className="border-l-4 border-purple-500 pl-4 italic text-theme-secondary my-4">
+                            <blockquote className="border-l-4 border-purple-500 pl-4 italic text-gray-300 my-4">
                               {children}
                             </blockquote>
                           ),
@@ -435,7 +436,7 @@ export const BlogPost: React.FC = () => {
                             </pre>
                           ),
                           strong: ({ children }) => (
-                            <strong className="font-bold text-theme-primary">{children}</strong>
+                            <strong className="font-bold text-white">{children}</strong>
                           ),
                         }}
                       >

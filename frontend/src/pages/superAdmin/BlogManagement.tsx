@@ -19,6 +19,9 @@ import {
   Archive,
   Tag,
   ExternalLink,
+  Upload,
+  Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import type { Blog, BlogCategory, BlogCreate, BlogUpdate, BlogStatus } from '../../types';
@@ -72,6 +75,29 @@ const BlogEditor: React.FC<{
   const [tagInput, setTagInput] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Sync form data when blog prop changes (for editing existing blogs)
+  useEffect(() => {
+    if (blog) {
+      setFormData({
+        title: blog.title || '',
+        slug: blog.slug || '',
+        excerpt: blog.excerpt || '',
+        content: blog.content || '',
+        featured_image_url: blog.featured_image_url || '',
+        featured_image_alt: blog.featured_image_alt || '',
+        meta_title: blog.meta_title || '',
+        meta_description: blog.meta_description || '',
+        meta_keywords: blog.meta_keywords || [],
+        category_id: blog.category_id || '',
+        tags: blog.tags || [],
+        author_name: blog.author_name || 'Githaforge Team',
+        status: blog.status || 'draft',
+        is_featured: blog.is_featured || false,
+      });
+    }
+  }, [blog]);
 
   // Auto-generate slug from title
   const generateSlug = (title: string) => {
@@ -123,6 +149,40 @@ const BlogEditor: React.FC<{
       ...prev,
       meta_keywords: prev.meta_keywords?.filter((k) => k !== keyword) || [],
     }));
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const result = await apiService.uploadBlogImage(file);
+      setFormData((prev) => ({
+        ...prev,
+        featured_image_url: result.url,
+        featured_image_alt: prev.featured_image_alt || file.name.replace(/\.[^/.]+$/, ''),
+      }));
+      toast.success('Image uploaded successfully!');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error.response?.data?.detail || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -241,26 +301,104 @@ Write in Markdown format. Support for headings, lists, links, code blocks, etc."
           </div>
 
           {/* Featured Image */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-white mb-2">Featured Image URL</label>
-              <input
-                type="url"
-                value={formData.featured_image_url || ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, featured_image_url: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white focus:border-purple-500 focus:outline-none"
-                placeholder="https://example.com/image.jpg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-2">Image Alt Text</label>
-              <input
-                type="text"
-                value={formData.featured_image_alt || ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, featured_image_alt: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white focus:border-purple-500 focus:outline-none"
-                placeholder="Descriptive alt text for SEO"
-              />
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-white">Featured Image</label>
+
+            {/* Image Preview */}
+            {formData.featured_image_url && (
+              <div className="relative rounded-xl overflow-hidden border border-white/10">
+                <img
+                  src={formData.featured_image_url}
+                  alt={formData.featured_image_alt || 'Preview'}
+                  className="w-full h-48 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, featured_image_url: '', featured_image_alt: '' }))}
+                  className="absolute top-2 right-2 p-2 bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors"
+                  title="Remove image"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            )}
+
+            {/* Upload Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm text-gray-400">Upload an image</span>
+                </div>
+                <label className={`flex flex-col items-center justify-center w-full h-32 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+                  uploading
+                    ? 'border-purple-500/50 bg-purple-500/10'
+                    : 'border-white/20 hover:border-purple-500/50 hover:bg-slate-800/50'
+                }`}>
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    {uploading ? (
+                      <>
+                        <Loader2 className="w-8 h-8 text-purple-400 animate-spin mb-2" />
+                        <p className="text-sm text-gray-400">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-400">Click to upload</p>
+                        <p className="text-xs text-gray-500">PNG, JPG, GIF, WebP (max 5MB)</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleImageUpload}
+                    disabled={uploading}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">
+                    {formData.featured_image_url ? 'Current Image URL' : 'Or enter URL directly'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={formData.featured_image_url || ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, featured_image_url: e.target.value }))}
+                      className={`w-full px-4 py-3 rounded-xl bg-slate-800 border text-white focus:border-purple-500 focus:outline-none ${
+                        formData.featured_image_url
+                          ? 'border-green-500/50 pr-10'
+                          : 'border-white/10'
+                      }`}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                    {formData.featured_image_url && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Check className="w-5 h-5 text-green-400" />
+                      </div>
+                    )}
+                  </div>
+                  {formData.featured_image_url && (
+                    <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" />
+                      Image URL is set
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Alt Text (for SEO)</label>
+                  <input
+                    type="text"
+                    value={formData.featured_image_alt || ''}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, featured_image_alt: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white focus:border-purple-500 focus:outline-none"
+                    placeholder="Descriptive alt text"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 

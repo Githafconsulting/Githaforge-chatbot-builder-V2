@@ -19,6 +19,9 @@ import {
 import { apiService } from '../services/api';
 import type { Blog, BlogCategory } from '../types';
 
+// Default placeholder image when no featured image is set
+const DEFAULT_PLACEHOLDER = 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop';
+
 // Blog Card Component
 const BlogCard: React.FC<{ blog: Blog; featured?: boolean }> = ({ blog, featured = false }) => {
   const formattedDate = blog.published_at
@@ -28,6 +31,9 @@ const BlogCard: React.FC<{ blog: Blog; featured?: boolean }> = ({ blog, featured
         year: 'numeric',
       })
     : '';
+
+  // Use featured image from database or fallback to default placeholder
+  const imageUrl = blog.featured_image_url || DEFAULT_PLACEHOLDER;
 
   return (
     <Link to={`/blog/${blog.slug}`}>
@@ -43,6 +49,8 @@ const BlogCard: React.FC<{ blog: Blog; featured?: boolean }> = ({ blog, featured
           borderGlow
           sx={{
             height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
             background: 'rgba(0, 0, 0, 0.4)',
             backdropFilter: 'blur(20px)',
             borderRadius: 3,
@@ -56,29 +64,27 @@ const BlogCard: React.FC<{ blog: Blog; featured?: boolean }> = ({ blog, featured
             }
           }}
         >
-          {/* Featured Image */}
-          {blog.featured_image_url && (
-            <div className={`relative overflow-hidden ${featured ? 'h-64' : 'h-48'}`}>
-              <img
-                src={blog.featured_image_url}
-                alt={blog.featured_image_alt || blog.title}
-                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-              />
-              {blog.is_featured && (
-                <div className="absolute top-3 left-3">
-                  <Badge variant="accent" size="sm" rounded>
-                    <Sparkles className="w-3 h-3 mr-1" />
-                    Featured
-                  </Badge>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Featured Image - Fixed Height */}
+          <div className={`relative overflow-hidden flex-shrink-0 ${featured ? 'h-64' : 'h-48'}`}>
+            <img
+              src={imageUrl}
+              alt={blog.featured_image_alt || blog.title}
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            />
+            {blog.is_featured && (
+              <div className="absolute top-3 left-3">
+                <Badge variant="accent" size="sm" rounded>
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Featured
+                </Badge>
+              </div>
+            )}
+          </div>
 
-          {/* Content */}
-          <div className="p-6">
-            {/* Category & Date */}
-            <div className="flex items-center gap-3 mb-3">
+          {/* Content - Flex grow to fill space */}
+          <div className="p-6 flex flex-col flex-grow">
+            {/* Category & Date - Fixed Height */}
+            <div className="flex items-center gap-3 mb-3 h-6 flex-shrink-0">
               {blog.category && (
                 <span
                   className="text-xs font-semibold px-2 py-1 rounded-full"
@@ -87,27 +93,31 @@ const BlogCard: React.FC<{ blog: Blog; featured?: boolean }> = ({ blog, featured
                   {blog.category.name}
                 </span>
               )}
-              <span className="text-sm text-theme-muted flex items-center gap-1">
+              <span className="text-sm text-gray-400 flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 {formattedDate}
               </span>
             </div>
 
-            {/* Title */}
-            <h3 className={`font-bold text-theme-primary mb-3 line-clamp-2 ${featured ? 'text-2xl' : 'text-lg'}`}>
-              {blog.title}
-            </h3>
+            {/* Title - Fixed Height */}
+            <div className={`flex-shrink-0 ${featured ? 'h-16' : 'h-14'} mb-3`}>
+              <h3 className={`font-bold text-white line-clamp-2 ${featured ? 'text-2xl' : 'text-lg'}`}>
+                {blog.title}
+              </h3>
+            </div>
 
-            {/* Excerpt */}
-            {blog.excerpt && (
-              <p className={`text-theme-secondary mb-4 line-clamp-${featured ? '3' : '2'}`}>
-                {blog.excerpt}
-              </p>
-            )}
+            {/* Excerpt - Fixed Height */}
+            <div className={`flex-shrink-0 ${featured ? 'h-20' : 'h-12'} mb-4`}>
+              {blog.excerpt && (
+                <p className={`text-gray-300 ${featured ? 'line-clamp-3' : 'line-clamp-2'}`}>
+                  {blog.excerpt}
+                </p>
+              )}
+            </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-white/10">
-              <div className="flex items-center gap-4 text-sm text-theme-muted">
+            {/* Footer - Always at bottom */}
+            <div className="flex items-center justify-between pt-4 border-t border-white/10 mt-auto">
+              <div className="flex items-center gap-4 text-sm text-gray-400">
                 <span className="flex items-center gap-1">
                   <Clock className="w-4 h-4" />
                   {blog.read_time_minutes} min read

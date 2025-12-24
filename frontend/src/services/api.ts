@@ -924,6 +924,19 @@ class ApiService {
     await this.api.delete(`/api/v1/blogs/admin/categories/${categoryId}`);
   }
 
+  async uploadBlogImage(file: File): Promise<{ success: boolean; url: string; filename: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.api.post('/api/v1/blogs/admin/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async deleteBlogImage(filename: string): Promise<void> {
+    await this.api.delete(`/api/v1/blogs/admin/delete-image/${filename}`);
+  }
+
   // Generic HTTP methods for custom endpoints
   async get<T = any>(url: string, config?: any): Promise<T> {
     const response = await this.api.get(url, config);
