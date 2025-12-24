@@ -38,7 +38,7 @@ export const NavigationNew: React.FC = () => {
     { label: 'Home', path: '/' },
     { label: 'Features', path: '/features' },
     { label: 'Pricing', path: '/pricing' },
-    { label: 'FAQs', path: '#' },
+    { label: 'FAQs', path: '/faqs' },
     { label: 'Blogs', path: '#' },
     { label: 'Contact', path: '/contact' },
   ];

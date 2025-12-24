@@ -10,6 +10,7 @@ import { SuperAdminLayout } from './components/layout/SuperAdminLayout';
 import { HomeNew } from './pages/HomeNew';
 import { Features } from './pages/Features';
 import { Pricing } from './pages/Pricing';
+import { FAQs } from './pages/FAQs';
 import { Contact } from './pages/Contact';
 import { Signup } from './pages/Signup';
 import { Onboarding } from './pages/Onboarding';
@@ -18,6 +19,7 @@ import { SuperAdminLogin } from './pages/SuperAdminLogin';
 import { Companies } from './pages/superAdmin/Companies';
 import { PlatformChatbot } from './pages/superAdmin/PlatformChatbot';
 import { ChatbotConfiguration } from './pages/superAdmin/ChatbotConfiguration';
+import { SystemPersonas } from './pages/superAdmin/SystemPersonas';
 import { AnalyticsPage } from './pages/admin/Analytics';
 import { ChatbotsUnifiedPage } from './pages/admin/ChatbotsUnified';
 import { ChatbotDetailPage } from './pages/admin/ChatbotDetail';
@@ -49,6 +51,7 @@ function App() {
                 <Route path="/" element={<HomeNew />} />
                 <Route path="/features" element={<Features />} />
                 <Route path="/pricing" element={<Pricing />} />
+                <Route path="/faqs" element={<FAQs />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/login" element={<Login />} />
@@ -103,6 +106,7 @@ function App() {
           >
             <Route index element={<div className="text-white p-8">Platform Analytics Coming Soon</div>} />
             <Route path="companies" element={<Companies />} />
+            <Route path="system-personas" element={<SystemPersonas />} />
             <Route path="platform-chatbot" element={<PlatformChatbot />} />
             <Route path="chatbot-config" element={<ChatbotConfiguration />} />
             <Route path="users" element={<div className="text-white p-8">All Users Coming Soon</div>} />

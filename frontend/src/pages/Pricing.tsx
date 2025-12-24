@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { NavigationNew } from '../components/NavigationNew';
 import { Footer } from '../components/Footer';
 import { Card, Badge, Button, GlowButton, GlowBox } from '../components/ui';
-import { Check, Star, Zap, HelpCircle } from 'lucide-react';
+import { Check, Star, Zap } from 'lucide-react';
 
 export const Pricing: React.FC = () => {
   const navigate = useNavigate();
@@ -181,57 +181,6 @@ export const Pricing: React.FC = () => {
             })}
           </div>
 
-          {/* FAQ Section */}
-          <div className="max-w-3xl mx-auto">
-            <h2 className="text-3xl font-display font-bold text-center mb-12 text-theme-primary">
-              Frequently Asked Questions
-            </h2>
-
-            <div className="space-y-4 px-4">
-              {faqs.map((faq, index) => (
-                <motion.div
-                  key={faq.question}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                >
-                  <GlowBox
-                    glowColor="#a855f7"
-                    glowIntensity="medium"
-                    glowEffect="rotating"
-                    borderGlow
-                    sx={{
-                      background: 'rgba(0, 0, 0, 0.4)',
-                      backdropFilter: 'blur(20px)',
-                      borderRadius: 3,
-                      p: 3,
-                      border: '2px solid #a855f7',
-                      boxShadow: '0 0 15px rgba(168, 85, 247, 0.5), inset 0 0 8px rgba(168, 85, 247, 0.2)',
-                      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        boxShadow: '0 0 30px rgba(168, 85, 247, 0.7), inset 0 0 15px rgba(168, 85, 247, 0.3)',
-                      }
-                    }}
-                  >
-                    <div className="flex items-start gap-4">
-                      <HelpCircle className="w-6 h-6 text-primary-600 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="text-lg font-semibold text-theme-primary mb-2">
-                          {faq.question}
-                        </h3>
-                        <p className="text-theme-secondary">
-                          {faq.answer}
-                        </p>
-                      </div>
-                    </div>
-                  </GlowBox>
-                </motion.div>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
@@ -297,29 +246,3 @@ const pricingPlans = [
   },
 ];
 
-const faqs = [
-  {
-    question: 'Can I change plans later?',
-    answer: 'Yes! You can upgrade, downgrade, or cancel your plan at any time. Changes take effect immediately, and we\'ll prorate any charges.'
-  },
-  {
-    question: 'What happens after the 14-day trial?',
-    answer: 'After your trial ends, you\'ll be automatically subscribed to the Free plan unless you choose a paid plan. Your data and chatbots are always safe.'
-  },
-  {
-    question: 'Do you offer refunds?',
-    answer: 'Yes, we offer a 30-day money-back guarantee on all paid plans. If you\'re not satisfied, we\'ll refund you in full, no questions asked.'
-  },
-  {
-    question: 'How does the message limit work?',
-    answer: 'Message limits reset monthly. If you exceed your limit, your chatbot will still work but you\'ll be prompted to upgrade for continued service.'
-  },
-  {
-    question: 'Is my data secure?',
-    answer: 'Absolutely. We use bank-level encryption, are GDPR and SOC 2 compliant, and never share your data with third parties. Your data belongs to you.'
-  },
-  {
-    question: 'Can I get a custom Enterprise plan?',
-    answer: 'Yes! Contact our sales team to discuss custom pricing, features, and SLAs tailored to your organization\'s needs.'
-  }
-];
