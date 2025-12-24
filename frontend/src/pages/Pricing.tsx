@@ -57,29 +57,29 @@ export const Pricing: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="inline-flex items-center gap-3 glass p-2 rounded-xl"
+              className="inline-flex items-center gap-1 bg-slate-800/80 dark:bg-slate-900/80 p-1.5 rounded-2xl border-2 border-purple-500/50 shadow-lg shadow-purple-500/20"
             >
               <button
                 onClick={() => setBillingCycle('monthly')}
-                className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                className={`px-8 py-3 rounded-xl font-semibold text-base transition-all duration-300 ${
                   billingCycle === 'monthly'
-                    ? 'bg-primary-600 text-white shadow-md'
-                    : 'text-theme-secondary hover:text-theme-primary'
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/40 scale-105'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 Monthly
               </button>
               <button
                 onClick={() => setBillingCycle('yearly')}
-                className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                className={`px-8 py-3 rounded-xl font-semibold text-base transition-all duration-300 flex items-center gap-2 ${
                   billingCycle === 'yearly'
-                    ? 'bg-primary-600 text-white shadow-md'
-                    : 'text-theme-secondary hover:text-theme-primary'
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/40 scale-105'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
                 Yearly
-                <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">
-                  Save 20%
+                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full font-bold">
+                  -20%
                 </span>
               </button>
             </motion.div>
