@@ -145,6 +145,7 @@ cd backend
 # Windows: venv\Scripts\activate
 # Mac/Linux: source venv/bin/activate
 
+venv\Scripts\activate
 uvicorn app.main:app --reload
 ```
 
