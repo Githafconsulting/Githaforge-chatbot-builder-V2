@@ -242,20 +242,23 @@ export const HomeNew: React.FC = () => {
 
       {/* Hero Section */}
       <section id="home" className="relative pt-40 sm:pt-48 pb-12 overflow-hidden min-h-[70vh] flex items-center justify-center">
-        {/* Desktop Background Image */}
+        {/* Desktop Background Image - AI/Technology themed from Unsplash */}
         <div
-          className="hidden md:block absolute inset-0 bg-cover bg-center bg-no-repeat opacity-60"
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
-            backgroundImage: 'url(/Githafbot%20Destop.png)'
+            backgroundImage: 'url(/hero-bg.jpg)',
           }}
         />
 
         {/* Gradient Overlay for Text Readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/30 via-slate-900/20 to-slate-950/30" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/70 via-slate-900/60 to-slate-950/70" />
 
-        {/* Mobile Background Blobs */}
-        <div className="md:hidden absolute top-20 left-10 w-72 h-72 bg-primary-500/20 rounded-full blur-3xl" />
-        <div className="md:hidden absolute bottom-20 right-10 w-96 h-96 bg-accent-500/20 rounded-full blur-3xl" />
+        {/* Decorative Background Blobs */}
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent-500/10 rounded-full blur-3xl" />
+
+        {/* Bottom fade gradient for smooth transition */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white dark:from-slate-900 to-transparent z-10" />
 
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
@@ -335,6 +338,236 @@ export const HomeNew: React.FC = () => {
                 <Check className="w-4 h-4 text-green-500" />
                 <span>Cancel anytime</span>
               </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* App Preview Section */}
+      <section className="py-20 bg-theme-primary overflow-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-bold mb-4 text-theme-primary">
+              See It in Action
+            </h2>
+            <p className="text-lg sm:text-xl text-theme-secondary max-w-2xl mx-auto">
+              Manage your chatbots from anywhere with our intuitive dashboard
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="flex justify-center relative"
+          >
+            {/* Background flare */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-[700px] h-[480px] bg-gradient-to-r from-blue-500/20 via-purple-500/30 to-cyan-500/20 rounded-full blur-3xl" />
+            </div>
+
+            <img
+              src="/Githaforge landing page laptop and phone.png"
+              alt="Githaforge dashboard on laptop and phone devices"
+              className="max-w-full h-auto relative z-10"
+              style={{ maxHeight: '600px' }}
+            />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Feature Showcase Section */}
+      <section className="pt-2 pb-20 bg-theme-primary overflow-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+            {/* Image on the left */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+              className="flex-1 flex justify-center"
+            >
+              <div className="relative">
+                {/* Background flare */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-[500px] h-[400px] bg-gradient-to-r from-purple-500/20 via-blue-500/30 to-cyan-500/20 rounded-full blur-3xl" />
+                </div>
+                <div className="relative">
+                  <img
+                    src="/Feature section my chatbots.png"
+                    alt="My Chatbots dashboard view"
+                    className="max-w-full h-auto relative z-10"
+                    style={{ maxHeight: '550px' }}
+                  />
+                  {/* Bottom fade to hide cropped edge */}
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white dark:from-slate-900 to-transparent z-20" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Text on the right */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="flex-1"
+            >
+              <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4 text-theme-primary">
+                Manage All Your Chatbots in One Place
+              </h2>
+              <p className="text-lg text-theme-secondary mb-6">
+                Your central hub for creating, organizing, and monitoring all your AI chatbots. Get a bird's-eye view of every bot's performance and status at a glance.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Create unlimited chatbots for different use cases</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Monitor conversation counts and activity in real-time</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Quickly access settings, training, and embed codes</span>
+                </li>
+              </ul>
+            </motion.div>
+          </div>
+        </div>
+
+      </section>
+
+      {/* Feature Showcase Section 2 - Image Right, Text Left */}
+      <section className="pt-2 pb-20 bg-theme-primary overflow-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col lg:flex-row-reverse items-center gap-12 lg:gap-16">
+            {/* Image on the right */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+              className="flex-1 flex justify-center"
+            >
+              <div className="relative">
+                {/* Background flare */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-[500px] h-[400px] bg-gradient-to-r from-cyan-500/20 via-blue-500/30 to-purple-500/20 rounded-full blur-3xl" />
+                </div>
+                <div className="relative">
+                  <img
+                    src="/Feature section personas.png"
+                    alt="Personas management dashboard"
+                    className="max-w-full h-auto relative z-10"
+                    style={{ maxHeight: '550px' }}
+                  />
+                  {/* Bottom fade to hide cropped edge */}
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white dark:from-slate-900 to-transparent z-20" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Text on the left */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="flex-1"
+            >
+              <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4 text-theme-primary">
+                Give Your Chatbots Unique Personalities
+              </h2>
+              <p className="text-lg text-theme-secondary mb-6">
+                Create custom personas that define how your chatbots communicate. From professional and formal to friendly and casual, tailor the tone and style to match your brand.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Define custom system prompts for each persona</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Choose from pre-built templates or create your own</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Assign different personas to different chatbots</span>
+                </li>
+              </ul>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Feature Showcase Section 3 - Image Left, Text Right */}
+      <section className="pt-2 pb-20 bg-theme-primary overflow-hidden">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+            {/* Image on the left */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+              className="flex-1 flex justify-center"
+            >
+              <div className="relative">
+                {/* Background flare */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-[500px] h-[400px] bg-gradient-to-r from-purple-500/20 via-blue-500/30 to-cyan-500/20 rounded-full blur-3xl" />
+                </div>
+                <div className="relative">
+                  <img
+                    src="/Feature section learning.png"
+                    alt="Knowledge base training dashboard"
+                    className="max-w-full h-auto relative z-10"
+                    style={{ maxHeight: '550px' }}
+                  />
+                  {/* Bottom fade to hide cropped edge */}
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white dark:from-slate-900 to-transparent z-20" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Text on the right */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="flex-1"
+            >
+              <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4 text-theme-primary">
+                Train Your Chatbot with Your Content
+              </h2>
+              <p className="text-lg text-theme-secondary mb-6">
+                Upload documents or paste text to build a powerful knowledge base. Your chatbot learns from your content to provide accurate, context-aware responses.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Upload PDFs, Word docs, and text files</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">Automatic text extraction and processing</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-theme-secondary">RAG-powered responses with source citations</span>
+                </li>
+              </ul>
             </motion.div>
           </div>
         </div>
