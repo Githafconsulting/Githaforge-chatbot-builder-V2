@@ -11,35 +11,35 @@ const teamMembers = [
   {
     name: 'Debra Bilikha',
     role: 'C.E.O.',
-    image: '/team/debra-bilikha.jpg',
+    image: '/Debra Bilikha.png',
     description: 'Visionary leader driving Githaforge\'s mission to democratize AI-powered customer support for businesses worldwide.',
     gradient: 'from-purple-500 to-pink-500',
   },
   {
     name: 'Okoye Bilikha',
     role: 'Tech Lead',
-    image: '/team/okoye-bilikha.jpg',
+    image: '/Okoye Bilikha.png',
     description: 'Technical architect overseeing the development of our cutting-edge AI chatbot platform and infrastructure.',
     gradient: 'from-blue-500 to-cyan-500',
   },
   {
-    name: 'Kaljob Bilikha',
+    name: 'Emmanuel Bilikha',
     role: 'Data Analyst',
-    image: '/team/kaljob-bilikha.jpg',
+    image: '/Emmanuel Bilikha.png',
     description: 'Data expert transforming insights into actionable intelligence to improve chatbot performance and user experience.',
     gradient: 'from-green-500 to-emerald-500',
   },
   {
     name: 'Steve Igor Nya Njeudji',
     role: 'Software Eng. | AI Programmer',
-    image: '/team/steve-nya.jpg',
+    image: '/Steve Nya.png',
     description: 'Full-stack developer and AI specialist building intelligent systems that power seamless customer interactions.',
     gradient: 'from-orange-500 to-red-500',
   },
   {
     name: 'Charles Rhingdah Bah',
     role: 'Software Eng. | AI Programmer',
-    image: '/team/charles-bah.jpg',
+    image: '/Charles Bah.png',
     description: 'Software engineer focused on developing robust AI solutions and optimizing chatbot response accuracy.',
     gradient: 'from-indigo-500 to-purple-500',
   },
@@ -289,12 +289,11 @@ export const About: React.FC = () => {
                   >
                     <div className={`flex flex-col md:flex-row ${!imageOnLeft ? 'md:flex-row-reverse' : ''}`}>
                       {/* Team Member Photo */}
-                      <div className="relative w-full md:w-72 h-64 md:h-72 flex-shrink-0 overflow-hidden">
-                        <div className={`absolute inset-0 bg-gradient-to-br ${member.gradient} opacity-20`} />
+                      <div className="relative w-full md:w-72 h-64 md:h-72 flex-shrink-0 overflow-hidden rounded-xl">
                         <img
                           src={member.image}
                           alt={member.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover rounded-xl"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&size=256&background=random&color=fff&bold=true`;

@@ -384,7 +384,7 @@ export const HomeNew: React.FC = () => {
       </section>
 
       {/* Feature Showcase Section */}
-      <section className="pt-2 pb-20 bg-theme-primary overflow-hidden">
+      <section className="bg-theme-primary overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
             {/* Image on the left */}
@@ -400,16 +400,12 @@ export const HomeNew: React.FC = () => {
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-[500px] h-[400px] bg-gradient-to-r from-purple-500/20 via-blue-500/30 to-cyan-500/20 rounded-full blur-3xl" />
                 </div>
-                <div className="relative">
-                  <img
-                    src="/Feature section my chatbots.png"
-                    alt="My Chatbots dashboard view"
-                    className="max-w-full h-auto relative z-10"
-                    style={{ maxHeight: '550px' }}
-                  />
-                  {/* Bottom fade to hide cropped edge */}
-                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white dark:from-slate-900 to-transparent z-20" />
-                </div>
+                <img
+                  src="/Feature section my chatbots.png"
+                  alt="My Chatbots dashboard view"
+                  className="max-w-full h-auto relative z-10"
+                  style={{ maxHeight: '550px' }}
+                />
               </div>
             </motion.div>
 
@@ -448,7 +444,7 @@ export const HomeNew: React.FC = () => {
       </section>
 
       {/* Feature Showcase Section 2 - Image Right, Text Left */}
-      <section className="pt-2 pb-20 bg-theme-primary overflow-hidden">
+      <section className="bg-theme-primary overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row-reverse items-center gap-12 lg:gap-16">
             {/* Image on the right */}
@@ -464,16 +460,12 @@ export const HomeNew: React.FC = () => {
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-[500px] h-[400px] bg-gradient-to-r from-cyan-500/20 via-blue-500/30 to-purple-500/20 rounded-full blur-3xl" />
                 </div>
-                <div className="relative">
-                  <img
-                    src="/Feature section personas.png"
-                    alt="Personas management dashboard"
-                    className="max-w-full h-auto relative z-10"
-                    style={{ maxHeight: '550px' }}
-                  />
-                  {/* Bottom fade to hide cropped edge */}
-                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white dark:from-slate-900 to-transparent z-20" />
-                </div>
+                <img
+                  src="/Feature section personas.png"
+                  alt="Personas management dashboard"
+                  className="max-w-full h-auto relative z-10"
+                  style={{ maxHeight: '550px' }}
+                />
               </div>
             </motion.div>
 
@@ -511,7 +503,7 @@ export const HomeNew: React.FC = () => {
       </section>
 
       {/* Feature Showcase Section 3 - Image Left, Text Right */}
-      <section className="pt-2 pb-20 bg-theme-primary overflow-hidden">
+      <section className="bg-theme-primary overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
             {/* Image on the left */}
@@ -527,16 +519,12 @@ export const HomeNew: React.FC = () => {
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-[500px] h-[400px] bg-gradient-to-r from-purple-500/20 via-blue-500/30 to-cyan-500/20 rounded-full blur-3xl" />
                 </div>
-                <div className="relative">
-                  <img
-                    src="/Feature section learning.png"
-                    alt="Knowledge base training dashboard"
-                    className="max-w-full h-auto relative z-10"
-                    style={{ maxHeight: '550px' }}
-                  />
-                  {/* Bottom fade to hide cropped edge */}
-                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white dark:from-slate-900 to-transparent z-20" />
-                </div>
+                <img
+                  src="/Feature section learning.png"
+                  alt="Knowledge base training dashboard"
+                  className="max-w-full h-auto relative z-10"
+                  style={{ maxHeight: '550px' }}
+                />
               </div>
             </motion.div>
 

@@ -40,6 +40,7 @@ export const NavigationNew: React.FC = () => {
     { label: 'Pricing', path: '/pricing' },
     { label: 'FAQs', path: '/faqs' },
     { label: 'Blog', path: '/blogs' },
+    { label: 'Reviews', path: '/reviews' },
     { label: 'About', path: '/about' },
     { label: 'Contact', path: '/contact' },
   ];

@@ -15,6 +15,7 @@ import { FAQs } from './pages/FAQs';
 import { Contact } from './pages/Contact';
 import { About } from './pages/About';
 import { Blogs } from './pages/Blogs';
+import { Reviews } from './pages/Reviews';
 import { BlogPost } from './pages/BlogPost';
 import { Signup } from './pages/Signup';
 import { Onboarding } from './pages/Onboarding';
@@ -62,6 +63,7 @@ function App() {
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/blogs" element={<Blogs />} />
+                  <Route path="/reviews" element={<Reviews />} />
                   <Route path="/blog/:slug" element={<BlogPost />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/login" element={<Login />} />
