@@ -1172,9 +1172,11 @@ export const Signup: React.FC = () => {
             className="text-center mb-8"
           >
             <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                <Bot className="w-7 h-7 text-white" />
-              </div>
+              <img
+                src="/images/branding/githaf_logo.png"
+                alt="Githaforge Logo"
+                className="w-12 h-12 object-contain"
+              />
               <span className="text-3xl font-display font-bold text-white">Githaforge</span>
             </div>
             {planFromUrl !== 'free' && (

@@ -108,6 +108,24 @@ const stats = [
   { icon: Star, value: '4.9/5', label: 'Average Rating', gradient: 'from-yellow-500 to-orange-500' },
 ];
 
+// Get color from gradient (matching Features section style)
+const getColorFromGradient = (gradient: string) => {
+  const colorMap: Record<string, { hex: string; rgba: string }> = {
+    'from-purple-500': { hex: '#a855f7', rgba: '168, 85, 247' },
+    'from-blue-500': { hex: '#3b82f6', rgba: '59, 130, 246' },
+    'from-green-500': { hex: '#22c55e', rgba: '34, 197, 94' },
+    'from-orange-500': { hex: '#f97316', rgba: '249, 115, 22' },
+    'from-pink-500': { hex: '#ec4899', rgba: '236, 72, 153' },
+    'from-violet-500': { hex: '#8b5cf6', rgba: '139, 92, 246' },
+    'from-teal-500': { hex: '#14b8a6', rgba: '20, 184, 166' },
+    'from-yellow-500': { hex: '#eab308', rgba: '234, 179, 8' },
+    'from-red-500': { hex: '#ef4444', rgba: '239, 68, 68' },
+  };
+
+  const colorKey = gradient.split(' ')[0];
+  return colorMap[colorKey] || colorMap['from-purple-500'];
+};
+
 // Star rating component
 const StarRating: React.FC<{ rating: number }> = ({ rating }) => {
   return (
@@ -217,14 +235,7 @@ export const Reviews: React.FC = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
             {reviews.map((review, index) => {
-              const glowColor = review.gradient.includes('purple') ? '#a855f7' :
-                               review.gradient.includes('blue') ? '#3b82f6' :
-                               review.gradient.includes('green') ? '#10b981' :
-                               review.gradient.includes('orange') ? '#f97316' :
-                               review.gradient.includes('pink') ? '#ec4899' :
-                               review.gradient.includes('violet') ? '#8b5cf6' :
-                               review.gradient.includes('teal') ? '#14b8a6' :
-                               review.gradient.includes('yellow') ? '#eab308' : '#ef4444';
+              const color = getColorFromGradient(review.gradient);
 
               return (
                 <motion.div
@@ -235,28 +246,31 @@ export const Reviews: React.FC = () => {
                   transition={{ delay: (index % 3) * 0.1 }}
                 >
                   <GlowBox
-                    glowColor={glowColor}
+                    glowColor={color.hex}
                     glowIntensity="high"
+                    glowEffect="rotating"
                     borderGlow
                     sx={{
+                      height: '100%',
                       background: 'rgba(0, 0, 0, 0.4)',
                       backdropFilter: 'blur(20px)',
                       borderRadius: 3,
                       p: 4,
-                      height: '100%',
                       display: 'flex',
                       flexDirection: 'column',
-                      border: `2px solid ${glowColor}`,
-                      boxShadow: `0 0 20px ${glowColor}80`,
+                      border: `2px solid ${color.hex}`,
+                      boxShadow: `0 0 20px ${color.hex}80, inset 0 0 10px ${color.hex}33`,
                       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                      cursor: 'pointer',
                       '&:hover': {
-                        transform: 'translateY(-6px)',
-                        boxShadow: `0 0 35px ${glowColor}cc`,
+                        transform: 'translateY(-8px)',
+                        background: 'rgba(0, 0, 0, 0.6)',
+                        boxShadow: `0 0 40px ${color.hex}cc, 0 20px 60px -15px rgba(0, 0, 0, 0.5), inset 0 0 20px ${color.hex}4d`,
                       }
                     }}
                   >
                     {/* Quote Icon */}
-                    <Quote className={`w-8 h-8 mb-4 opacity-50`} style={{ color: glowColor }} />
+                    <Quote className="w-8 h-8 mb-4 opacity-50" style={{ color: color.hex }} />
 
                     {/* Review Text */}
                     <p className="text-white text-sm leading-relaxed mb-6 flex-1">
