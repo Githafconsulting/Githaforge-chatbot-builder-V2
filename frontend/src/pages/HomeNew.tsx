@@ -593,19 +593,23 @@ export const HomeNew: React.FC = () => {
             </button>
 
             {/* Auto-scrolling carousel container */}
-            <div className="relative">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {getVisibleFeatures().map((feature, idx) => (
-                  <motion.div
-                    key={`${feature.title}-${currentIndex}`}
-                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{
-                      duration: 0.5,
-                      ease: "easeOut",
-                      delay: idx * 0.1
-                    }}
-                  >
+            <div className="relative overflow-hidden">
+              <AnimatePresence initial={false} mode="popLayout">
+                <motion.div
+                  key={currentIndex}
+                  initial={{ x: 300, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: -300, opacity: 0 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30,
+                    opacity: { duration: 0.2 }
+                  }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                >
+                  {getVisibleFeatures().map((feature) => (
+                    <div key={feature.title}>
                     <GlowBox
                         glowColor={getColorFromGradient(feature.gradient).hex}
                         sx={{
@@ -651,9 +655,10 @@ export const HomeNew: React.FC = () => {
                           ))}
                         </ul>
                       </GlowBox>
-                  </motion.div>
-                ))}
-              </div>
+                    </div>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
 
