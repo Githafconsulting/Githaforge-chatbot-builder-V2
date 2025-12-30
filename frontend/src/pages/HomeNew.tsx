@@ -740,6 +740,9 @@ export const HomeNew: React.FC = () => {
         </div>
       </section>
 
+      {/* Trusted Companies Section */}
+      <TrustedCompanies />
+
       {/* Featured Reviews Section - Auto-Scrolling Carousel */}
       <section className="py-20 bg-theme-primary">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -919,7 +922,7 @@ export const HomeNew: React.FC = () => {
           <div className="text-center">
             <GlowButton
               glowColor="#a855f7"
-              glowVariant="outline"
+              glowVariant="solid"
               size="large"
               onClick={() => navigate('/reviews')}
               endIcon={<ArrowRight />}
@@ -929,9 +932,6 @@ export const HomeNew: React.FC = () => {
           </div>
         </div>
       </section>
-
-      {/* Trusted Companies Section */}
-      <TrustedCompanies />
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-primary-600 via-secondary-600 to-accent-600">

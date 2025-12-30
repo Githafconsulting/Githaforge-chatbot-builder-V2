@@ -45,6 +45,7 @@ import { ChatbotTestPage } from './pages/admin/ChatbotTest';
 import { GlowComponentsShowcase } from './pages/GlowComponentsShowcase';
 import { OAuthCallback } from './pages/OAuthCallback';
 import { GlobalChatWidget } from './components/GlobalChatWidget';
+import { ScrollToTop } from './components/ScrollToTop';
 import './i18n'; // Initialize i18n
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
           <AuthProvider>
             <SuperAdminAuthProvider>
               <BrowserRouter>
+                <ScrollToTop />
                 <GlobalChatWidget />
                 <Routes>
                   {/* Public Routes */}
