@@ -44,6 +44,7 @@ import { EmbedPage } from './pages/Embed';
 import { ChatbotTestPage } from './pages/admin/ChatbotTest';
 import { GlowComponentsShowcase } from './pages/GlowComponentsShowcase';
 import { OAuthCallback } from './pages/OAuthCallback';
+import { GlobalChatWidget } from './components/GlobalChatWidget';
 import './i18n'; // Initialize i18n
 
 function App() {
@@ -54,6 +55,7 @@ function App() {
           <AuthProvider>
             <SuperAdminAuthProvider>
               <BrowserRouter>
+                <GlobalChatWidget />
                 <Routes>
                   {/* Public Routes */}
                   <Route path="/" element={<HomeNew />} />

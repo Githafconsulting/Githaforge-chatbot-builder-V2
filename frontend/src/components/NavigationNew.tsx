@@ -65,7 +65,7 @@ export const NavigationNew: React.FC = () => {
           {/* Logo - Enhanced */}
           <Link to="/" className="flex items-center gap-3 group relative z-10">
             <motion.img
-              src="/githaf_logo.png"
+              src="/images/branding/githaf_logo.png"
               alt="Githaforge Logo"
               className="h-14 w-auto"
               whileHover={{ scale: 1.05 }}

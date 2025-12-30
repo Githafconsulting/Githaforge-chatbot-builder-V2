@@ -15,7 +15,7 @@ export const Footer: React.FC = () => {
           <div>
             <div className="flex items-center gap-3 mb-4">
               <img
-                src="/githaf_logo.png"
+                src="/images/branding/githaf_logo.png"
                 alt="Githaforge Logo"
                 className="h-10 w-auto"
               />

@@ -9,7 +9,6 @@ import {
   Palette, BarChart3, Globe, Code, Database, Users, Clock, Sparkles, CheckCircle,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { ChatWidget } from '../components/chat/ChatWidget';
 import { TrustedCompanies } from '../components/TrustedCompanies';
 
 // All features from Features page
@@ -246,7 +245,7 @@ export const HomeNew: React.FC = () => {
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
-            backgroundImage: 'url(/hero-bg.jpg)',
+            backgroundImage: 'url(/images/landing/hero-bg.jpg)',
           }}
         />
 
@@ -374,7 +373,7 @@ export const HomeNew: React.FC = () => {
             </div>
 
             <img
-              src="/Githaforge landing page laptop and phone.png"
+              src="/images/landing/Githaforge landing page laptop and phone.png"
               alt="Githaforge dashboard on laptop and phone devices"
               className="max-w-full h-auto relative z-10"
               style={{ maxHeight: '600px' }}
@@ -401,7 +400,7 @@ export const HomeNew: React.FC = () => {
                   <div className="w-[500px] h-[400px] bg-gradient-to-r from-purple-500/20 via-blue-500/30 to-cyan-500/20 rounded-full blur-3xl" />
                 </div>
                 <img
-                  src="/Feature section my chatbots.png"
+                  src="/images/landing/Feature section my chatbots.png"
                   alt="My Chatbots dashboard view"
                   className="max-w-full h-auto relative z-10"
                   style={{ maxHeight: '550px' }}
@@ -461,7 +460,7 @@ export const HomeNew: React.FC = () => {
                   <div className="w-[500px] h-[400px] bg-gradient-to-r from-cyan-500/20 via-blue-500/30 to-purple-500/20 rounded-full blur-3xl" />
                 </div>
                 <img
-                  src="/Feature section personas.png"
+                  src="/images/landing/Feature section personas.png"
                   alt="Personas management dashboard"
                   className="max-w-full h-auto relative z-10"
                   style={{ maxHeight: '550px' }}
@@ -520,7 +519,7 @@ export const HomeNew: React.FC = () => {
                   <div className="w-[500px] h-[400px] bg-gradient-to-r from-purple-500/20 via-blue-500/30 to-cyan-500/20 rounded-full blur-3xl" />
                 </div>
                 <img
-                  src="/Feature section learning.png"
+                  src="/images/landing/Feature section learning.png"
                   alt="Knowledge base training dashboard"
                   className="max-w-full h-auto relative z-10"
                   style={{ maxHeight: '550px' }}
@@ -710,7 +709,6 @@ export const HomeNew: React.FC = () => {
       </section>
 
       <Footer />
-      <ChatWidget />
     </div>
   );
 };

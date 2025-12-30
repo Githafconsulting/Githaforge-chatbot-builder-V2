@@ -66,7 +66,7 @@ export const Login: React.FC = () => {
         {/* Second Row on Mobile / Center on Desktop: Logo & App Name */}
         <div className="flex items-center justify-center gap-2 pt-16 md:pt-0 w-full md:w-auto">
           <img
-            src="/githaf_logo.png"
+            src="/images/branding/githaf_logo.png"
             alt="Githaforge Logo"
             className="w-16 h-16 object-contain"
           />
