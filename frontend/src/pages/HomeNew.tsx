@@ -657,7 +657,7 @@ export const HomeNew: React.FC = () => {
             </button>
 
             {/* Auto-scrolling carousel container */}
-            <div className="relative overflow-hidden">
+            <div className="relative overflow-visible pt-6">
               <AnimatePresence initial={false} mode="popLayout">
                 <motion.div
                   key={currentIndex}
@@ -670,7 +670,7 @@ export const HomeNew: React.FC = () => {
                     damping: 30,
                     opacity: { duration: 0.2 }
                   }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-4"
                 >
                   {getVisibleFeatures().map((feature) => (
                     <div key={feature.title}>
@@ -783,7 +783,7 @@ export const HomeNew: React.FC = () => {
             </button>
 
             {/* Auto-scrolling carousel container */}
-            <div className="relative overflow-hidden">
+            <div className="relative overflow-hidden pt-4">
               <AnimatePresence initial={false} mode="popLayout">
                 <motion.div
                   key={`reviews-${reviewIndex}`}
@@ -796,7 +796,7 @@ export const HomeNew: React.FC = () => {
                     damping: 30,
                     opacity: { duration: 0.2 }
                   }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-4"
                 >
                   {[
                     {
