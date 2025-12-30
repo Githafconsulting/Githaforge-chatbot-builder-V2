@@ -66,8 +66,8 @@ export const NavigationNew: React.FC = () => {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div className={`transition-all duration-500 ease-in-out ${isExpanded ? 'px-6 sm:px-8 lg:px-12' : 'w-full h-full flex items-center justify-center'}`}>
-            <div className={`flex items-center transition-all duration-500 ease-in-out ${isExpanded ? 'h-24' : 'h-full justify-center'}`}>
+          <div className={`h-full transition-all duration-500 ease-in-out ${isExpanded ? 'px-6 sm:px-8 lg:px-12' : 'w-full flex items-center justify-center'}`}>
+            <div className={`h-full flex items-center transition-all duration-500 ease-in-out ${!isExpanded ? 'justify-center' : ''}`}>
               {/* Logo - Always visible */}
               <Link
                 to="/"
