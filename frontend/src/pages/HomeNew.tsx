@@ -7,7 +7,7 @@ import { Button, Card, GlowButton, GlowBox } from '../components/ui';
 import {
   Zap, MessageSquare, Shield, Check, ArrowRight, Brain, Rocket,
   Palette, BarChart3, Globe, Code, Database, Users, Clock, Sparkles, CheckCircle,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Star, Quote
 } from 'lucide-react';
 import { TrustedCompanies } from '../components/TrustedCompanies';
 
@@ -163,8 +163,10 @@ export const HomeNew: React.FC = () => {
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [isReviewPaused, setIsReviewPaused] = useState(false);
 
-  // Auto-advance carousel every 4 seconds
+  // Auto-advance features carousel every 4 seconds
   useEffect(() => {
     if (isPaused) return;
 
@@ -174,6 +176,17 @@ export const HomeNew: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [isPaused]);
+
+  // Auto-advance reviews carousel every 12 seconds (3x longer)
+  useEffect(() => {
+    if (isReviewPaused) return;
+
+    const interval = setInterval(() => {
+      setReviewIndex((prev) => (prev + 1) % 6);
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [isReviewPaused]);
 
   // Calculate visible cards based on screen size
   const getVisibleCards = () => {
@@ -560,6 +573,58 @@ export const HomeNew: React.FC = () => {
         </div>
       </section>
 
+      {/* Video Demo Section */}
+      <section className="py-20 bg-theme-primary">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-bold mb-4 text-theme-primary">
+              Watch How It Works
+            </h2>
+            <p className="text-lg sm:text-xl text-theme-secondary max-w-2xl mx-auto">
+              See how easy it is to create and deploy your AI chatbot in minutes
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="max-w-4xl mx-auto"
+          >
+            {/* Video Frame Container */}
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-700/50">
+              {/* Gradient border glow effect */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 rounded-2xl blur opacity-30" />
+
+              {/* Video wrapper with aspect ratio */}
+              <div className="relative bg-slate-900 rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                {/* Placeholder - Replace src with actual video URL */}
+                <iframe
+                  className="absolute inset-0 w-full h-full"
+                  src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                  title="Githaforge Demo Video"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+
+            {/* Optional caption */}
+            <p className="text-center text-theme-muted text-sm mt-4">
+              3-minute walkthrough of the Githaforge platform
+            </p>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Features Preview Section - Auto-Scrolling Carousel */}
       <section className="py-20 bg-theme-primary">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -670,6 +735,196 @@ export const HomeNew: React.FC = () => {
               endIcon={<ArrowRight />}
             >
               View All Features
+            </GlowButton>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Reviews Section - Auto-Scrolling Carousel */}
+      <section className="py-20 bg-theme-primary">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl font-display font-bold mb-4 text-white">
+              What Our Customers Say
+            </h2>
+            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+              Join thousands of satisfied businesses using Githaforge
+            </p>
+          </div>
+
+          {/* Carousel Container */}
+          <div className="relative max-w-6xl mx-auto mb-12 px-8 py-12">
+            {/* Desktop Navigation Buttons */}
+            <button
+              onClick={() => {
+                setIsReviewPaused(true);
+                setReviewIndex((prev) => (prev - 1 + 6) % 6);
+                setTimeout(() => setIsReviewPaused(false), 15000);
+              }}
+              className="hidden lg:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-6 z-10 w-12 h-12 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-lg hover:shadow-xl transition-all hover:scale-110 text-slate-700 dark:text-white border-2 border-slate-200 dark:border-slate-700"
+              aria-label="Previous reviews"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+
+            <button
+              onClick={() => {
+                setIsReviewPaused(true);
+                setReviewIndex((prev) => (prev + 1) % 6);
+                setTimeout(() => setIsReviewPaused(false), 15000);
+              }}
+              className="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-6 z-10 w-12 h-12 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-lg hover:shadow-xl transition-all hover:scale-110 text-slate-700 dark:text-white border-2 border-slate-200 dark:border-slate-700"
+              aria-label="Next reviews"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+
+            {/* Auto-scrolling carousel container */}
+            <div className="relative overflow-hidden">
+              <AnimatePresence initial={false} mode="popLayout">
+                <motion.div
+                  key={`reviews-${reviewIndex}`}
+                  initial={{ x: 300, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: -300, opacity: 0 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30,
+                    opacity: { duration: 0.2 }
+                  }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                >
+                  {[
+                    {
+                      name: 'Sarah Kim',
+                      initials: 'SK',
+                      role: 'CEO, TechStart Inc.',
+                      review: 'Githaforge transformed our customer support. We reduced response times by 80% and our customers love the instant, accurate answers.',
+                      gradient: 'from-blue-500 to-cyan-500',
+                      glowColor: '#3b82f6',
+                      quoteColor: 'text-blue-400/50'
+                    },
+                    {
+                      name: 'Michael Johnson',
+                      initials: 'MJ',
+                      role: 'CTO, CloudNine Solutions',
+                      review: 'The RAG technology is incredible. Our chatbot actually understands our products and gives detailed, accurate responses. Setup took less than an hour!',
+                      gradient: 'from-purple-500 to-pink-500',
+                      glowColor: '#a855f7',
+                      quoteColor: 'text-purple-400/50'
+                    },
+                    {
+                      name: 'Emily Parker',
+                      initials: 'EP',
+                      role: 'Head of Support, RetailPro',
+                      review: "We've tried other chatbot platforms, but Githaforge is in a league of its own. The analytics dashboard helps us continuously improve our support.",
+                      gradient: 'from-green-500 to-emerald-500',
+                      glowColor: '#22c55e',
+                      quoteColor: 'text-green-400/50'
+                    },
+                    {
+                      name: 'David Chen',
+                      initials: 'DC',
+                      role: 'Founder, InnovateTech',
+                      review: 'The multi-language support is a game changer for our global customer base. Our chatbot now handles queries in 5 different languages seamlessly.',
+                      gradient: 'from-orange-500 to-red-500',
+                      glowColor: '#f97316',
+                      quoteColor: 'text-orange-400/50'
+                    },
+                    {
+                      name: 'Lisa Martinez',
+                      initials: 'LM',
+                      role: 'VP Operations, ScaleUp',
+                      review: 'Integration was a breeze. One line of code and our chatbot was live. The team collaboration features make managing everything so easy.',
+                      gradient: 'from-cyan-500 to-blue-500',
+                      glowColor: '#06b6d4',
+                      quoteColor: 'text-cyan-400/50'
+                    },
+                    {
+                      name: 'James Wilson',
+                      initials: 'JW',
+                      role: 'Director, GlobalServe',
+                      review: 'The 24/7 availability has been crucial for our business. Customer satisfaction scores have increased by 45% since implementing Githaforge.',
+                      gradient: 'from-pink-500 to-rose-500',
+                      glowColor: '#ec4899',
+                      quoteColor: 'text-pink-400/50'
+                    }
+                  ].slice(reviewIndex % 6, (reviewIndex % 6) + visibleCards).concat(
+                    reviewIndex % 6 + visibleCards > 6
+                      ? [
+                          {
+                            name: 'Sarah Kim',
+                            initials: 'SK',
+                            role: 'CEO, TechStart Inc.',
+                            review: 'Githaforge transformed our customer support. We reduced response times by 80% and our customers love the instant, accurate answers.',
+                            gradient: 'from-blue-500 to-cyan-500',
+                            glowColor: '#3b82f6',
+                            quoteColor: 'text-blue-400/50'
+                          },
+                          {
+                            name: 'Michael Johnson',
+                            initials: 'MJ',
+                            role: 'CTO, CloudNine Solutions',
+                            review: 'The RAG technology is incredible. Our chatbot actually understands our products and gives detailed, accurate responses. Setup took less than an hour!',
+                            gradient: 'from-purple-500 to-pink-500',
+                            glowColor: '#a855f7',
+                            quoteColor: 'text-purple-400/50'
+                          },
+                          {
+                            name: 'Emily Parker',
+                            initials: 'EP',
+                            role: 'Head of Support, RetailPro',
+                            review: "We've tried other chatbot platforms, but Githaforge is in a league of its own. The analytics dashboard helps us continuously improve our support.",
+                            gradient: 'from-green-500 to-emerald-500',
+                            glowColor: '#22c55e',
+                            quoteColor: 'text-green-400/50'
+                          }
+                        ].slice(0, (reviewIndex % 6) + visibleCards - 6)
+                      : []
+                  ).slice(0, visibleCards).map((review) => (
+                    <div key={review.name}>
+                      <div
+                        className="h-[320px] w-full bg-slate-800/60 backdrop-blur-xl rounded-xl p-6 flex flex-col cursor-pointer transition-all duration-300 hover:-translate-y-2 hover:bg-slate-800/80"
+                        style={{ border: `2px solid ${review.glowColor}` }}
+                      >
+                        <div className="flex items-center gap-1 mb-4">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                          ))}
+                        </div>
+                        <Quote className={`w-8 h-8 ${review.quoteColor} mb-3 flex-shrink-0`} />
+                        <div className="flex-grow overflow-hidden mb-6">
+                          <p className="text-white/90 leading-relaxed line-clamp-4">
+                            "{review.review}"
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 mt-auto flex-shrink-0">
+                          <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${review.gradient} flex items-center justify-center text-white font-bold text-lg`}>
+                            {review.initials}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-white">{review.name}</p>
+                            <p className="text-sm text-slate-400">{review.role}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <GlowButton
+              glowColor="#a855f7"
+              glowVariant="outline"
+              size="large"
+              onClick={() => navigate('/reviews')}
+              endIcon={<ArrowRight />}
+            >
+              View All Reviews
             </GlowButton>
           </div>
         </div>

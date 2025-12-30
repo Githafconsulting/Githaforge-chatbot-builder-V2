@@ -50,22 +50,19 @@ export const TrustedCompanies: React.FC = () => {
           <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-[var(--bg-primary)] to-transparent z-10 pointer-events-none" />
           <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-[var(--bg-primary)] to-transparent z-10 pointer-events-none" />
 
-          {/* Scrolling track */}
+          {/* Scrolling track - 3 sets for seamless looping */}
           <div
             className="flex logo-scroll"
             style={{
-              width: `${totalWidth * 2}px`,
               '--scroll-width': `${totalWidth}px`
             } as React.CSSProperties}
           >
-            {/* First set */}
-            {companies.map((company, index) => (
-              <LogoItem key={`a-${index}`} company={company} />
-            ))}
-            {/* Second set (duplicate for seamless loop) */}
-            {companies.map((company, index) => (
-              <LogoItem key={`b-${index}`} company={company} />
-            ))}
+            {/* Three sets of logos to ensure seamless coverage */}
+            {[0, 1, 2].map((setIndex) =>
+              companies.map((company, index) => (
+                <LogoItem key={`${setIndex}-${index}`} company={company} />
+              ))
+            )}
           </div>
         </div>
 
