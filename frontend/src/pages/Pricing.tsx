@@ -139,7 +139,7 @@ export const Pricing: React.FC = () => {
 
                       <div className="mt-4 mb-2">
                         <span className="text-5xl font-bold text-theme-primary">${displayPrice}</span>
-                        <span className="text-theme-muted">/{billingCycle === 'yearly' ? 'mo' : 'month'}</span>
+                        <span className="text-theme-muted">/month</span>
                       </div>
 
                       {/* Fixed height container for yearly billing text to keep alignment */}
