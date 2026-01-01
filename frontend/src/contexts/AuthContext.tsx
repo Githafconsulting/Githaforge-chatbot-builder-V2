@@ -10,6 +10,7 @@ interface UserInfo {
   isSuperAdmin: boolean;
   companyName?: string; // Display name for company or user
   fullName?: string; // User's full name
+  avatarUrl?: string; // User's profile photo URL
 }
 
 interface AuthContextType {
@@ -105,9 +106,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const info = getUserInfoFromToken(token);
 
-      const fetchCompanyNameOnMount = async () => {
+      const fetchUserDataOnMount = async () => {
         let companyName = 'Workspace';
+        let avatarUrl: string | undefined;
+        let fullName: string | undefined;
+
         try {
+          // Fetch current user data from API (includes avatar_url)
+          const currentUser = await apiService.getCurrentUser();
+          avatarUrl = currentUser.avatar_url || undefined;
+          fullName = currentUser.full_name || info.fullName || undefined;
+
           if (info.isSuperAdmin) {
             companyName = 'Super Admin';
           } else {
@@ -121,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } catch (err) {
-          console.error('Failed to fetch company name on mount:', err);
+          console.error('Failed to fetch user data on mount:', err);
           // If we get a 401 here, token might be invalid/expired
           if ((err as any)?.response?.status === 401) {
             performLogout();
@@ -137,7 +146,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: info.role || 'member',
             isSuperAdmin: info.isSuperAdmin,
             companyName,
-            fullName: info.fullName || undefined,
+            fullName,
+            avatarUrl,
           });
           setIsAuthenticated(true);
         } else if (info.userId && info.isSuperAdmin) {
@@ -148,7 +158,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: info.role || 'super_admin',
             isSuperAdmin: true,
             companyName,
-            fullName: info.fullName || undefined,
+            fullName,
+            avatarUrl,
           });
           setIsAuthenticated(true);
         } else {
@@ -159,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
       };
 
-      fetchCompanyNameOnMount();
+      fetchUserDataOnMount();
     } else {
       setLoading(false);
     }
@@ -175,9 +186,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (token) {
         const info = getUserInfoFromToken(token);
 
-        // Fetch company name
+        // Fetch user data and company name
         let companyName = 'Workspace';
+        let avatarUrl: string | undefined;
+        let fullName: string | undefined;
+
         try {
+          // Fetch current user data from API (includes avatar_url)
+          const currentUser = await apiService.getCurrentUser();
+          avatarUrl = currentUser.avatar_url || undefined;
+          fullName = currentUser.full_name || info.fullName || undefined;
+
           if (info.isSuperAdmin) {
             companyName = 'Super Admin';
           } else {
@@ -193,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } catch (err) {
-          console.error('Failed to fetch company name:', err);
+          console.error('Failed to fetch user data:', err);
         }
 
         setUserInfo({
@@ -202,7 +221,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: info.role || 'member',
           isSuperAdmin: info.isSuperAdmin,
           companyName,
-          fullName: info.fullName || undefined,
+          fullName,
+          avatarUrl,
         });
       }
 
@@ -305,6 +325,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isSuperAdmin: tokenInfo.isSuperAdmin,
           companyName,
           fullName: currentUser.full_name || undefined,
+          avatarUrl: currentUser.avatar_url || undefined,
         });
       } else if (currentUser.id && tokenInfo.isSuperAdmin) {
         setUserInfo({
@@ -314,6 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isSuperAdmin: true,
           companyName,
           fullName: currentUser.full_name || undefined,
+          avatarUrl: currentUser.avatar_url || undefined,
         });
       }
     } catch (error) {

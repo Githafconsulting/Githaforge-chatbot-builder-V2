@@ -29,7 +29,8 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         "full_name": current_user.get("full_name"),
         "role": current_user.get("role"),
         "company_id": current_user.get("company_id"),
-        "is_active": current_user.get("is_active")
+        "is_active": current_user.get("is_active"),
+        "avatar_url": current_user.get("avatar_url")
     }
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -169,17 +170,17 @@ async def list_users(current_user: dict = Depends(get_current_admin_user)):
             )
 
         # Filter by company_id and exclude super admins
-        # Try to select with first_name/last_name, fallback to without if columns don't exist
+        # Try to select with first_name/last_name/avatar_url, fallback to without if columns don't exist
         try:
             response = client.table("users").select(
-                "id, email, first_name, last_name, full_name, is_active, is_admin, role, company_id, created_at"
+                "id, email, first_name, last_name, full_name, avatar_url, is_active, is_admin, role, company_id, created_at"
             ).eq("company_id", company_id).eq("is_super_admin", False).execute()
         except Exception as col_error:
             # Fallback: columns might not exist yet
             if "first_name" in str(col_error) or "last_name" in str(col_error):
                 logger.warning("first_name/last_name columns not found, using fallback query")
                 response = client.table("users").select(
-                    "id, email, full_name, is_active, is_admin, role, company_id, created_at"
+                    "id, email, full_name, avatar_url, is_active, is_admin, role, company_id, created_at"
                 ).eq("company_id", company_id).eq("is_super_admin", False).execute()
             else:
                 raise

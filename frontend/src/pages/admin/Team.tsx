@@ -331,14 +331,11 @@ export const TeamPage: React.FC = () => {
             <table className="w-full">
               <thead className="bg-slate-900 sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider w-12">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider w-16">
                     #
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                    First Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                    Last Name
+                    Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                     Email
@@ -367,17 +364,30 @@ export const TeamPage: React.FC = () => {
                       animate={{ opacity: 1 }}
                       className="hover:bg-slate-700/50 transition-colors"
                     >
-                      <td className="px-4 py-4 text-sm text-slate-400 font-medium">
-                        {index + 1}
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-6">
+                          <span className="text-sm text-slate-400 font-medium w-6">{index + 1}</span>
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={user.first_name || 'User'}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                              <span className="text-blue-400 font-semibold text-sm">
+                                {(user.first_name?.[0] || user.email[0] || 'U').toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-medium text-white">
-                          {user.first_name || <span className="text-slate-500">N/A</span>}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="font-medium text-white">
-                          {user.last_name || <span className="text-slate-500">N/A</span>}
+                          {user.first_name || user.last_name
+                            ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                            : <span className="text-slate-500">N/A</span>
+                          }
                         </span>
                       </td>
                       <td className="px-6 py-4">

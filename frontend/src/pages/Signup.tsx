@@ -852,7 +852,7 @@ const Step4Security: React.FC<{
 // Main Signup Component
 export const Signup: React.FC = () => {
   const navigate = useNavigate();
-  const { signup: authSignup } = useAuth();
+  const { signup: authSignup, refreshUserInfo } = useAuth();
   const [searchParams] = useSearchParams();
   const planFromUrl = searchParams.get('plan') || 'free';
 
@@ -1065,6 +1065,8 @@ export const Signup: React.FC = () => {
       if (profilePhotoFile) {
         try {
           await apiService.uploadUserAvatar(profilePhotoFile);
+          // Refresh user info to update avatar URL in context
+          await refreshUserInfo();
         } catch (uploadError) {
           console.error('Failed to upload profile photo:', uploadError);
           // Don't block signup if photo upload fails

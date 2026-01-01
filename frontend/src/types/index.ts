@@ -173,6 +173,7 @@ export interface CompanyUser {
   first_name?: string;
   last_name?: string;
   full_name?: string;  // Computed from first_name + last_name for backward compatibility
+  avatar_url?: string; // User's profile photo URL
   company_id: string;
   role_id?: string;
   role?: string; // Legacy field (owner, admin, etc.)

@@ -263,9 +263,17 @@ export const AdminLayout: React.FC = () => {
         <div className="flex-shrink-0 p-6 pt-4 space-y-2 border-t border-slate-700">
           {/* User Avatar */}
           <div className="flex items-center gap-3 px-4 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-              <span className="text-blue-400 font-semibold text-sm">{firstInitial}</span>
-            </div>
+            {userInfo?.avatarUrl ? (
+              <img
+                src={userInfo.avatarUrl}
+                alt={firstName}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <span className="text-blue-400 font-semibold text-sm">{firstInitial}</span>
+              </div>
+            )}
             <span className="text-sm text-slate-300">{firstName}</span>
           </div>
 
