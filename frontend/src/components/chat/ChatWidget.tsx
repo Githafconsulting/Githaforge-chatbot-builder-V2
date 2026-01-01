@@ -105,9 +105,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [pausedMessage, setPausedMessage] = useState('');
 
-  // Chatbot branding (colors and logo)
-  const [primaryColor, setPrimaryColor] = useState<string>('#1E40AF');
-  const [secondaryColor, setSecondaryColor] = useState<string>('#3B82F6');
+  // Chatbot branding (colors and logo) - matches "Get Started Free" button gradient
+  const [primaryColor, setPrimaryColor] = useState<string>('#9333EA'); // purple-600
+  const [secondaryColor, setSecondaryColor] = useState<string>('#2563EB'); // blue-600
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // Track if we've already notified parent of load (prevent duplicate messages on remount)
@@ -448,7 +448,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
             <motion.button
               data-chat-toggle
               onClick={() => setIsOpen(true)}
-              className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 bg-gradient-to-br from-primary-600 to-secondary-600 text-white rounded-full p-3 sm:p-4 shadow-strong hover:shadow-xl transition-all z-50 no-print"
+              className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-full p-3 sm:p-4 shadow-lg shadow-purple-500/40 hover:shadow-xl transition-all z-50 no-print"
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               exit={{ scale: 0, rotate: 180 }}
@@ -590,8 +590,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                   >
                     {msg.is_user ? (
                       <motion.div
-                        className="rounded-lg p-3 text-white max-w-[80%]"
-                        style={{ backgroundColor: secondaryColor }}
+                        className="rounded-lg p-3 text-white max-w-[80%] bg-gradient-to-r from-purple-600 to-blue-600"
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -737,7 +736,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
                 <motion.button
                   onClick={handleSend}
                   disabled={loading || !input.trim() || isPaused}
-                  className={`px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl ${isPaused ? 'bg-slate-600' : 'btn-primary'}`}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-white ${isPaused ? 'bg-slate-600' : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg shadow-purple-500/30'}`}
                   whileHover={{ scale: loading || !input.trim() || isPaused ? 1 : 1.05 }}
                   whileTap={{ scale: loading || !input.trim() || isPaused ? 1 : 0.95 }}
                 >
