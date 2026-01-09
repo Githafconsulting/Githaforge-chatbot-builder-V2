@@ -608,7 +608,7 @@ export const HomeNew: React.FC = () => {
                 {/* Placeholder - Replace src with actual video URL */}
                 <iframe
                   className="absolute inset-0 w-full h-full"
-                  src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                  src="https://www.youtube.com/embed/IpHT54yS3Wg"
                   title="Githaforge Demo Video"
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
