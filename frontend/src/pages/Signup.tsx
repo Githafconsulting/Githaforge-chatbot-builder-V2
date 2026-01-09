@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import ReCAPTCHA from 'react-google-recaptcha';
 import { Input, Badge, GlowButton, GlowBox, Select } from '../components/ui';
 import {
@@ -37,7 +37,7 @@ import toast from 'react-hot-toast';
 // For development, you can use the test key: 6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
-// Step configuration
+// Step configuration - simplified 4-step flow
 const STEPS = [
   { id: 1, name: 'Account Type', description: 'Choose how you want to use Githaforge' },
   { id: 2, name: 'Your Details', description: 'Tell us about yourself' },
@@ -94,12 +94,16 @@ const calculatePasswordStrength = (password: string) => {
 };
 
 // Progress Bar Component
-const ProgressBar: React.FC<{ currentStep: number; totalSteps: number }> = ({ currentStep, totalSteps }) => {
+const ProgressBar: React.FC<{
+  currentStep: number;
+  totalSteps: number;
+  steps: Array<{ id: number; name: string; description: string }>;
+}> = ({ currentStep, totalSteps, steps }) => {
   return (
     <div className="w-full mb-8">
       {/* Step indicators */}
       <div className="flex justify-between items-center mb-3">
-        {STEPS.map((step, index) => (
+        {steps.map((step, index) => (
           <div key={step.id} className="flex flex-col items-center flex-1">
             <div className="flex items-center w-full">
               {/* Step circle */}
@@ -148,7 +152,7 @@ const ProgressBar: React.FC<{ currentStep: number; totalSteps: number }> = ({ cu
       {/* Current step description */}
       <div className="text-center">
         <p className="text-slate-400 text-sm">
-          Step {currentStep} of {totalSteps}: <span className="text-purple-400">{STEPS[currentStep - 1].description}</span>
+          Step {currentStep} of {totalSteps}: <span className="text-purple-400">{steps[currentStep - 1]?.description}</span>
         </p>
       </div>
     </div>
@@ -561,7 +565,7 @@ const Step3Workspace: React.FC<{
         fullWidth
       />
 
-      {/* Features Preview */}
+      {/* Features Preview - All users get 14-day Pro trial */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
         <div className="bg-slate-800/30 rounded-lg p-4 border border-slate-700/50">
           <Bot className="w-8 h-8 text-purple-400 mb-3" />
@@ -577,8 +581,21 @@ const Step3Workspace: React.FC<{
         </div>
         <div className="bg-slate-800/30 rounded-lg p-4 border border-slate-700/50">
           <Sparkles className="w-8 h-8 text-yellow-400 mb-3" />
-          <h4 className="font-medium text-white mb-1">14-Day Trial</h4>
+          <h4 className="font-medium text-white mb-1">14-Day Pro Trial</h4>
           <p className="text-xs text-slate-400">Full access to all Pro features</p>
+        </div>
+      </div>
+
+      {/* Trial Banner */}
+      <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-xl p-4 border border-purple-500/30">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+          </div>
+          <div>
+            <p className="font-medium text-white">Start with 14 days of Pro features</p>
+            <p className="text-sm text-slate-400">No credit card required. Upgrade anytime from your dashboard.</p>
+          </div>
         </div>
       </div>
     </motion.div>
@@ -673,7 +690,7 @@ const Step4Security: React.FC<{
         ) : (
           <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
             {profilePhotoPreview ? (
-              <img src={profilePhotoPreview} alt="Profile" className="w-10 h-10 rounded-full object-cover border-2 border-purple-500/30" />
+              <img src={profilePhotoPreview} alt="Profile" className="w-10 h-10 rounded-full border-2 border-purple-500/30" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
                 <Mail className="w-5 h-5 text-purple-400" />
@@ -853,11 +870,10 @@ const Step4Security: React.FC<{
 export const Signup: React.FC = () => {
   const navigate = useNavigate();
   const { signup: authSignup, refreshUserInfo } = useAuth();
-  const [searchParams] = useSearchParams();
-  const planFromUrl = searchParams.get('plan') || 'free';
 
   const [currentStep, setCurrentStep] = useState(1);
   const [accountType, setAccountType] = useState<AccountType>('company');
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -874,6 +890,7 @@ export const Signup: React.FC = () => {
     marketingConsent: false,
     wantsConsultation: false,
   });
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [useDifferentSigninEmail, setUseDifferentSigninEmail] = useState(false);
@@ -952,6 +969,7 @@ export const Signup: React.FC = () => {
         break;
 
       case 2:
+        // Your Details
         if (!formData.firstName.trim()) {
           newErrors.firstName = 'First name is required';
         }
@@ -973,7 +991,7 @@ export const Signup: React.FC = () => {
         break;
 
       case 4:
-        // Validate signin email if using a different one
+        // Security - Validate signin email if using a different one
         if (useDifferentSigninEmail) {
           if (!formData.signinEmail.trim()) {
             newErrors.signinEmail = 'Sign-in email is required';
@@ -1038,7 +1056,8 @@ export const Signup: React.FC = () => {
         password: formData.password,
         first_name: formData.firstName,
         last_name: formData.lastName,
-        subscription_tier: (planFromUrl as 'free' | 'pro' | 'enterprise') || 'free',
+        subscription_tier: 'free', // Always free tier - trial handled by backend
+        billing_cycle: 'monthly',
         // Store contact email if different from signin email
         contact_email: useDifferentSigninEmail ? formData.email : undefined,
         // New fields
@@ -1181,11 +1200,10 @@ export const Signup: React.FC = () => {
               />
               <span className="text-3xl font-display font-bold text-white">Githaforge</span>
             </div>
-            {planFromUrl !== 'free' && (
-              <Badge variant="primary" size="sm" rounded>
-                {planFromUrl.toUpperCase()} Plan
-              </Badge>
-            )}
+            <Badge variant="accent" size="sm" rounded>
+              <Sparkles className="w-3 h-3 mr-1" />
+              14-Day Pro Trial Included
+            </Badge>
           </motion.div>
 
           {/* Main Card */}
@@ -1204,7 +1222,7 @@ export const Signup: React.FC = () => {
           >
             <div className="p-8">
               {/* Progress Bar */}
-              <ProgressBar currentStep={currentStep} totalSteps={STEPS.length} />
+              <ProgressBar currentStep={currentStep} totalSteps={STEPS.length} steps={STEPS} />
 
               {/* Step Content */}
               <form onSubmit={handleSubmit}>

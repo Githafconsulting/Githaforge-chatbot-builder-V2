@@ -680,6 +680,7 @@ export interface UnifiedSignupRequest {
   industry?: string;
   company_size?: '1-10' | '11-50' | '51-200' | '201-500' | '500+';
   subscription_tier?: 'free' | 'pro' | 'enterprise';
+  billing_cycle?: 'monthly' | 'yearly';
   // Consent and preferences
   marketing_consent?: boolean;  // User opted in to marketing communications
   wants_consultation?: boolean;  // User requested a live consultation/walkthrough

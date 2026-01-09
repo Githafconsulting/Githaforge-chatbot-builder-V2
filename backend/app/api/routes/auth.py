@@ -3,7 +3,7 @@ Authentication API endpoints
 """
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from typing import Dict, Any
 from app.models.user import Token, CompanySignup, UnifiedSignup, SignupResponse
 from app.core.database import get_supabase_client
@@ -394,6 +394,11 @@ async def unified_signup(signup_data: UnifiedSignup):
                 )
 
         # 4. Create company/workspace
+        # Calculate trial end date (14 days from now) for free tier users
+        trial_ends_at = None
+        if (signup_data.subscription_tier or "free") == "free":
+            trial_ends_at = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+
         company_data = {
             "name": workspace_name,
             "website": signup_data.website,
@@ -402,7 +407,8 @@ async def unified_signup(signup_data: UnifiedSignup):
             "plan": signup_data.subscription_tier or "free",
             "is_personal": is_personal,
             "max_team_members": 1 if is_personal else 5,  # Individual = 1, Company = 5 default
-            "is_active": True
+            "is_active": True,
+            "trial_ends_at": trial_ends_at,  # 14-day Pro trial
         }
 
         company_response = client.table("companies").insert(company_data).execute()

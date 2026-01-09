@@ -13,7 +13,8 @@ import {
   Globe,
   Users as UsersIcon,
   Briefcase,
-  Tag
+  Tag,
+  Shield
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import toast from 'react-hot-toast';
