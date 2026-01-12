@@ -408,10 +408,23 @@ async def unified_signup(signup_data: UnifiedSignup):
             "is_personal": is_personal,
             "max_team_members": 1 if is_personal else 5,  # Individual = 1, Company = 5 default
             "is_active": True,
-            "trial_ends_at": trial_ends_at,  # 14-day Pro trial
         }
 
-        company_response = client.table("companies").insert(company_data).execute()
+        # Only add trial_ends_at if we have a value (column may not exist yet)
+        if trial_ends_at:
+            company_data["trial_ends_at"] = trial_ends_at
+
+        # Try to insert company - retry without trial_ends_at if column doesn't exist
+        try:
+            company_response = client.table("companies").insert(company_data).execute()
+        except Exception as e:
+            if "trial_ends_at" in str(e):
+                # Column doesn't exist yet, retry without it
+                logger.warning("trial_ends_at column not found, inserting without it")
+                company_data.pop("trial_ends_at", None)
+                company_response = client.table("companies").insert(company_data).execute()
+            else:
+                raise
         if not company_response.data or len(company_response.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -385,3 +385,98 @@ async def upload_company_logo(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload company logo: {str(e)}"
         )
+
+
+@router.post("/upload-favicon")
+async def upload_company_favicon(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload company favicon.
+
+    - Accepts image files (PNG, ICO, SVG recommended)
+    - Recommended sizes: 16x16, 32x32, or 48x48 pixels
+    - Max file size: 500KB
+    - Returns the URL of the uploaded favicon
+
+    The favicon is stored in Supabase Storage and the URL is saved to the company record.
+    """
+    try:
+        client = get_supabase_client()
+        company_id = current_user.get("company_id")
+
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not associated with a company"
+            )
+
+        # Validate file type
+        allowed_types = ["image/png", "image/x-icon", "image/vnd.microsoft.icon", "image/svg+xml", "image/jpeg", "image/jpg"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file type. Allowed: PNG, ICO, SVG"
+            )
+
+        # Read file content
+        content = await file.read()
+
+        # Validate file size (500KB max for favicon)
+        if len(content) > 500 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File too large. Maximum size is 500KB"
+            )
+
+        # Generate unique filename
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "png"
+        unique_filename = f"{company_id}/favicon_{uuid.uuid4()}.{file_ext}"
+        storage_path = unique_filename
+
+        # Upload to Supabase Storage
+        try:
+            # Upload new favicon
+            upload_response = client.storage.from_("company-logos").upload(
+                storage_path,
+                content,
+                {"content-type": file.content_type}
+            )
+        except Exception as storage_error:
+            logger.error(f"Storage upload error: {storage_error}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload file to storage: {str(storage_error)}"
+            )
+
+        # Get public URL
+        public_url = client.storage.from_("company-logos").get_public_url(storage_path)
+
+        # Update company record with favicon URL
+        update_response = client.table("companies").update({
+            "favicon_url": public_url
+        }).eq("id", company_id).execute()
+
+        if not update_response.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update company favicon URL"
+            )
+
+        logger.info(f"Favicon uploaded for company: {company_id}")
+
+        return {
+            "success": True,
+            "url": public_url,
+            "message": "Company favicon uploaded successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading company favicon: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload company favicon: {str(e)}"
+        )

@@ -40,46 +40,73 @@ export const Login: React.FC = () => {
 
       {/* Top Bar with Back, Logo & App Name, Language & Theme */}
       <motion.div
-        className="absolute top-4 left-4 right-4 md:top-8 md:left-8 md:right-8 flex flex-col md:flex-row items-center gap-4 md:justify-between"
+        className="absolute top-4 left-4 right-4 md:top-8 md:left-8 md:right-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        {/* First Row on Mobile: Back to Home and Language/Theme */}
-        <div className="flex items-center justify-between w-full md:w-auto">
+        {/* Desktop: Three-column layout with equal widths for perfect centering */}
+        <div className="hidden md:grid md:grid-cols-3 items-center">
           {/* Left: Back to Home */}
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-theme-secondary hover:text-primary-400 transition-colors"
-          >
-            <ArrowLeft size={20} />
-            <span className="font-medium">{t('nav.backToHome')}</span>
-          </Link>
+          <div className="flex justify-start">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-theme-secondary hover:text-primary-400 transition-colors"
+            >
+              <ArrowLeft size={20} />
+              <span className="font-medium">{t('nav.backToHome')}</span>
+            </Link>
+          </div>
 
-          {/* Right on Mobile: Language & Theme */}
-          <div className="flex items-center gap-2 md:hidden">
+          {/* Center: Logo & App Name */}
+          <div className="flex items-center justify-center gap-2">
+            <img
+              src="/images/branding/githaf_logo.png"
+              alt="Githaforge Logo"
+              className="w-16 h-16 object-contain"
+            />
+            <div className="flex flex-col items-start">
+              <h1 className="text-2xl font-bold text-theme-primary leading-tight">Githaforge</h1>
+              <p className="text-sm text-theme-secondary">AI Chatbot Builder</p>
+            </div>
+          </div>
+
+          {/* Right: Language & Theme */}
+          <div className="flex items-center justify-end gap-2">
             <LanguageSelector />
             <ThemeToggle />
           </div>
         </div>
 
-        {/* Second Row on Mobile / Center on Desktop: Logo & App Name */}
-        <div className="flex items-center justify-center gap-2 pt-16 md:pt-0 w-full md:w-auto">
-          <img
-            src="/images/branding/githaf_logo.png"
-            alt="Githaforge Logo"
-            className="w-16 h-16 object-contain"
-          />
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-bold text-theme-primary leading-tight">Githaforge</h1>
-            <p className="text-sm text-theme-secondary">AI Chatbot Builder</p>
+        {/* Mobile: Stacked layout */}
+        <div className="flex flex-col items-center gap-6 md:hidden">
+          {/* Top row: Back and Controls */}
+          <div className="flex items-center justify-between w-full">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-theme-secondary hover:text-primary-400 transition-colors"
+            >
+              <ArrowLeft size={20} />
+              <span className="font-medium">{t('nav.backToHome')}</span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <LanguageSelector />
+              <ThemeToggle />
+            </div>
           </div>
-        </div>
 
-        {/* Right on Desktop: Language & Theme */}
-        <div className="hidden md:flex items-center gap-2">
-          <LanguageSelector />
-          <ThemeToggle />
+          {/* Logo & App Name - Centered */}
+          <div className="flex items-center justify-center gap-2 mt-8">
+            <img
+              src="/images/branding/githaf_logo.png"
+              alt="Githaforge Logo"
+              className="w-16 h-16 object-contain"
+            />
+            <div className="flex flex-col items-start">
+              <h1 className="text-2xl font-bold text-theme-primary leading-tight">Githaforge</h1>
+              <p className="text-sm text-theme-secondary">AI Chatbot Builder</p>
+            </div>
+          </div>
         </div>
       </motion.div>
 

@@ -11,6 +11,7 @@ class CompanyBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     website: Optional[str] = None
     logo_url: Optional[str] = None
+    favicon_url: Optional[str] = None
     primary_color: str = Field(default="#1e40af", pattern=r'^#[0-9A-Fa-f]{6}$')
     secondary_color: str = Field(default="#0ea5e9", pattern=r'^#[0-9A-Fa-f]{6}$')
     company_size: Optional[str] = Field(None, pattern=r'^(1-10|11-50|51-200|201-500|500\+)$')
@@ -38,6 +39,7 @@ class CompanyUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100)
     website: Optional[str] = None
     logo_url: Optional[str] = None
+    favicon_url: Optional[str] = None
     primary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     secondary_color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     company_size: Optional[str] = None

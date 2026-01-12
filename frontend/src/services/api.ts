@@ -804,6 +804,18 @@ class ApiService {
     return response.data;
   }
 
+  async uploadCompanyFavicon(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await this.api.post('/api/v1/companies/upload-favicon', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+
   // Super Admin - System Personas APIs
   async getSystemPersonas(): Promise<Persona[]> {
     const response = await this.api.get('/api/v1/super-admin/system-personas');

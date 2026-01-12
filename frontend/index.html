@@ -14,6 +14,24 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Set favicon on page load before React mounts -->
+    <script>
+      // Immediately set appropriate favicon (before React loads)
+      // This prevents favicon flash on page load
+      const link = document.querySelector("link[rel~='icon']");
+      if (link) {
+        const isAdminRoute = window.location.pathname.startsWith('/admin');
+        const isSuperAdminRoute = window.location.pathname.startsWith('/super-admin');
+
+        if (isAdminRoute || isSuperAdminRoute) {
+          // Set placeholder favicon for admin routes (matches ImageIcon placeholder)
+          link.href = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" fill="#1e293b"/><circle cx="8.5" cy="8.5" r="1.5" fill="#94a3b8"/><polyline points="21 15 16 10 5 21" stroke="#94a3b8"/></svg>');
+        } else {
+          // Set default site favicon for public routes
+          link.href = '/githaf_fav.png';
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -46,34 +46,109 @@ export const AdminLayout: React.FC = () => {
   const firstName = userInfo?.fullName?.split(' ')[0] || 'User';
   const firstInitial = firstName[0]?.toUpperCase() || 'U';
 
-  // Fetch company logo and billing permission on mount
+  // Placeholder favicon - matches the ImageIcon placeholder used for logo
+  // This is a simple image/picture icon similar to Lucide's ImageIcon
+  const PLACEHOLDER_FAVICON = 'data:image/svg+xml,' + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" fill="%231e293b"/>
+      <circle cx="8.5" cy="8.5" r="1.5" fill="%2394a3b8"/>
+      <polyline points="21 15 16 10 5 21" stroke="%2394a3b8"/>
+    </svg>
+  `);
+
+  // Set placeholder favicon immediately on mount to prevent default favicon flash
+  useEffect(() => {
+    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+    if (link) {
+      link.href = PLACEHOLDER_FAVICON;
+    }
+  }, []);
+
+  // Fetch company logo and billing permission on mount (only if user is authenticated)
   useEffect(() => {
     const fetchCompanySettings = async () => {
+      // Only fetch if user is logged in
+      if (!userInfo?.userId) {
+        return;
+      }
+
       try {
         const company = await apiService.getCompanySettings();
         if (company?.logo_url) {
           setCompanyLogo(company.logo_url);
-          // Update favicon
-          const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-          if (link) {
+        }
+
+        // Update favicon to company favicon, or company logo as fallback, or placeholder
+        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (link) {
+          if (company?.favicon_url) {
+            link.href = company.favicon_url;
+          } else if (company?.logo_url) {
+            // Use company logo as fallback if no favicon
             link.href = company.logo_url;
+          } else {
+            // Keep the placeholder favicon (already set)
+            link.href = PLACEHOLDER_FAVICON;
           }
         }
+
+        // Update page title to company name
+        if (company?.name) {
+          document.title = `${company.name} - Admin Dashboard`;
+        }
+
         setAdminCanAccessBilling(company?.admin_can_access_billing || false);
       } catch (error) {
         console.error('Failed to fetch company settings:', error);
+        // Keep placeholder favicon on error (already set)
       }
     };
     fetchCompanySettings();
-  }, []);
+  }, [userInfo?.userId]);
 
   const handleLogout = () => {
+    // Restore default favicon and title on logout
+    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+    if (link) {
+      link.href = '/githaf_fav.png';
+    }
+    document.title = 'Githaforge - AI Chatbot Builder';
     logout();
     navigate('/login');
   };
 
   // Check if user can access billing
   const canAccessBilling = userRole === 'owner' || (userRole === 'admin' && adminCanAccessBilling);
+
+  // Admin page title mappings
+  const ADMIN_PAGE_TITLES: Record<string, string> = {
+    '/admin': 'Analytics',
+    '/admin/analytics': 'Analytics',
+    '/admin/chatbots': 'Chatbots',
+    '/admin/documents': 'Knowledge Base',
+    '/admin/conversations': 'Conversations',
+    '/admin/flagged': 'Flagged Queries',
+    '/admin/learning': 'Learning',
+    '/admin/team': 'Team Management',
+    '/admin/company': 'Company Settings',
+    '/admin/billing': 'Billing & Plans',
+    '/admin/integrations': 'Integrations',
+    '/admin/settings': 'System Settings',
+    '/admin/deleted': 'Deleted Items',
+    '/admin/users': 'Users',
+  };
+
+  // Update page title based on current route
+  useEffect(() => {
+    const pageName = ADMIN_PAGE_TITLES[location.pathname];
+    if (pageName) {
+      document.title = `${pageName} | ${companyName} - Admin`;
+    } else if (location.pathname.startsWith('/admin/chatbots/')) {
+      document.title = `Chatbot Details | ${companyName} - Admin`;
+    } else {
+      document.title = `${companyName} - Admin Dashboard`;
+    }
+  }, [location.pathname, companyName]);
 
   const navItems = [
     { path: '/admin', label: t('nav.analytics'), icon: BarChart3, color: 'text-blue-400' },

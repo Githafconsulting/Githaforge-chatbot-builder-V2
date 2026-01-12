@@ -27,6 +27,7 @@ interface Company {
   industry?: string;
   company_size?: string;
   logo_url?: string;
+  favicon_url?: string;
   primary_color?: string;
   secondary_color?: string;
   plan?: string;  // Backend uses 'plan' field with values: free, pro, enterprise
@@ -118,6 +119,8 @@ export const CompanySettingsPage: React.FC = () => {
   const [newScope, setNewScope] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>('');
+  const [faviconFile, setFaviconFile] = useState<File | null>(null);
+  const [faviconPreview, setFaviconPreview] = useState<string>('');
 
   useEffect(() => {
     loadCompanySettings();
@@ -139,6 +142,7 @@ export const CompanySettingsPage: React.FC = () => {
       });
       setCustomScopes(data.custom_scopes || []);
       setLogoPreview(data.logo_url || '');
+      setFaviconPreview(data.favicon_url || '');
     } catch (error) {
       console.error('Failed to load company settings:', error);
       toast.error('Failed to load company settings');
@@ -158,10 +162,18 @@ export const CompanySettingsPage: React.FC = () => {
         logoUrl = uploadedLogo.url;
       }
 
+      // Upload favicon if selected
+      let faviconUrl = company?.favicon_url;
+      if (faviconFile) {
+        const uploadedFavicon = await apiService.uploadCompanyFavicon(faviconFile);
+        faviconUrl = uploadedFavicon.url;
+      }
+
       // Update company settings
       const updatedCompany = await apiService.updateCompanySettings({
         ...formData,
         logo_url: logoUrl,
+        favicon_url: faviconUrl,
         custom_scopes: customScopes
       });
 
@@ -186,6 +198,22 @@ export const CompanySettingsPage: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleFaviconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 500 * 1024) { // 500KB limit
+        toast.error('Favicon file size must be less than 500KB');
+        return;
+      }
+      setFaviconFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFaviconPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -407,6 +435,46 @@ export const CompanySettingsPage: React.FC = () => {
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
                   Recommended: Square image, max 2MB (PNG, JPG, SVG)
+                </p>
+              </div>
+
+              {/* Favicon Upload */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-3">
+                  Favicon <span className="text-xs text-slate-500">(Browser Tab Icon)</span>
+                </label>
+                <div className="flex items-center gap-4">
+                  {faviconPreview && (
+                    <div className="relative">
+                      <img
+                        src={faviconPreview}
+                        alt="Company favicon"
+                        className="h-12 w-12 rounded object-cover border-2 border-slate-600"
+                      />
+                      <button
+                        onClick={() => {
+                          setFaviconFile(null);
+                          setFaviconPreview('');
+                        }}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-3 w-3 text-white" />
+                      </button>
+                    </div>
+                  )}
+                  <label className="cursor-pointer px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center gap-2">
+                    <Upload className="h-5 w-5" />
+                    Upload Favicon
+                    <input
+                      type="file"
+                      accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+                      onChange={handleFaviconChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  Recommended: 16x16, 32x32, or 48x48 pixels, max 500KB (PNG, ICO, SVG)
                 </p>
               </div>
 

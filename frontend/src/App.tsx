@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './contexts/AuthContext';
 import { SuperAdminAuthProvider } from './contexts/SuperAdminAuthContext';
@@ -49,6 +50,58 @@ import { GlobalChatWidget } from './components/GlobalChatWidget';
 import { ScrollToTop } from './components/ScrollToTop';
 import './i18n'; // Initialize i18n
 
+// Page title mappings for public routes
+const PAGE_TITLES: Record<string, string> = {
+  '/': 'Home',
+  '/features': 'Features',
+  '/pricing': 'Pricing',
+  '/faqs': 'FAQs',
+  '/contact': 'Contact',
+  '/about': 'About',
+  '/blogs': 'Blog',
+  '/reviews': 'Reviews',
+  '/signup': 'Sign Up',
+  '/login': 'Login',
+  '/super-admin-login': 'Super Admin Login',
+  '/onboarding': 'Onboarding',
+  '/glow-showcase': 'Components Showcase',
+};
+
+// Favicon and Title manager - handles favicon reset and dynamic page titles
+const FaviconAndTitleManager = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const isAdminRoute = location.pathname.startsWith('/admin');
+    const isSuperAdminRoute = location.pathname.startsWith('/super-admin');
+
+    // Only reset favicon on non-admin routes
+    // AdminLayout handles setting company favicon for admin routes
+    if (!isAdminRoute && !isSuperAdminRoute) {
+      const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (link) {
+        link.href = '/githaf_fav.png';
+      }
+
+      // Set page title for public routes
+      // Use setTimeout to ensure this runs after any Helmet updates
+      setTimeout(() => {
+        const pageName = PAGE_TITLES[location.pathname];
+        if (pageName) {
+          document.title = `${pageName} | Githaforge - AI Chatbot Builder`;
+        } else if (location.pathname.startsWith('/blog/')) {
+          // Blog post pages are handled by BlogPost component via Helmet
+          // Don't override here
+        } else {
+          document.title = 'Githaforge - AI Chatbot Builder';
+        }
+      }, 0);
+    }
+  }, [location.pathname]);
+
+  return null;
+};
+
 function App() {
   return (
     <HelmetProvider>
@@ -58,6 +111,7 @@ function App() {
             <SuperAdminAuthProvider>
               <BrowserRouter>
                 <ScrollToTop />
+                <FaviconAndTitleManager />
                 <GlobalChatWidget />
                 <Routes>
                   {/* Public Routes */}
