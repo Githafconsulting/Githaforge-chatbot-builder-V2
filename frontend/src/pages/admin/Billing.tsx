@@ -342,7 +342,10 @@ export const BillingPage: React.FC = () => {
           <div className="flex items-start gap-8 border-t border-slate-700/50 pt-6">
             <div className="w-40 text-sm text-slate-400">Billing information</div>
             <div>
-              <button className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors text-sm">
+              <button
+                onClick={() => toast('Payment integration coming soon!', { icon: '🚧' })}
+                className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors text-sm"
+              >
                 Update billing
               </button>
             </div>
@@ -358,6 +361,45 @@ export const BillingPage: React.FC = () => {
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Plan Overview */}
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Plan overview</h2>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-sm text-slate-400 border-b border-slate-700">
+                <th className="pb-3 font-medium">Plan</th>
+                <th className="pb-3 font-medium">Plan value</th>
+                <th className="pb-3 font-medium">Plan limits</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              <tr className="border-b border-slate-700/50">
+                <td className="py-4 text-purple-400">Chatbots</td>
+                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
+                <td className="py-4 text-slate-400">{currentPlanLimits.chatbots} chatbots</td>
+              </tr>
+              <tr className="border-b border-slate-700/50">
+                <td className="py-4 text-purple-400">Messages</td>
+                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
+                <td className="py-4 text-slate-400">{typeof currentPlanLimits.messages === 'number' ? `${currentPlanLimits.messages.toLocaleString()} messages/month` : 'Unlimited'}</td>
+              </tr>
+              <tr className="border-b border-slate-700/50">
+                <td className="py-4 text-purple-400">Documents</td>
+                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
+                <td className="py-4 text-slate-400">{currentPlanLimits.documents} documents</td>
+              </tr>
+              <tr>
+                <td className="py-4 text-purple-400">Team members</td>
+                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
+                <td className="py-4 text-slate-400">{currentPlanLimits.teamMembers} members</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -531,45 +573,6 @@ export const BillingPage: React.FC = () => {
   // Preferences Tab Content
   const renderPreferences = () => (
     <div className="space-y-6">
-      {/* Plan Overview */}
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Plan overview</h2>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-sm text-slate-400 border-b border-slate-700">
-                <th className="pb-3 font-medium">Plan</th>
-                <th className="pb-3 font-medium">Plan value</th>
-                <th className="pb-3 font-medium">Plan limits</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              <tr className="border-b border-slate-700/50">
-                <td className="py-4 text-purple-400">Chatbots</td>
-                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
-                <td className="py-4 text-slate-400">{currentPlanLimits.chatbots} chatbots</td>
-              </tr>
-              <tr className="border-b border-slate-700/50">
-                <td className="py-4 text-purple-400">Messages</td>
-                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
-                <td className="py-4 text-slate-400">{typeof currentPlanLimits.messages === 'number' ? `${currentPlanLimits.messages.toLocaleString()} messages/month` : 'Unlimited'}</td>
-              </tr>
-              <tr className="border-b border-slate-700/50">
-                <td className="py-4 text-purple-400">Documents</td>
-                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
-                <td className="py-4 text-slate-400">{currentPlanLimits.documents} documents</td>
-              </tr>
-              <tr>
-                <td className="py-4 text-purple-400">Team members</td>
-                <td className="py-4 text-slate-300 capitalize">{currentPlan}</td>
-                <td className="py-4 text-slate-400">{currentPlanLimits.teamMembers} members</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {/* Compare Plans */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Compare plans</h2>
@@ -635,7 +638,10 @@ export const BillingPage: React.FC = () => {
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Billing address</h2>
-          <button className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm">
+          <button
+            onClick={() => toast('Billing address management coming soon!', { icon: '🚧' })}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm"
+          >
             Update billing address
           </button>
         </div>
@@ -651,7 +657,10 @@ export const BillingPage: React.FC = () => {
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Billing email</h2>
-          <button className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm">
+          <button
+            onClick={() => toast('Billing email management coming soon!', { icon: '🚧' })}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm"
+          >
             Update billing email
           </button>
         </div>
