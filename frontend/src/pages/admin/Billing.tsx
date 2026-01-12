@@ -21,6 +21,8 @@ import {
   BarChart3,
   Settings,
   History,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -76,19 +78,24 @@ const planLimits: Record<string, { chatbots: number | 'Unlimited'; messages: num
 };
 
 export const BillingPage: React.FC = () => {
-  const { userInfo } = useAuth();
+  const { userInfo, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(true);
 
-  // Mock usage data - in real app, fetch from API
+  // Delete account modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Usage data - fetched from API
   const [usage, setUsage] = useState<UsageData>({
-    chatbots: { used: 2, limit: 5 },
-    messages: { used: 3420, limit: 10000 },
-    documents: { used: 45, limit: 'Unlimited' },
-    teamMembers: { used: 3, limit: 5 },
+    chatbots: { used: 0, limit: 1 },
+    messages: { used: 0, limit: 100 },
+    documents: { used: 0, limit: 10 },
+    teamMembers: { used: 0, limit: 1 },
   });
 
   // Mock invoices - in real app, fetch from API
@@ -98,20 +105,47 @@ export const BillingPage: React.FC = () => {
     loadCompanyData();
   }, []);
 
+  // Helper function to check if a limit should be displayed as unlimited
+  const isUnlimited = (value: number | undefined, threshold: number): boolean => {
+    if (value === undefined) return false;
+    return value === -1 || value >= threshold;
+  };
+
   const loadCompanyData = async () => {
     try {
-      const data = await apiService.getCompanySettings();
-      setCompany(data);
+      // Fetch all data in parallel
+      const [companyData, chatbotsData, usersData, analyticsData] = await Promise.all([
+        apiService.getCompanySettings(),
+        apiService.getChatbots(100, 0), // Get all chatbots to count them
+        apiService.getUsers(),
+        apiService.getAnalytics(),
+      ]);
 
-      // Update usage limits based on plan
-      const limits = planLimits[data.plan] || planLimits.free;
-      setUsage(prev => ({
-        ...prev,
-        chatbots: { ...prev.chatbots, limit: limits.chatbots },
-        messages: { ...prev.messages, limit: limits.messages },
-        documents: { ...prev.documents, limit: limits.documents },
-        teamMembers: { ...prev.teamMembers, limit: limits.teamMembers },
-      }));
+      setCompany(companyData);
+
+      // Calculate limits based on plan type and actual database values
+      // Enterprise plan always has unlimited everything
+      // For other plans, treat -1 or very high numbers (999+, 9999+, 999999+) as unlimited
+      const isEnterprise = companyData.plan === 'enterprise';
+      const chatbotsLimit = isEnterprise || isUnlimited(companyData.max_bots, 999) ? 'Unlimited' : (companyData.max_bots || 1);
+      const documentsLimit = isEnterprise || isUnlimited(companyData.max_documents, 9999) ? 'Unlimited' : (companyData.max_documents || 10);
+      const messagesLimit = isEnterprise || isUnlimited(companyData.max_monthly_messages, 999999) ? 'Unlimited' : (companyData.max_monthly_messages || 100);
+      const teamMembersLimit = isEnterprise || isUnlimited(companyData.max_team_members, 999) ? 'Unlimited' : (companyData.max_team_members || 1);
+
+      // Get actual usage counts
+      // Backend returns array directly, or object with chatbots array - handle both
+      const chatbotsArray = Array.isArray(chatbotsData) ? chatbotsData : (chatbotsData.chatbots || []);
+      const chatbotsUsed = chatbotsArray.length;
+      const teamMembersUsed = Array.isArray(usersData) ? usersData.length : (usersData.users?.length || 0);
+      const documentsUsed = analyticsData.knowledge_base_metrics?.total_documents || 0;
+      const messagesUsed = analyticsData.conversation_metrics?.total_messages || 0;
+
+      setUsage({
+        chatbots: { used: chatbotsUsed, limit: chatbotsLimit },
+        messages: { used: messagesUsed, limit: messagesLimit },
+        documents: { used: documentsUsed, limit: documentsLimit },
+        teamMembers: { used: teamMembersUsed, limit: teamMembersLimit },
+      });
     } catch (error) {
       console.error('Failed to load company data:', error);
       toast.error('Failed to load billing information');
@@ -181,6 +215,29 @@ export const BillingPage: React.FC = () => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!company || deleteConfirmText !== company.name) {
+      toast.error('Please type the company name correctly to confirm deletion');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      // Call the delete company API
+      await apiService.deleteCompany(company.id);
+      toast.success('Account deleted successfully');
+      // Log the user out and redirect to home
+      logout();
+    } catch (error) {
+      console.error('Failed to delete account:', error);
+      toast.error('Failed to delete account. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      setDeleteConfirmText('');
+    }
+  };
+
   const calculateUsagePercent = (used: number, limit: number | 'Unlimited') => {
     if (limit === 'Unlimited') return 0;
     return Math.min((used / limit) * 100, 100);
@@ -232,7 +289,11 @@ export const BillingPage: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-white">Billing</h2>
           <div className="flex gap-2">
-            <button className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors text-sm">
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="px-4 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-colors text-sm flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
               Close and delete account
             </button>
             <button
@@ -245,8 +306,29 @@ export const BillingPage: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Billing Cycle */}
+          {/* Current Plan */}
           <div className="flex items-start gap-8">
+            <div className="w-40 text-sm text-slate-400">Current plan</div>
+            <div className="flex items-center gap-3">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                currentPlan === 'enterprise'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : currentPlan === 'pro'
+                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                    : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+              }`}>
+                {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}
+              </span>
+              {isOnTrial && (
+                <span className="px-2 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400">
+                  Trial
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Billing Cycle */}
+          <div className="flex items-start gap-8 border-t border-slate-700/50 pt-6">
             <div className="w-40 text-sm text-slate-400">Billing cycle</div>
             <div>
               <p className="text-white">{billingCycle.start} to {billingCycle.end}</p>
@@ -370,9 +452,6 @@ export const BillingPage: React.FC = () => {
               style={{ width: usage.documents.limit === 'Unlimited' ? 0 : `${calculateUsagePercent(usage.documents.used, usage.documents.limit)}%` }}
             />
           </div>
-          {usage.documents.limit === 'Unlimited' && (
-            <p className="text-xs text-green-400 mt-1">Unlimited documents on your plan</p>
-          )}
         </div>
 
         {/* Team Members Usage */}
@@ -722,6 +801,93 @@ export const BillingPage: React.FC = () => {
       >
         {renderContent()}
       </motion.div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl max-w-md w-full"
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Delete Account</h3>
+                  <p className="text-sm text-slate-400">This action cannot be undone</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <p className="text-sm text-red-300">
+                  <strong>Warning:</strong> This will permanently delete your account and all associated data including:
+                </p>
+                <ul className="text-sm text-red-300/80 mt-2 ml-4 list-disc space-y-1">
+                  <li>All chatbots and their configurations</li>
+                  <li>All documents and knowledge base data</li>
+                  <li>All conversation history</li>
+                  <li>All team member access</li>
+                </ul>
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">
+                  To confirm, type <span className="font-semibold text-white">"{company?.name}"</span> below:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type company name to confirm"
+                  className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-500 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-700 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText('');
+                }}
+                className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== company?.name || isDeleting}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                  deleteConfirmText === company?.name && !isDeleting
+                    ? 'bg-red-600 text-white hover:bg-red-500'
+                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Account
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

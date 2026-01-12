@@ -221,11 +221,16 @@ export const TeamPage: React.FC = () => {
     <div className="flex flex-col gap-6 min-h-[calc(100vh-8rem)]">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Team Management</h1>
-          <p className="text-slate-400 mt-1">
-            Manage team members, roles, and permissions
-          </p>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
+            <Users className="text-white" size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Team Management</h1>
+            <p className="text-slate-400 text-sm mt-0.5">
+              Manage team members, roles, and permissions
+            </p>
+          </div>
         </div>
         <button
           onClick={() => setShowInviteModal(true)}

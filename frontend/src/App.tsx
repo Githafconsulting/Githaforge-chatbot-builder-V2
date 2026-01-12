@@ -36,8 +36,7 @@ import { ConversationsPage } from './pages/admin/Conversations';
 import { FlaggedPage } from './pages/admin/Flagged';
 import { UsersPage } from './pages/admin/Users';
 import { TeamPage } from './pages/admin/Team';
-import { CompanySettingsPage } from './pages/admin/CompanySettings';
-import { SystemSettingsPage } from './pages/admin/SystemSettings';
+import { SettingsUnifiedPage } from './pages/admin/SettingsUnified';
 import { DeletedItemsPage } from './pages/admin/DeletedItems';
 import { LearningPage } from './pages/admin/Learning';
 import { IntegrationsPage } from './pages/admin/Integrations';
@@ -157,13 +156,13 @@ function App() {
             <Route path="deleted" element={<DeletedItemsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="team" element={<TeamPage />} />
-            <Route path="company" element={<CompanySettingsPage />} />
             <Route path="billing" element={<BillingPage />} />
             <Route path="integrations" element={<IntegrationsPage />} />
-            <Route path="settings" element={<SystemSettingsPage />} />
+            <Route path="settings" element={<SettingsUnifiedPage />} />
             {/* Redirects for old routes */}
             <Route path="chatbot" element={<Navigate to="/admin/chatbots" replace />} />
             <Route path="personas" element={<Navigate to="/admin/chatbots" replace />} />
+            <Route path="company" element={<Navigate to="/admin/settings" replace />} />
           </Route>
 
           {/* Super Admin Routes */}

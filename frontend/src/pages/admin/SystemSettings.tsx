@@ -183,7 +183,7 @@ export const SystemSettingsPage: React.FC = () => {
             <SettingsIcon className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-50">System Settings</h1>
+            <h1 className="text-2xl font-bold text-white">System Settings</h1>
             <p className="text-slate-400 text-sm mt-0.5">
               Configure themes, languages, analytics, and privacy
             </p>

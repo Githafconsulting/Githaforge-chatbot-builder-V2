@@ -816,6 +816,10 @@ class ApiService {
     return response.data;
   }
 
+  async deleteCompany(companyId: string): Promise<void> {
+    await this.api.delete(`/api/v1/companies/${companyId}`);
+  }
+
   // Super Admin - System Personas APIs
   async getSystemPersonas(): Promise<Persona[]> {
     const response = await this.api.get('/api/v1/super-admin/system-personas');

@@ -265,14 +265,16 @@ export const CompanySettingsPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-            <Building2 className="h-8 w-8 text-purple-400" />
-            Company Settings
-          </h1>
-          <p className="text-slate-400 mt-2">
-            Manage your company profile, branding, and configuration
-          </p>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-lg">
+            <Building2 className="text-white" size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Company Settings</h1>
+            <p className="text-slate-400 text-sm mt-0.5">
+              Manage your company profile, branding, and configuration
+            </p>
+          </div>
         </div>
 
         <motion.button
@@ -654,19 +656,19 @@ export const CompanySettingsPage: React.FC = () => {
               <div className="flex items-center justify-between py-3 border-b border-slate-700">
                 <span className="text-slate-400">Max Chatbots</span>
                 <span className="text-white font-semibold">
-                  {company.max_bots === -1 ? '∞ Unlimited' : company.max_bots}
+                  {company.max_bots === -1 || company.max_bots >= 999 ? '∞ Unlimited' : company.max_bots}
                 </span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-slate-700">
                 <span className="text-slate-400">Max Documents</span>
                 <span className="text-white font-semibold">
-                  {company.max_documents === -1 ? '∞ Unlimited' : company.max_documents}
+                  {company.max_documents === -1 || company.max_documents >= 9999 ? '∞ Unlimited' : company.max_documents.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between py-3">
                 <span className="text-slate-400">Monthly Messages</span>
                 <span className="text-white font-semibold">
-                  {company.max_monthly_messages === -1 ? '∞ Unlimited' : company.max_monthly_messages.toLocaleString()}
+                  {company.max_monthly_messages === -1 || company.max_monthly_messages >= 999999 ? '∞ Unlimited' : company.max_monthly_messages.toLocaleString()}
                 </span>
               </div>
             </div>
