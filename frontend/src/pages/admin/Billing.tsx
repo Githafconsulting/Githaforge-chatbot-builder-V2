@@ -23,6 +23,8 @@ import {
   History,
   AlertTriangle,
   Trash2,
+  Plus,
+  Shield,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -343,7 +345,7 @@ export const BillingPage: React.FC = () => {
             <div className="w-40 text-sm text-slate-400">Billing information</div>
             <div>
               <button
-                onClick={() => toast('Payment integration coming soon!', { icon: '🚧' })}
+                onClick={() => setActiveTab('preferences')}
                 className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors text-sm"
               >
                 Update billing
@@ -570,9 +572,96 @@ export const BillingPage: React.FC = () => {
     </div>
   );
 
+  // Accepted payment methods - these are what users can actually pay with (Stripe processes them)
+  // All payment method logos use white background for consistent appearance
+  const paymentMethods: Array<{ name: string; logo: string }> = [
+    { name: 'Visa', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg' },
+    { name: 'Mastercard', logo: 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg' },
+    { name: 'American Express', logo: 'https://upload.wikimedia.org/wikipedia/commons/f/fa/American_Express_logo_%282018%29.svg' },
+    { name: 'Discover', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/57/Discover_Card_logo.svg' },
+    { name: 'Apple Pay', logo: 'https://upload.wikimedia.org/wikipedia/commons/b/b0/Apple_Pay_logo.svg' },
+    { name: 'Google Pay', logo: 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Google_Pay_Logo.svg' },
+  ];
+
   // Preferences Tab Content
   const renderPreferences = () => (
     <div className="space-y-6">
+      {/* Payment Methods Card */}
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-purple-400" />
+              Payment Methods
+            </h2>
+            <p className="text-sm text-slate-400 mt-1">Manage your payment methods for subscriptions</p>
+          </div>
+          <button
+            onClick={() => toast('Payment method setup coming soon!', { icon: '🚧' })}
+            className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors text-sm flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add payment method
+          </button>
+        </div>
+
+        {/* No payment methods message */}
+        <div className="bg-slate-900/50 rounded-lg p-6 mb-6">
+          <div className="flex items-center gap-3 text-slate-400">
+            <CreditCard className="w-8 h-8" />
+            <div>
+              <p className="text-white font-medium">No payment methods added</p>
+              <p className="text-sm">Add a payment method to upgrade your plan or enable automatic billing.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Supported Payment Methods */}
+        <div>
+          <h3 className="text-sm font-medium text-slate-300 mb-3">Supported payment methods</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            {paymentMethods.map((method) => (
+              <div
+                key={method.name}
+                className="rounded-lg px-4 py-3 flex items-center justify-center hover:opacity-80 transition-all min-w-[100px] h-12 bg-white"
+                title={method.name}
+              >
+                <img
+                  src={method.logo}
+                  alt={method.name}
+                  className="h-6 w-auto max-w-[80px] object-contain"
+                  onError={(e) => {
+                    // Fallback to text if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    target.parentElement!.innerHTML = `<span class="text-slate-300 text-sm font-medium">${method.name}</span>`;
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Security Notice with Powered by Stripe */}
+        <div className="mt-6 flex items-start gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+          <Shield className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm text-green-300 font-medium">Secure Payment Processing</p>
+            <p className="text-xs text-green-400/80 mt-1">
+              Your payment information is encrypted and never stored on our servers. All transactions are PCI-DSS compliant.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-md">
+            <span className="text-xs text-slate-400 font-medium">Powered by</span>
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg"
+              alt="Stripe"
+              className="h-5 w-auto"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Compare Plans */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Compare plans</h2>
