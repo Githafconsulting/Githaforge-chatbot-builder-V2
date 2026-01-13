@@ -100,9 +100,17 @@ class StripeWebhookHandler:
             "trial_ends_at": None  # Clear trial when subscription starts
         }
 
-        # Add period dates if available
+        # Add period dates if available (check subscription items first, then top-level)
         period_start = subscription.get("current_period_start")
         period_end = subscription.get("current_period_end")
+
+        # In newer Stripe API versions, period is on subscription items
+        if not period_start or not period_end:
+            items = subscription.get("items", {})
+            items_data = items.get("data") if isinstance(items, dict) else None
+            if items_data and len(items_data) > 0:
+                period_start = items_data[0].get("current_period_start")
+                period_end = items_data[0].get("current_period_end")
 
         if period_start:
             update_data["subscription_current_period_start"] = datetime.fromtimestamp(period_start).isoformat()
@@ -159,9 +167,15 @@ class StripeWebhookHandler:
             "subscription_status": subscription.get("status", "active"),
         }
 
-        # Add period dates if available
+        # Add period dates if available (check subscription items first, then top-level)
         period_start = subscription.get("current_period_start")
         period_end = subscription.get("current_period_end")
+
+        # In newer Stripe API versions, period is on subscription items
+        if not period_start or not period_end:
+            if items_data and len(items_data) > 0:
+                period_start = items_data[0].get("current_period_start")
+                period_end = items_data[0].get("current_period_end")
 
         if period_start:
             update_data["subscription_current_period_start"] = datetime.fromtimestamp(period_start).isoformat()

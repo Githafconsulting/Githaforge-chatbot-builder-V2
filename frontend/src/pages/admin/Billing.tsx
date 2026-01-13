@@ -47,6 +47,8 @@ interface CompanyData {
   billing_address_state?: string;
   billing_address_postal_code?: string;
   billing_address_country?: string;
+  subscription_current_period_start?: string;
+  subscription_current_period_end?: string;
 }
 
 interface UsageData {
@@ -247,8 +249,30 @@ export const BillingPage: React.FC = () => {
   const isOnTrial = currentPlan === 'free' && trialStatus.isActive;
   const currentPlanLimits = planLimits[currentPlan] || planLimits.free;
 
-  // Get billing cycle dates
+  // Get billing cycle dates from subscription or fallback to calendar month
   const getBillingCycle = () => {
+    // Use actual subscription period if available
+    if (company?.subscription_current_period_start && company?.subscription_current_period_end) {
+      const periodStart = new Date(company.subscription_current_period_start);
+      const periodEnd = new Date(company.subscription_current_period_end);
+
+      // Next billing happens exactly at period_end (that's when Stripe charges)
+      // Format the time in a user-friendly way
+      const nextBillingTime = periodEnd.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      return {
+        start: periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        end: periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        nextBilling: periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
+        nextBillingTime: nextBillingTime,
+      };
+    }
+
+    // Fallback to calendar month for free plans (no actual billing)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -258,6 +282,7 @@ export const BillingPage: React.FC = () => {
       start: startOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       end: endOfMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       nextBilling: nextBillingDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
+      nextBillingTime: null, // Free plans don't have actual billing time
     };
   };
 
@@ -431,7 +456,10 @@ export const BillingPage: React.FC = () => {
             <div>
               <p className="text-white">{billingCycle.start} to {billingCycle.end}</p>
               <p className="text-sm text-slate-400">
-                Billing cycle automatically renews on {billingCycle.nextBilling} at 9:00 AM (GMT+4)
+                {billingCycle.nextBillingTime
+                  ? `Billing cycle automatically renews on ${billingCycle.nextBilling} at ${billingCycle.nextBillingTime}`
+                  : `Usage resets on ${billingCycle.nextBilling}`
+                }
               </p>
             </div>
           </div>
