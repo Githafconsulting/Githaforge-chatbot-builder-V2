@@ -391,3 +391,142 @@ https://something-random.trycloudflare.com (frontend)
 https://another-random.trycloudflare.com (backend)
 4. Update the client's layout.tsx with those URLs
 Let me know once you have the Cloudflare tunnel URLs and I can help update the client code.
+
+
+# Stripe Setup Guide
+Here's a step-by-step guide to set up Stripe for your billing system:
+
+1. Create a Stripe Account
+Go to stripe.com and sign up
+Complete the onboarding (business info, bank account for payouts)
+You can use Test Mode while developing (toggle in top-right of dashboard)
+2. Get Your API Keys
+Go to Developers → API Keys in Stripe Dashboard
+Copy these keys to your .env file:
+
+# Test mode keys (start with sk_test_ and pk_test_)
+STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxx
+STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxx
+
+# For production, use live keys (sk_live_ and pk_live_)
+3. Create Your Products and Prices
+In Stripe Dashboard:
+Go to Products → Add Product
+
+Create Pro Plan:
+
+Name: Pro Plan
+Pricing: $29.00 / month (recurring)
+Click Save product
+Copy the Price ID (starts with price_)
+Create Enterprise Plan:
+
+Name: Enterprise Plan
+Pricing: $99.00 / month (recurring)
+Click Save product
+Copy the Price ID
+Add to your .env:
+
+
+STRIPE_PRICE_ID_PRO=price_xxxxxxxxxxxxxxxxxxxxx
+STRIPE_PRICE_ID_ENTERPRISE=price_xxxxxxxxxxxxxxxxxxxxx
+4. Set Up Webhooks
+For Local Development (using ngrok):
+Install ngrok: npm install -g ngrok or download from ngrok.com
+
+Start your backend:
+
+
+cd backend
+uvicorn app.main:app --reload --port 8000
+In another terminal, expose your backend:
+
+
+ngrok http 8000
+Copy the HTTPS URL (e.g., https://abc123.ngrok.io)
+
+In Stripe Dashboard:
+Go to Developers → Webhooks → Add endpoint
+
+Endpoint URL: https://your-ngrok-url.ngrok.io/api/v1/billing/webhooks/stripe
+
+Select events to listen to:
+
+checkout.session.completed
+customer.subscription.created
+customer.subscription.updated
+customer.subscription.deleted
+invoice.paid
+invoice.payment_failed
+customer.created
+customer.updated
+Click Add endpoint
+
+Click on your endpoint → Reveal signing secret
+
+Copy to .env:
+
+
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
+5. Configure Customer Portal
+Go to Settings → Billing → Customer portal
+
+Enable these features:
+
+✅ Update payment methods
+✅ View invoice history
+✅ Update billing information
+✅ Cancel subscriptions (optional - you handle this in-app)
+Click Save changes
+
+6. Complete .env Configuration
+Your billing-related .env should look like:
+
+
+# Stripe Configuration
+STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxx
+STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
+
+# Stripe Product Price IDs
+STRIPE_PRICE_ID_PRO=price_xxxxxxxxxxxxxxxxxxxxx
+STRIPE_PRICE_ID_ENTERPRISE=price_xxxxxxxxxxxxxxxxxxxxx
+
+# Redirect URLs after checkout
+STRIPE_SUCCESS_URL=http://localhost:5173/admin/billing?success=true
+STRIPE_CANCEL_URL=http://localhost:5173/admin/billing?canceled=true
+
+# Frontend URL (for portal return)
+FRONTEND_URL=http://localhost:5173
+7. Test the Integration
+Test Cards (use in Test Mode):
+Card Number	Result
+4242 4242 4242 4242	Successful payment
+4000 0000 0000 3220	3D Secure required
+4000 0000 0000 9995	Payment declined
+Use any future expiry date and any 3-digit CVC.
+
+Test Flow:
+Go to Billing → Preferences → Click "Upgrade to pro"
+Enter test card 4242 4242 4242 4242
+Complete checkout
+Verify webhook received in terminal logs
+Verify plan updated in your app
+8. Going Live (Production)
+When ready for production:
+
+Complete Stripe account verification (identity, business details)
+Switch API keys from sk_test_ to sk_live_
+Create new webhook endpoint with production URL
+Update all .env values with live keys
+Test with a real small payment ($1) before going fully live
+Current Status of Your .env:
+
+You should already have most of these configured. The key things to verify are:
+
+STRIPE_PRICE_ID_PRO and STRIPE_PRICE_ID_ENTERPRISE are set
+STRIPE_WEBHOOK_SECRET matches your webhook endpoint
+Webhook URL in Stripe points to /api/v1/billing/webhooks/stripe
+
+
+

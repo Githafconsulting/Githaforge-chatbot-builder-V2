@@ -28,6 +28,13 @@ class CompanyBase(BaseModel):
             v = f'https://{v}'
         return v
 
+    @validator('company_size', 'industry', pre=True)
+    def empty_string_to_none(cls, v):
+        """Convert empty strings to None for optional fields"""
+        if v == '':
+            return None
+        return v
+
 
 class CompanyCreate(CompanyBase):
     """Schema for creating a new company during signup"""
@@ -58,6 +65,23 @@ class Company(CompanyBase):
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
+
+    # Stripe billing fields
+    stripe_customer_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
+    subscription_status: str = Field(default="active", description="Subscription status: active, past_due, canceled, trialing, ended")
+    billing_email: Optional[str] = None
+    subscription_current_period_start: Optional[datetime] = None
+    subscription_current_period_end: Optional[datetime] = None
+    trial_ends_at: Optional[datetime] = None
+
+    # Billing address (synced from Stripe)
+    billing_address_line1: Optional[str] = None
+    billing_address_line2: Optional[str] = None
+    billing_address_city: Optional[str] = None
+    billing_address_state: Optional[str] = None
+    billing_address_postal_code: Optional[str] = None
+    billing_address_country: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -1070,6 +1070,120 @@ class ApiService {
     const response = await this.api.delete(url, config);
     return response.data;
   }
+
+  // ==================== BILLING APIs ====================
+
+  // Get Stripe publishable key for frontend
+  async getBillingConfig(): Promise<{ publishable_key: string }> {
+    const response = await this.api.get('/api/v1/billing/config');
+    return response.data;
+  }
+
+  // Get billing info for current company
+  async getBillingInfo(): Promise<{
+    company_id: string;
+    current_plan: string;
+    subscription_status: string;
+    billing_email: string | null;
+    current_period_start: string | null;
+    current_period_end: string | null;
+    trial_ends_at: string | null;
+    has_payment_method: boolean;
+  }> {
+    const response = await this.api.get('/api/v1/billing/info');
+    return response.data;
+  }
+
+  // Get subscription details
+  async getSubscription(): Promise<{
+    plan: string;
+    status: string;
+    current_period_start: string | null;
+    current_period_end: string | null;
+    cancel_at_period_end: boolean;
+    trial_ends_at: string | null;
+  }> {
+    const response = await this.api.get('/api/v1/billing/subscription');
+    return response.data;
+  }
+
+  // Get usage stats
+  async getBillingUsage(): Promise<{
+    chatbots_used: number;
+    chatbots_limit: number;
+    documents_used: number;
+    documents_limit: number;
+    messages_used: number;
+    messages_limit: number;
+    team_members_used: number;
+    team_members_limit: number;
+  }> {
+    const response = await this.api.get('/api/v1/billing/usage');
+    return response.data;
+  }
+
+  // Get invoices
+  async getInvoices(): Promise<Array<{
+    id: string;
+    stripe_invoice_id: string;
+    amount_due: number;
+    amount_paid: number;
+    currency: string;
+    status: string;
+    invoice_date: string | null;
+    due_date: string | null;
+    paid_at: string | null;
+    invoice_pdf_url: string | null;
+    hosted_invoice_url: string | null;
+  }>> {
+    const response = await this.api.get('/api/v1/billing/invoices');
+    return response.data;
+  }
+
+  // Get payment methods
+  async getPaymentMethods(): Promise<Array<{
+    id: string;
+    stripe_payment_method_id: string;
+    card_brand: string | null;
+    card_last4: string | null;
+    card_exp_month: number | null;
+    card_exp_year: number | null;
+    is_default: boolean;
+  }>> {
+    const response = await this.api.get('/api/v1/billing/payment-methods');
+    return response.data;
+  }
+
+  // Create checkout session for upgrading to a plan
+  async createCheckoutSession(plan: 'pro' | 'enterprise'): Promise<{
+    checkout_url: string;
+    session_id: string;
+  }> {
+    const response = await this.api.post('/api/v1/billing/checkout', { plan });
+    return response.data;
+  }
+
+  // Create customer portal session for managing billing
+  async createPortalSession(): Promise<{
+    portal_url: string;
+  }> {
+    const response = await this.api.post('/api/v1/billing/portal');
+    return response.data;
+  }
+
+  // Cancel subscription
+  async cancelSubscription(immediately?: boolean, feedback?: string): Promise<{
+    success: boolean;
+    message: string;
+    cancel_at: string | null;
+    refund_amount: number | null;
+  }> {
+    const response = await this.api.post('/api/v1/billing/cancel', {
+      cancel_immediately: immediately,
+      feedback
+    });
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

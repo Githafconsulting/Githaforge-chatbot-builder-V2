@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     RECAPTCHA_SECRET_KEY: str = ""  # Google reCAPTCHA v2 secret key
     RECAPTCHA_ENABLED: bool = False  # Set to True in production
 
+    # Stripe Payment Configuration
+    STRIPE_SECRET_KEY: str = ""  # Stripe secret key (sk_test_... or sk_live_...)
+    STRIPE_PUBLISHABLE_KEY: str = ""  # Stripe publishable key (pk_test_... or pk_live_...)
+    STRIPE_WEBHOOK_SECRET: str = ""  # Stripe webhook signing secret (whsec_...)
+    STRIPE_PRICE_ID_PRO: str = ""  # Stripe Price ID for Pro plan ($29/month)
+    STRIPE_PRICE_ID_ENTERPRISE: str = ""  # Stripe Price ID for Enterprise plan
+    STRIPE_SUCCESS_URL: str = ""  # URL to redirect after successful payment
+    STRIPE_CANCEL_URL: str = ""  # URL to redirect after cancelled payment
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_allowed_origins(cls, v):

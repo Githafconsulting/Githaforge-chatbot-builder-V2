@@ -40,6 +40,13 @@ interface CompanyData {
   max_bots?: number;
   max_documents?: number;
   max_monthly_messages?: number;
+  billing_email?: string;
+  billing_address_line1?: string;
+  billing_address_line2?: string;
+  billing_address_city?: string;
+  billing_address_state?: string;
+  billing_address_postal_code?: string;
+  billing_address_country?: string;
 }
 
 interface UsageData {
@@ -84,13 +91,19 @@ export const BillingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [upgrading, setUpgrading] = useState(false);
+  const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(true);
 
   // Delete account modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cancel/Downgrade modal state
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelImmediately, setCancelImmediately] = useState(false);
+  const [cancelFeedback, setCancelFeedback] = useState('');
+  const [isCanceling, setIsCanceling] = useState(false);
 
   // Usage data - fetched from API
   const [usage, setUsage] = useState<UsageData>({
@@ -100,11 +113,29 @@ export const BillingPage: React.FC = () => {
     teamMembers: { used: 0, limit: 1 },
   });
 
-  // Mock invoices - in real app, fetch from API
-  const [invoices] = useState<Invoice[]>([]);
+  // Invoices from API
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  // Check for payment success/cancel from Stripe redirect
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const canceled = urlParams.get('canceled');
+
+    if (success === 'true') {
+      toast.success('Payment successful! Your subscription is now active.');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (canceled === 'true') {
+      toast('Payment was canceled.', { icon: '❌' });
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     loadCompanyData();
+    loadInvoices();
   }, []);
 
   // Helper function to check if a limit should be displayed as unlimited
@@ -156,6 +187,38 @@ export const BillingPage: React.FC = () => {
     }
   };
 
+  const loadInvoices = async () => {
+    try {
+      const invoiceData = await apiService.getInvoices();
+      // Transform to our Invoice format
+      setInvoices(invoiceData.map(inv => ({
+        id: inv.id,
+        date: inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }) : 'N/A',
+        amount: inv.amount_paid / 100, // Convert from cents
+        status: inv.status === 'paid' ? 'paid' : inv.status === 'open' ? 'pending' : 'failed',
+        downloadUrl: inv.invoice_pdf_url || undefined,
+      })));
+    } catch (error) {
+      console.error('Failed to load invoices:', error);
+      // Don't show error toast - invoices are not critical
+    }
+  };
+
+  // Open Stripe Customer Portal to manage payment methods
+  const handleManagePayments = async () => {
+    try {
+      const { portal_url } = await apiService.createPortalSession();
+      window.location.href = portal_url;
+    } catch (error: any) {
+      console.error('Failed to open billing portal:', error);
+      toast.error(error.response?.data?.detail || 'Failed to open billing portal. Please try again.');
+    }
+  };
+
   // Calculate trial status
   const getTrialStatus = () => {
     if (!company?.trial_ends_at) {
@@ -201,19 +264,52 @@ export const BillingPage: React.FC = () => {
   const billingCycle = getBillingCycle();
 
   const handleUpgrade = async (planId: string) => {
-    if (planId === 'enterprise') {
-      window.open('mailto:sales@githaforge.com?subject=Enterprise Plan Inquiry', '_blank');
-      toast.success('Opening email to contact sales...');
+    if (planId === 'free') {
+      // Downgrade to free - show cancel subscription modal
+      setShowCancelModal(true);
       return;
     }
 
-    setUpgrading(true);
+    // Both Pro and Enterprise go through Stripe checkout
+    if (planId !== 'pro' && planId !== 'enterprise') {
+      toast.error('Invalid plan selected');
+      return;
+    }
+
+    setUpgradingPlan(planId);
     try {
-      toast.success(`Upgrading to ${planId} plan... (Payment integration coming soon)`);
-    } catch (error) {
-      toast.error('Failed to initiate upgrade');
+      // Create Stripe checkout session
+      const { checkout_url } = await apiService.createCheckoutSession(planId);
+
+      // Redirect to Stripe checkout
+      window.location.href = checkout_url;
+    } catch (error: any) {
+      console.error('Failed to create checkout session:', error);
+      toast.error(error.response?.data?.detail || 'Failed to initiate upgrade. Please try again.');
+      setUpgradingPlan(null);
+    }
+    // Don't reset upgradingPlan on success - we're redirecting anyway
+  };
+
+  const handleCancelSubscription = async () => {
+    setIsCanceling(true);
+    try {
+      const response = await apiService.cancelSubscription(cancelImmediately, cancelFeedback || undefined);
+
+      toast.success(response.message);
+
+      // Refresh company data to show updated plan
+      await loadCompanyData();
+
+      // Close modal and reset state
+      setShowCancelModal(false);
+      setCancelImmediately(false);
+      setCancelFeedback('');
+    } catch (error: any) {
+      console.error('Failed to cancel subscription:', error);
+      toast.error(error.response?.data?.detail || 'Failed to cancel subscription. Please try again.');
     } finally {
-      setUpgrading(false);
+      setIsCanceling(false);
     }
   };
 
@@ -597,11 +693,11 @@ export const BillingPage: React.FC = () => {
             <p className="text-sm text-slate-400 mt-1">Manage your payment methods for subscriptions</p>
           </div>
           <button
-            onClick={() => toast('Payment method setup coming soon!', { icon: '🚧' })}
+            onClick={handleManagePayments}
             className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors text-sm flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Add payment method
+            Manage payment methods
           </button>
         </div>
 
@@ -703,8 +799,8 @@ export const BillingPage: React.FC = () => {
                 </ul>
 
                 <button
-                  onClick={() => !isCurrent && handleUpgrade(planId)}
-                  disabled={isCurrent || upgrading}
+                  onClick={() => !isCurrent && !upgradingPlan && handleUpgrade(planId)}
+                  disabled={isCurrent || !!upgradingPlan}
                   className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
                     isCurrent
                       ? 'bg-green-500/20 text-green-400 cursor-default'
@@ -715,7 +811,7 @@ export const BillingPage: React.FC = () => {
                           : 'bg-gradient-to-r from-yellow-600 to-orange-600 text-white hover:from-yellow-500 hover:to-orange-500'
                   }`}
                 >
-                  {isCurrent ? 'Current plan' : isDowngrade ? `Downgrade to ${planId}` : planId === 'enterprise' ? 'Contact sales' : `Upgrade to ${planId}`}
+                  {upgradingPlan === planId ? 'Processing...' : isCurrent ? 'Current plan' : isDowngrade ? `Downgrade to ${planId}` : `Upgrade to ${planId}`}
                 </button>
               </div>
             );
@@ -728,7 +824,7 @@ export const BillingPage: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Billing address</h2>
           <button
-            onClick={() => toast('Billing address management coming soon!', { icon: '🚧' })}
+            onClick={handleManagePayments}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm"
           >
             Update billing address
@@ -736,9 +832,26 @@ export const BillingPage: React.FC = () => {
         </div>
         <p className="text-sm text-slate-400 mb-4">Your billing address determines the applicable sales tax.</p>
 
-        <div className="flex items-center gap-2 text-slate-300">
-          <MapPin className="w-4 h-4 text-slate-400" />
-          <span className="text-sm">No billing address configured</span>
+        <div className="flex items-start gap-2 text-slate-300">
+          <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+          {company?.billing_address_line1 ? (
+            <div className="text-sm space-y-0.5">
+              <p>{company.billing_address_line1}</p>
+              {company.billing_address_line2 && <p>{company.billing_address_line2}</p>}
+              <p>
+                {[
+                  company.billing_address_city,
+                  company.billing_address_state,
+                  company.billing_address_postal_code
+                ].filter(Boolean).join(', ')}
+              </p>
+              {company.billing_address_country && (
+                <p className="text-slate-400">{company.billing_address_country}</p>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm">No billing address configured</span>
+          )}
         </div>
       </div>
 
@@ -747,7 +860,7 @@ export const BillingPage: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Billing email</h2>
           <button
-            onClick={() => toast('Billing email management coming soon!', { icon: '🚧' })}
+            onClick={handleManagePayments}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm"
           >
             Update billing email
@@ -757,7 +870,7 @@ export const BillingPage: React.FC = () => {
 
         <div className="flex items-center gap-2 text-slate-300">
           <Mail className="w-4 h-4 text-slate-400" />
-          <span className="text-sm">{userInfo?.email || 'No email configured'}</span>
+          <span className="text-sm">{company?.billing_email || userInfo?.email || 'No email configured'}</span>
         </div>
       </div>
     </div>
@@ -979,6 +1092,128 @@ export const BillingPage: React.FC = () => {
                   <>
                     <Trash2 className="w-4 h-4" />
                     Delete Account
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Cancel Subscription Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl max-w-lg w-full"
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Cancel Subscription</h3>
+                  <p className="text-sm text-slate-400">Downgrade to the Free plan</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                <p className="text-sm text-amber-300">
+                  <strong>What you'll lose:</strong>
+                </p>
+                <ul className="text-sm text-amber-300/80 mt-2 ml-4 list-disc space-y-1">
+                  <li>Access to additional chatbots beyond the free limit</li>
+                  <li>Extra message quota and documents</li>
+                  <li>Team member seats beyond the free limit</li>
+                  <li>Priority support and advanced features</li>
+                </ul>
+              </div>
+
+              {/* Cancellation Options */}
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-slate-300">When should this take effect?</label>
+
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-600 hover:border-slate-500 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="cancelOption"
+                    checked={!cancelImmediately}
+                    onChange={() => setCancelImmediately(false)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="text-white font-medium">At end of billing period</p>
+                    <p className="text-sm text-slate-400">
+                      Keep your current plan features until {billingCycle.end}. No refund needed.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-600 hover:border-slate-500 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="cancelOption"
+                    checked={cancelImmediately}
+                    onChange={() => setCancelImmediately(true)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="text-white font-medium">Cancel immediately</p>
+                    <p className="text-sm text-slate-400">
+                      Downgrade now and receive a pro-rated refund for unused time.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Optional Feedback */}
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">
+                  Why are you canceling? (optional)
+                </label>
+                <textarea
+                  value={cancelFeedback}
+                  onChange={(e) => setCancelFeedback(e.target.value)}
+                  placeholder="Help us improve by sharing your feedback..."
+                  rows={3}
+                  className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-700 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setCancelImmediately(false);
+                  setCancelFeedback('');
+                }}
+                disabled={isCanceling}
+                className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors"
+              >
+                Keep my plan
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={isCanceling}
+                className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-500 transition-colors flex items-center gap-2"
+              >
+                {isCanceling ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Canceling...
+                  </>
+                ) : (
+                  <>
+                    {cancelImmediately ? 'Cancel & get refund' : 'Cancel at period end'}
                   </>
                 )}
               </button>

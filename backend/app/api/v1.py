@@ -22,7 +22,8 @@ from app.api.routes import (
     super_admin,
     personas,
     blogs,
-    faqs
+    faqs,
+    billing
 )
 
 api_router = APIRouter()
@@ -58,3 +59,6 @@ api_router.include_router(blogs.router, prefix="/blogs", tags=["Blogs"])
 
 # Public FAQ routes
 api_router.include_router(faqs.router, prefix="/faqs", tags=["FAQs"])
+
+# Billing and payments
+api_router.include_router(billing.router, prefix="/billing", tags=["Billing"])
