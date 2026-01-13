@@ -1411,14 +1411,14 @@ export const BillingPage: React.FC = () => {
                       <span className={`text-lg font-semibold ${prorationData.is_downgrade ? 'text-green-400' : 'text-amber-400'}`}>
                         {prorationData.is_downgrade
                           ? `$${prorationData.credit_dollars.toFixed(2)}`
-                          : `$${prorationData.charge_dollars.toFixed(2)}`
+                          : `$${prorationData.net_dollars.toFixed(2)}`
                         }
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
                       {prorationData.is_downgrade
                         ? 'This credit will be applied to your next invoice.'
-                        : 'You will be charged this amount immediately.'
+                        : `Prorated difference: $${prorationData.charge_dollars.toFixed(2)} new plan − $${prorationData.credit_dollars.toFixed(2)} unused time`
                       }
                     </p>
                   </>
