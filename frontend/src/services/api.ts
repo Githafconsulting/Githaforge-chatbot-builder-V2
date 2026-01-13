@@ -1184,6 +1184,40 @@ class ApiService {
     });
     return response.data;
   }
+
+  // Update existing subscription (upgrade/downgrade with proration)
+  async updateSubscription(newPlan: 'pro' | 'enterprise'): Promise<{
+    success: boolean;
+    message: string;
+    new_plan: string;
+    effective_date: string;
+    proration_amount: number | null;
+  }> {
+    const response = await this.api.post('/api/v1/billing/upgrade', {
+      new_plan: newPlan,
+      prorate: true
+    });
+    return response.data;
+  }
+
+  // Get proration preview from Stripe for plan changes
+  async getProrationPreview(newPlan: 'pro' | 'enterprise'): Promise<{
+    current_plan: string;
+    new_plan: string;
+    is_downgrade: boolean;
+    proration_credit: number;  // in cents
+    proration_charge: number;  // in cents
+    net_amount: number;        // in cents (negative = credit)
+    currency: string;
+    immediate_charge: number;  // in cents
+    credit_dollars: number;
+    charge_dollars: number;
+    net_dollars: number;
+    period_end: number;
+  }> {
+    const response = await this.api.get(`/api/v1/billing/proration-preview?new_plan=${newPlan}`);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

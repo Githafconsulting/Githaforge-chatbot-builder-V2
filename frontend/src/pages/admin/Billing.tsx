@@ -49,6 +49,8 @@ interface CompanyData {
   billing_address_country?: string;
   subscription_current_period_start?: string;
   subscription_current_period_end?: string;
+  stripe_subscription_id?: string;
+  subscription_status?: string;
 }
 
 interface UsageData {
@@ -106,6 +108,19 @@ export const BillingPage: React.FC = () => {
   const [cancelImmediately, setCancelImmediately] = useState(false);
   const [cancelFeedback, setCancelFeedback] = useState('');
   const [isCanceling, setIsCanceling] = useState(false);
+
+  // Plan change modal state (for upgrades/downgrades between paid plans)
+  const [showPlanChangeModal, setShowPlanChangeModal] = useState(false);
+  const [targetPlan, setTargetPlan] = useState<'pro' | 'enterprise' | null>(null);
+  const [planChangeOption, setPlanChangeOption] = useState<'credit' | 'refund'>('credit');
+  const [isChangingPlan, setIsChangingPlan] = useState(false);
+  const [isLoadingProration, setIsLoadingProration] = useState(false);
+  const [prorationData, setProrationData] = useState<{
+    credit_dollars: number;
+    charge_dollars: number;
+    net_dollars: number;
+    is_downgrade: boolean;
+  } | null>(null);
 
   // Usage data - fetched from API
   const [usage, setUsage] = useState<UsageData>({
@@ -295,25 +310,69 @@ export const BillingPage: React.FC = () => {
       return;
     }
 
-    // Both Pro and Enterprise go through Stripe checkout
     if (planId !== 'pro' && planId !== 'enterprise') {
       toast.error('Invalid plan selected');
       return;
     }
 
-    setUpgradingPlan(planId);
-    try {
-      // Create Stripe checkout session
-      const { checkout_url } = await apiService.createCheckoutSession(planId);
+    // Check if user has an active subscription
+    const hasActiveSubscription = company?.stripe_subscription_id &&
+      company?.subscription_status === 'active';
 
-      // Redirect to Stripe checkout
-      window.location.href = checkout_url;
-    } catch (error: any) {
-      console.error('Failed to create checkout session:', error);
-      toast.error(error.response?.data?.detail || 'Failed to initiate upgrade. Please try again.');
-      setUpgradingPlan(null);
+    if (hasActiveSubscription) {
+      // Show plan change modal and fetch proration from Stripe
+      setTargetPlan(planId as 'pro' | 'enterprise');
+      setPlanChangeOption('credit');
+      setShowPlanChangeModal(true);
+      setProrationData(null);
+      setIsLoadingProration(true);
+
+      try {
+        const proration = await apiService.getProrationPreview(planId as 'pro' | 'enterprise');
+        setProrationData({
+          credit_dollars: proration.credit_dollars,
+          charge_dollars: proration.charge_dollars,
+          net_dollars: proration.net_dollars,
+          is_downgrade: proration.is_downgrade
+        });
+      } catch (error: any) {
+        console.error('Failed to get proration preview:', error);
+        // Modal will show fallback estimate
+      } finally {
+        setIsLoadingProration(false);
+      }
+    } else {
+      // New subscription - go through Stripe checkout
+      setUpgradingPlan(planId);
+      try {
+        const { checkout_url } = await apiService.createCheckoutSession(planId as 'pro' | 'enterprise');
+        window.location.href = checkout_url;
+      } catch (error: any) {
+        console.error('Failed to create checkout session:', error);
+        toast.error(error.response?.data?.detail || 'Failed to initiate upgrade. Please try again.');
+        setUpgradingPlan(null);
+      }
     }
-    // Don't reset upgradingPlan on success - we're redirecting anyway
+  };
+
+  // Handle confirmed plan change from modal
+  const handleConfirmPlanChange = async () => {
+    if (!targetPlan) return;
+
+    setIsChangingPlan(true);
+    try {
+      const response = await apiService.updateSubscription(targetPlan);
+      toast.success(response.message);
+      setShowPlanChangeModal(false);
+      setTargetPlan(null);
+      // Refresh to show updated plan
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Failed to change plan:', error);
+      toast.error(error.response?.data?.detail || 'Failed to change plan. Please try again.');
+    } finally {
+      setIsChangingPlan(false);
+    }
   };
 
   const handleCancelSubscription = async () => {
@@ -998,48 +1057,53 @@ export const BillingPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-          <CreditCard className="w-7 h-7 text-purple-400" />
-          Billing & Plans
-        </h1>
-        <p className="text-slate-400 mt-1">Manage your subscription and billing</p>
+    <div className="flex flex-col h-full">
+      {/* Fixed Header Section */}
+      <div className="flex-shrink-0 space-y-6 pb-4">
+        {/* Page Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+            <CreditCard className="w-7 h-7 text-purple-400" />
+            Billing & Plans
+          </h1>
+          <p className="text-slate-400 mt-1">Manage your subscription and billing</p>
+        </div>
+
+        {/* Tab Navigation - Matching Chatbots page style */}
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-1 inline-flex gap-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Tab Navigation - Matching Chatbots page style */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-1 inline-flex gap-1">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
+      {/* Scrollable Tab Content */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          {renderContent()}
+        </motion.div>
       </div>
-
-      {/* Tab Content */}
-      <motion.div
-        key={activeTab}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-      >
-        {renderContent()}
-      </motion.div>
 
       {/* Delete Account Confirmation Modal */}
       {showDeleteModal && (
@@ -1242,6 +1306,199 @@ export const BillingPage: React.FC = () => {
                 ) : (
                   <>
                     {cancelImmediately ? 'Cancel & get refund' : 'Cancel at period end'}
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Plan Change Confirmation Modal */}
+      {showPlanChangeModal && targetPlan && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl max-w-lg w-full"
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  planLimits[targetPlan].price < planLimits[currentPlan].price
+                    ? 'bg-amber-500/20'
+                    : 'bg-purple-500/20'
+                }`}>
+                  {planLimits[targetPlan].price < planLimits[currentPlan].price ? (
+                    <ChevronDown className="w-5 h-5 text-amber-400" />
+                  ) : (
+                    <Sparkles className="w-5 h-5 text-purple-400" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">
+                    {planLimits[targetPlan].price < planLimits[currentPlan].price ? 'Downgrade' : 'Upgrade'} to {targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)}
+                  </h3>
+                  <p className="text-sm text-slate-400">
+                    ${planLimits[currentPlan].price}/mo → ${planLimits[targetPlan].price}/mo
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {/* Proration Explanation */}
+              <div className={`rounded-lg p-4 ${
+                planLimits[targetPlan].price < planLimits[currentPlan].price
+                  ? 'bg-amber-500/10 border border-amber-500/30'
+                  : 'bg-purple-500/10 border border-purple-500/30'
+              }`}>
+                <div className="flex items-start gap-3">
+                  <Info className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                    planLimits[targetPlan].price < planLimits[currentPlan].price
+                      ? 'text-amber-400'
+                      : 'text-purple-400'
+                  }`} />
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      planLimits[targetPlan].price < planLimits[currentPlan].price
+                        ? 'text-amber-300'
+                        : 'text-purple-300'
+                    }`}>
+                      {planLimits[targetPlan].price < planLimits[currentPlan].price
+                        ? 'How proration works for downgrades'
+                        : 'How proration works for upgrades'
+                      }
+                    </p>
+                    <p className={`text-sm mt-1 ${
+                      planLimits[targetPlan].price < planLimits[currentPlan].price
+                        ? 'text-amber-300/80'
+                        : 'text-purple-300/80'
+                    }`}>
+                      {planLimits[targetPlan].price < planLimits[currentPlan].price ? (
+                        <>
+                          You'll receive credit for the unused time on your current {currentPlan} plan.
+                          This credit will be applied to your next invoice, reducing or eliminating your next payment.
+                        </>
+                      ) : (
+                        <>
+                          You'll be charged the prorated difference for the remaining time in your billing cycle.
+                          Your new plan starts immediately.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Proration Amount Display */}
+              <div className="bg-slate-900/50 rounded-lg p-4">
+                {isLoadingProration ? (
+                  <div className="flex items-center justify-center gap-2 py-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
+                    <span className="text-sm text-slate-400">Calculating proration from Stripe...</span>
+                  </div>
+                ) : prorationData ? (
+                  // Show real data from Stripe
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">
+                        {prorationData.is_downgrade ? 'Credit for unused time' : 'Amount due now'}
+                      </span>
+                      <span className={`text-lg font-semibold ${prorationData.is_downgrade ? 'text-green-400' : 'text-amber-400'}`}>
+                        {prorationData.is_downgrade
+                          ? `$${prorationData.credit_dollars.toFixed(2)}`
+                          : `$${prorationData.charge_dollars.toFixed(2)}`
+                        }
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {prorationData.is_downgrade
+                        ? 'This credit will be applied to your next invoice.'
+                        : 'You will be charged this amount immediately.'
+                      }
+                    </p>
+                  </>
+                ) : (
+                  // Fallback to estimate if Stripe API failed
+                  planLimits[targetPlan].price < planLimits[currentPlan].price && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-sm">Estimated credit value</span>
+                        <span className="text-lg font-semibold text-green-400">
+                          ~${(() => {
+                            if (company?.subscription_current_period_start && company?.subscription_current_period_end) {
+                              const periodStart = new Date(company.subscription_current_period_start);
+                              const periodEnd = new Date(company.subscription_current_period_end);
+                              const now = new Date();
+                              const totalPeriodDays = (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24);
+                              const msRemaining = Math.max(0, periodEnd.getTime() - now.getTime());
+                              const daysRemaining = msRemaining / (1000 * 60 * 60 * 24);
+                              const monthlyPrice = planLimits[currentPlan].price;
+                              const credit = (daysRemaining / totalPeriodDays) * monthlyPrice;
+                              return credit.toFixed(2);
+                            }
+                            return '0.00';
+                          })()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Estimate only. Final amount calculated by Stripe.
+                      </p>
+                    </>
+                  )
+                )}
+              </div>
+
+              {/* What changes */}
+              <div>
+                <p className="text-sm font-medium text-slate-300 mb-2">
+                  {planLimits[targetPlan].price < planLimits[currentPlan].price ? "What you'll have after downgrading:" : "What you'll get:"}
+                </p>
+                <ul className="text-sm text-slate-400 space-y-1 ml-4 list-disc">
+                  <li>{planLimits[targetPlan].chatbots} chatbot{typeof planLimits[targetPlan].chatbots === 'number' && planLimits[targetPlan].chatbots !== 1 ? 's' : ''}</li>
+                  <li>{typeof planLimits[targetPlan].messages === 'number' ? `${planLimits[targetPlan].messages.toLocaleString()} messages/month` : 'Unlimited messages'}</li>
+                  <li>{planLimits[targetPlan].documents} documents</li>
+                  <li>{planLimits[targetPlan].teamMembers} team member{typeof planLimits[targetPlan].teamMembers === 'number' && planLimits[targetPlan].teamMembers !== 1 ? 's' : ''}</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-700 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowPlanChangeModal(false);
+                  setTargetPlan(null);
+                }}
+                disabled={isChangingPlan}
+                className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPlanChange}
+                disabled={isChangingPlan}
+                className={`px-4 py-2 rounded-lg text-white transition-colors flex items-center gap-2 ${
+                  planLimits[targetPlan].price < planLimits[currentPlan].price
+                    ? 'bg-amber-600 hover:bg-amber-500'
+                    : 'bg-purple-600 hover:bg-purple-500'
+                }`}
+              >
+                {isChangingPlan ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    {planLimits[targetPlan].price < planLimits[currentPlan].price
+                      ? 'Confirm downgrade'
+                      : 'Confirm upgrade'
+                    }
                   </>
                 )}
               </button>

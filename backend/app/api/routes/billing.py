@@ -267,6 +267,39 @@ async def upgrade_subscription(
         )
 
 
+@router.get("/proration-preview")
+async def get_proration_preview(
+    new_plan: PlanTier,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get proration preview for a plan change.
+
+    Returns the credit/charge amount that would apply if the user
+    changes to the specified plan. Uses Stripe's Invoice.upcoming() API.
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with a company"
+        )
+
+    try:
+        return await billing_service.get_proration_preview(company_id, new_plan)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error getting proration preview: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get proration preview: {str(e)}"
+        )
+
+
 @router.post("/cancel", response_model=CancelSubscriptionResponse)
 async def cancel_subscription(
     cancel_data: CancelSubscriptionRequest,

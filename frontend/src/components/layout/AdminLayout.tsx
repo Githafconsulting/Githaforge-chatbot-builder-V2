@@ -367,8 +367,8 @@ export const AdminLayout: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="lg:ml-72 min-h-screen pt-[60px] lg:pt-0">
-        <div className="p-6 lg:p-8">
+      <main className="lg:ml-72 h-screen pt-[60px] lg:pt-0 flex flex-col">
+        <div className="p-6 lg:p-8 flex-1 overflow-hidden flex flex-col">
           <Outlet />
         </div>
       </main>

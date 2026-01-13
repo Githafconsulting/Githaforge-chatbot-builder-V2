@@ -300,6 +300,101 @@ class BillingService:
             logger.error(f"Error updating subscription: {e}")
             raise
 
+    async def get_proration_preview(
+        self,
+        company_id: str,
+        new_plan: PlanTier
+    ) -> dict:
+        """
+        Get proration preview for a plan change using Stripe's Invoice.create_preview() API.
+
+        Returns the exact credit/charge amount that would apply.
+        Note: Stripe SDK v14+ uses Invoice.create_preview() instead of Invoice.upcoming()
+        """
+        try:
+            company = await self._get_company(company_id)
+            if not company:
+                raise ValueError(f"Company {company_id} not found")
+
+            subscription_id = company.get("stripe_subscription_id")
+            customer_id = company.get("stripe_customer_id")
+            current_plan = company.get("plan", "free")
+
+            if not subscription_id or not customer_id:
+                raise ValueError("No active subscription found")
+
+            if current_plan == new_plan.value:
+                raise ValueError("New plan is the same as current plan")
+
+            # Get the new price ID
+            new_price_id = self._get_price_id_for_plan(new_plan)
+            if not new_price_id:
+                raise ValueError(f"No Stripe price configured for plan: {new_plan}")
+
+            # Get current subscription to find the item ID
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            subscription_item = subscription["items"]["data"][0]
+            subscription_item_id = subscription_item["id"]
+            # In Stripe SDK v14+, period info is on the subscription item, not the subscription
+            period_end = subscription_item.get("current_period_end")
+
+            # Use Stripe's Invoice.create_preview() to preview the proration
+            # (In Stripe SDK v14+, Invoice.upcoming() was replaced with Invoice.create_preview())
+            upcoming_invoice = stripe.Invoice.create_preview(
+                customer=customer_id,
+                subscription=subscription_id,
+                subscription_details={
+                    "items": [{
+                        "id": subscription_item_id,
+                        "price": new_price_id
+                    }],
+                    "proration_behavior": "create_prorations"
+                }
+            )
+
+            # Parse the proration details from line items
+            # In Stripe API v14+, proration line items are identified by description
+            # containing "Unused time" (credit) or "Remaining time" (charge for upgrade)
+            proration_credit = 0  # Credit from unused time on old plan
+            proration_charge = 0  # Charge for remaining time on new plan
+
+            for line_item in upcoming_invoice.lines.data:
+                description = line_item.description or ""
+                is_proration = "Unused time" in description or "Remaining time" in description
+
+                if is_proration:
+                    if line_item.amount < 0:
+                        proration_credit += abs(line_item.amount)
+                    else:
+                        proration_charge += line_item.amount
+
+            # Calculate net amount (negative = credit, positive = charge)
+            net_amount = proration_charge - proration_credit
+            is_downgrade = PLAN_CONFIG[new_plan]["price"] < PLAN_CONFIG[PlanTier(current_plan)]["price"]
+
+            return {
+                "current_plan": current_plan,
+                "new_plan": new_plan.value,
+                "is_downgrade": is_downgrade,
+                "proration_credit": proration_credit,  # Amount credited (in cents)
+                "proration_charge": proration_charge,  # Amount charged (in cents)
+                "net_amount": net_amount,  # Net effect (in cents, negative = credit)
+                "currency": upcoming_invoice.currency,
+                "immediate_charge": upcoming_invoice.amount_due if upcoming_invoice.amount_due > 0 else 0,
+                # Human-readable values in dollars
+                "credit_dollars": proration_credit / 100,
+                "charge_dollars": proration_charge / 100,
+                "net_dollars": net_amount / 100,
+                "period_end": period_end
+            }
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error getting proration preview: {e}")
+            raise ValueError(f"Failed to get proration preview: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error getting proration preview: {e}")
+            raise
+
     async def cancel_subscription(
         self,
         company_id: str,
