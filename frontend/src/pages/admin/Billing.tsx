@@ -120,6 +120,8 @@ export const BillingPage: React.FC = () => {
     charge_dollars: number;
     net_dollars: number;
     is_downgrade: boolean;
+    existing_credit_dollars?: number;
+    this_change_net_dollars?: number;
   } | null>(null);
 
   // Usage data - fetched from API
@@ -132,6 +134,14 @@ export const BillingPage: React.FC = () => {
 
   // Invoices from API
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  // Account credit balance from Stripe
+  const [accountCredit, setAccountCredit] = useState<{
+    credit_balance: number;
+    credit_balance_dollars: number;
+    currency: string;
+    has_credit: boolean;
+  } | null>(null);
 
   // Check for payment success/cancel from Stripe redirect
   useEffect(() => {
@@ -153,6 +163,7 @@ export const BillingPage: React.FC = () => {
   useEffect(() => {
     loadCompanyData();
     loadInvoices();
+    loadAccountCredit();
   }, []);
 
   // Helper function to check if a limit should be displayed as unlimited
@@ -222,6 +233,16 @@ export const BillingPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load invoices:', error);
       // Don't show error toast - invoices are not critical
+    }
+  };
+
+  const loadAccountCredit = async () => {
+    try {
+      const creditData = await apiService.getAccountCredit();
+      setAccountCredit(creditData);
+    } catch (error) {
+      console.error('Failed to load account credit:', error);
+      // Don't show error toast - credit info is not critical
     }
   };
 
@@ -333,7 +354,9 @@ export const BillingPage: React.FC = () => {
           credit_dollars: proration.credit_dollars,
           charge_dollars: proration.charge_dollars,
           net_dollars: proration.net_dollars,
-          is_downgrade: proration.is_downgrade
+          is_downgrade: proration.is_downgrade,
+          existing_credit_dollars: proration.existing_credit_dollars,
+          this_change_net_dollars: proration.this_change_net_dollars
         });
       } catch (error: any) {
         console.error('Failed to get proration preview:', error);
@@ -362,11 +385,20 @@ export const BillingPage: React.FC = () => {
     setIsChangingPlan(true);
     try {
       const response = await apiService.updateSubscription(targetPlan);
-      toast.success(response.message);
       setShowPlanChangeModal(false);
       setTargetPlan(null);
-      // Refresh to show updated plan
-      window.location.reload();
+      // Show success message with plan details
+      const isUpgrade = planLimits[targetPlan].price > planLimits[currentPlan].price;
+      toast.success(
+        isUpgrade
+          ? `Successfully upgraded to ${targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)}! Your card has been charged.`
+          : `Successfully changed to ${targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)}!`,
+        { duration: 4000 }
+      );
+      // Delay reload to show toast message
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error: any) {
       console.error('Failed to change plan:', error);
       toast.error(error.response?.data?.detail || 'Failed to change plan. Please try again.');
@@ -546,6 +578,24 @@ export const BillingPage: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {/* Account Credit */}
+          {accountCredit && accountCredit.has_credit && (
+            <div className="flex items-start gap-8 border-t border-slate-700/50 pt-6">
+              <div className="w-40 text-sm text-slate-400">Account credit</div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-bold text-green-400">${accountCredit.credit_balance_dollars.toFixed(2)}</p>
+                  <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
+                    Credit
+                  </span>
+                </div>
+                <p className="text-sm text-slate-400 mt-1">
+                  This credit will be automatically applied to your next invoice, reducing your payment.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -844,6 +894,26 @@ export const BillingPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Account Credit */}
+      {accountCredit && accountCredit.has_credit && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Account credit</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <p className="text-3xl font-bold text-green-400">${accountCredit.credit_balance_dollars.toFixed(2)}</p>
+                <span className="px-2.5 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
+                  Credit
+                </span>
+              </div>
+              <p className="text-sm text-slate-400 mt-2">
+                This credit will be automatically applied to your next invoice, reducing your payment.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Compare Plans */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
@@ -1404,23 +1474,51 @@ export const BillingPage: React.FC = () => {
                 ) : prorationData ? (
                   // Show real data from Stripe
                   <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-sm">
-                        {prorationData.is_downgrade ? 'Credit for unused time' : 'Amount due now'}
-                      </span>
-                      <span className={`text-lg font-semibold ${prorationData.is_downgrade ? 'text-green-400' : 'text-amber-400'}`}>
-                        {prorationData.is_downgrade
-                          ? `$${prorationData.credit_dollars.toFixed(2)}`
-                          : `$${prorationData.net_dollars.toFixed(2)}`
-                        }
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {prorationData.is_downgrade
-                        ? 'This credit will be applied to your next invoice.'
-                        : `Prorated difference: $${prorationData.charge_dollars.toFixed(2)} new plan − $${prorationData.credit_dollars.toFixed(2)} unused time`
-                      }
-                    </p>
+                    {prorationData.is_downgrade ? (
+                      // Downgrade: show credit for unused time
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 text-sm">Credit for unused time</span>
+                          <span className="text-lg font-semibold text-green-400">
+                            ${prorationData.credit_dollars.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          This credit will be applied to your next invoice.
+                        </p>
+                      </>
+                    ) : (
+                      // Upgrade: show breakdown
+                      <>
+                        {/* Upgrade cost breakdown */}
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between text-slate-400">
+                            <span>Upgrade cost (prorated)</span>
+                            <span>${(prorationData.this_change_net_dollars ?? prorationData.charge_dollars - prorationData.credit_dollars).toFixed(2)}</span>
+                          </div>
+                          {(prorationData.existing_credit_dollars ?? 0) > 0 && (
+                            <div className="flex items-center justify-between text-green-400">
+                              <span>Your account credit</span>
+                              <span>-${prorationData.existing_credit_dollars?.toFixed(2)}</span>
+                            </div>
+                          )}
+                          <div className="border-t border-slate-700 pt-2 flex items-center justify-between">
+                            <span className="text-slate-300 font-medium">Amount due now</span>
+                            <span className={`text-lg font-semibold ${prorationData.net_dollars <= 0 ? 'text-green-400' : 'text-amber-400'}`}>
+                              {prorationData.net_dollars <= 0
+                                ? '$0.00'
+                                : `$${prorationData.net_dollars.toFixed(2)}`
+                              }
+                            </span>
+                          </div>
+                        </div>
+                        {prorationData.net_dollars < 0 && (
+                          <p className="text-xs text-green-400 mt-2">
+                            You have ${Math.abs(prorationData.net_dollars).toFixed(2)} remaining credit after this upgrade.
+                          </p>
+                        )}
+                      </>
+                    )}
                   </>
                 ) : (
                   // Fallback to estimate if Stripe API failed

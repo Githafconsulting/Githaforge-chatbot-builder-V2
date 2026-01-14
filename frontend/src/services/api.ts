@@ -1218,6 +1218,18 @@ class ApiService {
     const response = await this.api.get(`/api/v1/billing/proration-preview?new_plan=${newPlan}`);
     return response.data;
   }
+
+  // Get account credit balance from Stripe
+  async getAccountCredit(): Promise<{
+    credit_balance: number;       // in cents
+    credit_balance_dollars: number; // in dollars
+    currency: string;
+    has_credit: boolean;
+    error?: string;
+  }> {
+    const response = await this.api.get('/api/v1/billing/credit');
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

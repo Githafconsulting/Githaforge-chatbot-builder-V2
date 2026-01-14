@@ -146,19 +146,32 @@ class StripeWebhookHandler:
         previous_plan = company.get("plan") if company else None
 
         # Determine new plan from subscription
-        new_plan = subscription.get("metadata", {}).get("plan")
+        # IMPORTANT: Always prioritize price_id over metadata because metadata can be stale
+        # (e.g., when using pending_if_incomplete for upgrades, metadata cannot be updated)
+        new_plan = None
         items = subscription.get("items", {})
         items_data = items.get("data") if isinstance(items, dict) else None
-        if not new_plan and items_data and len(items_data) > 0:
-            # Try to determine from price
+
+        # First, try to determine from price_id (most reliable source of truth)
+        if items_data and len(items_data) > 0:
             try:
                 price_id = items_data[0]["price"]["id"]
+                logger.info(f"Webhook - determining plan from price_id: {price_id}")
                 new_plan = self._get_plan_from_price_id(price_id)
-            except (KeyError, IndexError, TypeError):
-                pass
+                logger.info(f"Webhook - plan from price_id: {new_plan}")
+            except (KeyError, IndexError, TypeError) as e:
+                logger.warning(f"Webhook - failed to get plan from price: {e}")
 
+        # Fall back to metadata only if price_id lookup failed
+        if not new_plan:
+            metadata_plan = subscription.get("metadata", {}).get("plan")
+            logger.info(f"Webhook - falling back to metadata plan: {metadata_plan}")
+            new_plan = metadata_plan
+
+        # Final fallback to previous plan
         if not new_plan:
             new_plan = previous_plan or "pro"
+            logger.info(f"Webhook - using final fallback plan: {new_plan}")
 
         plan_limits = PLAN_CONFIG.get(PlanTier(new_plan), PLAN_CONFIG[PlanTier.PRO])
 

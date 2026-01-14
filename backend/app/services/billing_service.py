@@ -247,31 +247,77 @@ class BillingService:
             # Get current subscription from Stripe
             subscription = stripe.Subscription.retrieve(subscription_id)
 
+            # Determine if this is an upgrade or downgrade
+            current_price = PLAN_CONFIG[PlanTier(current_plan)]["price"]
+            new_price = PLAN_CONFIG[new_plan]["price"]
+            is_upgrade = new_price > current_price
+
             # Update the subscription
-            updated_subscription = stripe.Subscription.modify(
-                subscription_id,
-                items=[{
+            # For upgrades: use payment_behavior="pending_if_incomplete" to charge immediately
+            # For downgrades: credit is applied to next invoice automatically
+            # Note: When using pending_if_incomplete, metadata is not supported by Stripe
+            update_params = {
+                "items": [{
                     "id": subscription["items"]["data"][0]["id"],
                     "price": new_price_id
                 }],
-                proration_behavior="create_prorations" if prorate else "none",
-                metadata={
+                "proration_behavior": "create_prorations" if prorate else "none"
+            }
+
+            # For upgrades, we need to invoice immediately to charge the prorated difference
+            # Note: metadata cannot be passed with pending_if_incomplete
+            if is_upgrade and prorate:
+                update_params["payment_behavior"] = "pending_if_incomplete"
+            else:
+                # Only add metadata for downgrades (where pending_if_incomplete is not used)
+                update_params["metadata"] = {
                     "company_id": company_id,
                     "plan": new_plan.value,
                     "previous_plan": current_plan
                 }
+
+            updated_subscription = stripe.Subscription.modify(
+                subscription_id,
+                **update_params
             )
+
+            # For upgrades, create and pay the invoice immediately for the prorated amount
+            if is_upgrade and prorate:
+                try:
+                    # Create an invoice for any pending proration items
+                    invoice = stripe.Invoice.create(
+                        customer=company.get("stripe_customer_id"),
+                        subscription=subscription_id,
+                        auto_advance=True,  # Automatically finalize the invoice
+                    )
+
+                    # Pay the invoice immediately if there's an amount due
+                    if invoice.amount_due > 0:
+                        stripe.Invoice.pay(invoice.id)
+                        logger.info(f"Charged proration invoice {invoice.id} for ${invoice.amount_due / 100:.2f}")
+                except stripe.error.InvalidRequestError as e:
+                    # This can happen if there are no pending invoice items
+                    # (e.g., the proration was already invoiced)
+                    if "Nothing to invoice" not in str(e):
+                        logger.warning(f"Could not create proration invoice: {e}")
+                except stripe.error.CardError as e:
+                    # Payment failed - subscription is still updated but payment is pending
+                    logger.error(f"Payment failed for proration: {e}")
+                    raise ValueError(f"Payment failed: {e.user_message}")
 
             # Update company in database
             plan_limits = PLAN_CONFIG[new_plan]
-            self.client.table("companies").update({
+            update_data = {
                 "plan": new_plan.value,
                 "subscription_status": updated_subscription.status,
                 "max_bots": plan_limits["chatbots_limit"],
                 "max_documents": plan_limits["documents_limit"],
                 "max_monthly_messages": plan_limits["messages_limit"],
                 "max_team_members": plan_limits["team_members_limit"]
-            }).eq("id", company_id).execute()
+            }
+            logger.info(f"Updating company {company_id} with plan data: {update_data}")
+            result = self.client.table("companies").update(update_data).eq("id", company_id).execute()
+            logger.info(f"Database update result: {result.data}")
 
             # Record in history
             event_type = SubscriptionEventType.UPGRADED if new_plan.value > current_plan else SubscriptionEventType.DOWNGRADED
@@ -355,36 +401,99 @@ class BillingService:
             # Parse the proration details from line items
             # In Stripe API v14+, proration line items are identified by description
             # containing "Unused time" (credit) or "Remaining time" (charge for upgrade)
-            proration_credit = 0  # Credit from unused time on old plan
-            proration_charge = 0  # Charge for remaining time on new plan
+            proration_credit = 0  # Credit from unused time on current plan (from this change)
+            proration_charge = 0  # Charge for remaining time on new plan (from this change)
+            existing_credit = 0   # Existing pending credits from previous changes
+            existing_charge = 0   # Existing pending charges from previous changes
+
+            # Get the current and new plan names for matching
+            current_plan_name = f"Githaforge {current_plan.capitalize()}"
+            new_plan_name = f"Githaforge {new_plan.value.capitalize()}"
+
+            # Log all line items for debugging
+            logger.info(f"Proration preview line items for {current_plan} -> {new_plan.value}:")
+            for line_item in upcoming_invoice.lines.data:
+                logger.info(f"  - {line_item.description}: ${line_item.amount / 100:.2f}")
 
             for line_item in upcoming_invoice.lines.data:
                 description = line_item.description or ""
-                is_proration = "Unused time" in description or "Remaining time" in description
 
-                if is_proration:
+                # Check if this is a proration item (credit or charge)
+                is_unused_time = "Unused time" in description
+                is_remaining_time = "Remaining time" in description
+
+                if is_unused_time or is_remaining_time:
+                    # Determine if this proration is for the CURRENT change
+                    # Current change items reference either the current plan (unused) or new plan (remaining)
+                    is_for_current_plan = current_plan_name in description
+                    is_for_new_plan = new_plan_name in description
+
                     if line_item.amount < 0:
-                        proration_credit += abs(line_item.amount)
+                        # Credit (unused time)
+                        if is_for_current_plan:
+                            # Credit for unused time on CURRENT plan (part of this change)
+                            proration_credit += abs(line_item.amount)
+                        else:
+                            # Credit from a PREVIOUS change (e.g., unused Enterprise from downgrade)
+                            existing_credit += abs(line_item.amount)
                     else:
-                        proration_charge += line_item.amount
+                        # Charge (remaining time)
+                        if is_for_new_plan:
+                            # Charge for remaining time on NEW plan (part of this change)
+                            proration_charge += line_item.amount
+                        else:
+                            # Charge from a PREVIOUS change (e.g., remaining Pro from downgrade)
+                            existing_charge += line_item.amount
 
-            # Calculate net amount (negative = credit, positive = charge)
-            net_amount = proration_charge - proration_credit
+            # Net existing balance from previous changes (credit - charges)
+            existing_net_credit = existing_credit - existing_charge
+
+            logger.info(f"Proration breakdown:")
+            logger.info(f"  - Credit from {current_plan}: ${proration_credit/100:.2f}")
+            logger.info(f"  - Charge for {new_plan.value}: ${proration_charge/100:.2f}")
+            logger.info(f"  - Existing credits (from previous changes): ${existing_credit/100:.2f}")
+            logger.info(f"  - Existing charges (from previous changes): ${existing_charge/100:.2f}")
+            logger.info(f"  - Net existing balance: ${existing_net_credit/100:.2f}")
+            logger.info(f"Invoice totals: amount_due=${upcoming_invoice.amount_due/100:.2f}, subtotal=${upcoming_invoice.subtotal/100:.2f}, total=${upcoming_invoice.total/100:.2f}")
+
+            # Calculate the proration for THIS change only (excluding existing credits)
+            this_change_net = proration_charge - proration_credit
             is_downgrade = PLAN_CONFIG[new_plan]["price"] < PLAN_CONFIG[PlanTier(current_plan)]["price"]
+
+            # For the immediate charge, we need to calculate only the proration portion
+            # (exclude the next month's subscription charge)
+            # Note: PLAN_CONFIG prices are already in cents (e.g., 2900 = $29.00, 9900 = $99.00)
+            next_month_charge = PLAN_CONFIG[new_plan]["price"]
+
+            # The immediate proration charge is the total minus next month's regular charge
+            # This includes existing credits from previous changes
+            immediate_proration = upcoming_invoice.total - next_month_charge
+
+            # Calculate what the user would pay if they had NO existing credits
+            # This is clearer for the UI to show the true cost of the change
+            upgrade_cost_without_existing_credit = this_change_net
+
+            logger.info(f"Proration calculation:")
+            logger.info(f"  - This change only: ${this_change_net/100:.2f}")
+            logger.info(f"  - Existing NET credit (credit - charges): ${existing_net_credit/100:.2f}")
+            logger.info(f"  - After applying existing credit: ${immediate_proration/100:.2f}")
 
             return {
                 "current_plan": current_plan,
                 "new_plan": new_plan.value,
                 "is_downgrade": is_downgrade,
-                "proration_credit": proration_credit,  # Amount credited (in cents)
-                "proration_charge": proration_charge,  # Amount charged (in cents)
-                "net_amount": net_amount,  # Net effect (in cents, negative = credit)
+                "proration_credit": proration_credit,  # Credit from THIS change (unused current plan)
+                "proration_charge": proration_charge,  # Charge from THIS change (remaining new plan)
+                "existing_credit": existing_net_credit,  # NET credit from PREVIOUS changes (credit - charges)
+                "net_amount": immediate_proration,     # Final amount (after all credits)
                 "currency": upcoming_invoice.currency,
-                "immediate_charge": upcoming_invoice.amount_due if upcoming_invoice.amount_due > 0 else 0,
+                "immediate_charge": max(0, immediate_proration),  # What to actually charge
                 # Human-readable values in dollars
-                "credit_dollars": proration_credit / 100,
-                "charge_dollars": proration_charge / 100,
-                "net_dollars": net_amount / 100,
+                "credit_dollars": proration_credit / 100,  # Credit from this change
+                "charge_dollars": proration_charge / 100,  # Charge for this change
+                "existing_credit_dollars": existing_net_credit / 100,  # NET existing account credit
+                "this_change_net_dollars": this_change_net / 100,  # Net cost of THIS change
+                "net_dollars": immediate_proration / 100,  # Final amount (after all credits)
                 "period_end": period_end
             }
 
@@ -808,6 +917,166 @@ class BillingService:
             next_invoice_date=subscription.current_period_end,
             next_invoice_amount=PLAN_CONFIG.get(subscription.plan, {}).get("price")
         )
+
+    async def get_account_credit(self, company_id: str) -> dict:
+        """
+        Get the account credit balance from Stripe.
+
+        Credits can come from two sources:
+        1. Customer balance (negative balance = credit)
+        2. Credit line items on upcoming invoice (from proration)
+
+        Returns the total credit available.
+        """
+        try:
+            company = await self._get_company(company_id)
+            if not company:
+                raise ValueError(f"Company {company_id} not found")
+
+            customer_id = company.get("stripe_customer_id")
+            subscription_id = company.get("stripe_subscription_id")
+
+            if not customer_id:
+                return {
+                    "credit_balance": 0,
+                    "credit_balance_dollars": 0.0,
+                    "currency": "usd",
+                    "has_credit": False,
+                    "source": "none"
+                }
+
+            # Get customer from Stripe
+            customer = stripe.Customer.retrieve(customer_id)
+
+            # Source 1: Customer balance (negative = credit)
+            # Note: Stripe Customer object uses attribute access, not dict access
+            customer_balance = getattr(customer, "balance", 0) or 0
+            customer_credit = abs(customer_balance) if customer_balance < 0 else 0
+            logger.info(f"Customer balance: {customer_balance} cents, credit: {customer_credit} cents")
+
+            # Source 2: Check pending invoice items directly
+            # These are the proration credits/charges shown in Stripe dashboard
+            invoice_credit = 0
+            pending_charge = 0
+            try:
+                # Fetch pending invoice items for this customer
+                pending_items = stripe.InvoiceItem.list(customer=customer_id, pending=True, limit=100)
+
+                for item in pending_items.data:
+                    amount = getattr(item, "amount", 0) or 0
+                    description = getattr(item, "description", "") or ""
+                    logger.info(f"Pending invoice item: amount={amount}, description='{description}'")
+
+                    if amount < 0:
+                        # Negative amount = credit (unused time from downgrade)
+                        invoice_credit += abs(amount)
+                    else:
+                        # Positive amount = charge
+                        pending_charge += amount
+
+                # Net credit is credit minus any pending charges
+                net_invoice_credit = max(0, invoice_credit - pending_charge)
+                logger.info(f"Pending items - credits: {invoice_credit}, charges: {pending_charge}, net credit: {net_invoice_credit}")
+                invoice_credit = net_invoice_credit
+
+            except Exception as e:
+                logger.info(f"Could not fetch pending invoice items: {e}")
+
+            # Also try to get upcoming invoice preview if subscription exists
+            if subscription_id and invoice_credit == 0:
+                try:
+                    # Note: In Stripe SDK v14+, use create_preview with subscription parameter
+                    upcoming = stripe.Invoice.create_preview(
+                        customer=customer_id,
+                        subscription=subscription_id
+                    )
+
+                    starting_balance = getattr(upcoming, "starting_balance", 0) or 0
+                    ending_balance = getattr(upcoming, "ending_balance", 0) or 0
+                    amount_due = getattr(upcoming, "amount_due", 0) or 0
+
+                    logger.info(f"Upcoming invoice found - subtotal: {upcoming.subtotal}, total: {upcoming.total}, "
+                               f"amount_due: {amount_due}, starting_balance: {starting_balance}, "
+                               f"ending_balance: {ending_balance}, lines: {len(upcoming.lines.data)}")
+
+                    # Check for credit line items (negative amounts from proration)
+                    for line in upcoming.lines.data:
+                        logger.info(f"Invoice line: amount={line.amount}, description='{line.description}'")
+                        if line.amount < 0:
+                            invoice_credit += abs(line.amount)
+
+                    # Also check if the invoice total is negative (net credit)
+                    if upcoming.total < 0:
+                        invoice_credit = max(invoice_credit, abs(upcoming.total))
+
+                    # Check ending_balance - if it's negative, that's credit that will roll over
+                    if ending_balance < 0:
+                        rollover_credit = abs(ending_balance)
+                        invoice_credit = max(invoice_credit, rollover_credit)
+                        logger.info(f"Found rollover credit from ending_balance: {rollover_credit}")
+
+                    logger.info(f"Upcoming invoice - total: {upcoming.total}, credit from lines/balance: {invoice_credit}")
+
+                except stripe.error.InvalidRequestError as e:
+                    logger.info(f"No upcoming invoice available: {e}")
+
+            # Source 3: Check for credit notes (another way Stripe stores credits)
+            credit_note_total = 0
+            try:
+                credit_notes = stripe.CreditNote.list(customer=customer_id, limit=10)
+                for cn in credit_notes.data:
+                    if cn.status == "issued":
+                        # Get remaining credit (not yet applied)
+                        remaining = getattr(cn, "amount_remaining", 0) or 0
+                        if remaining > 0:
+                            credit_note_total += remaining
+                            logger.info(f"Found credit note {cn.id} with remaining: {remaining}")
+            except Exception as e:
+                logger.debug(f"Could not fetch credit notes: {e}")
+
+            # Total credit is from all sources
+            total_credit = customer_credit + invoice_credit + credit_note_total
+            logger.info(f"Total credit calculation: customer={customer_credit}, invoice={invoice_credit}, credit_notes={credit_note_total}, total={total_credit}")
+
+            # Determine primary source for display
+            sources = []
+            if customer_credit > 0:
+                sources.append("customer_balance")
+            if invoice_credit > 0:
+                sources.append("proration")
+            if credit_note_total > 0:
+                sources.append("credit_note")
+            source = ",".join(sources) if sources else "none"
+
+            return {
+                "credit_balance": total_credit,  # In cents
+                "credit_balance_dollars": total_credit / 100,  # In dollars
+                "currency": getattr(customer, "currency", "usd") or "usd",
+                "has_credit": total_credit > 0,
+                "source": source,
+                "customer_credit": customer_credit,
+                "invoice_credit": invoice_credit,
+                "credit_note_total": credit_note_total
+            }
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error getting account credit: {e}")
+            return {
+                "credit_balance": 0,
+                "credit_balance_dollars": 0.0,
+                "currency": "usd",
+                "has_credit": False,
+                "error": str(e)
+            }
+        except Exception as e:
+            logger.error(f"Error getting account credit: {e}")
+            return {
+                "credit_balance": 0,
+                "credit_balance_dollars": 0.0,
+                "currency": "usd",
+                "has_credit": False,
+                "error": str(e)
+            }
 
     # ========================================================================
     # HELPER METHODS

@@ -110,6 +110,40 @@ async def update_billing_info(
 
 
 # ============================================================================
+# ACCOUNT CREDIT ENDPOINTS
+# ============================================================================
+
+@router.get("/credit")
+async def get_account_credit(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get account credit balance from Stripe.
+
+    Credits are accumulated from:
+    - Unused time when downgrading plans
+    - Manual adjustments by support
+
+    Credits are automatically applied to future invoices.
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with a company"
+        )
+
+    try:
+        return await billing_service.get_account_credit(company_id)
+    except Exception as e:
+        logger.error(f"Error getting account credit: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get account credit: {str(e)}"
+        )
+
+
+# ============================================================================
 # SUBSCRIPTION ENDPOINTS
 # ============================================================================
 

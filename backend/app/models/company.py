@@ -69,7 +69,7 @@ class Company(CompanyBase):
     # Stripe billing fields
     stripe_customer_id: Optional[str] = None
     stripe_subscription_id: Optional[str] = None
-    subscription_status: str = Field(default="active", description="Subscription status: active, past_due, canceled, trialing, ended")
+    subscription_status: Optional[str] = Field(default=None, description="Subscription status: active, past_due, canceled, trialing, ended")
     billing_email: Optional[str] = None
     subscription_current_period_start: Optional[datetime] = None
     subscription_current_period_end: Optional[datetime] = None
