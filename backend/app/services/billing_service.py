@@ -1395,7 +1395,7 @@ class BillingService:
         NOTE: To add the Starter plan price ID:
         1. Create a product in Stripe Dashboard (Products -> Add Product)
            - Name: "Githaforge Starter"
-           - Price: $12/month (recurring)
+           - Price: $25/month (recurring)
         2. Copy the Price ID (starts with price_...)
         3. Add to your .env file: STRIPE_PRICE_ID_STARTER=price_xxx
         """
