@@ -516,6 +516,37 @@ export const BillingPage: React.FC = () => {
     return Math.min((used / limit) * 100, 100);
   };
 
+  // Get gradient color based on usage percentage (smooth transition from blue → green → yellow → orange → red)
+  const getUsageColor = (percent: number): string => {
+    // Clamp percent between 0 and 100
+    const p = Math.min(Math.max(percent, 0), 100);
+
+    // Define color stops: blue (0%) → green (25%) → yellow (50%) → orange (75%) → red (100%)
+    // Each color is defined as [r, g, b]
+    const colors: [number, number, number][] = [
+      [59, 130, 246],   // blue-500 at 0%
+      [34, 197, 94],    // green-500 at 25%
+      [234, 179, 8],    // yellow-500 at 50%
+      [249, 115, 22],   // orange-500 at 75%
+      [239, 68, 68],    // red-500 at 100%
+    ];
+
+    // Calculate which segment we're in and the position within that segment
+    const segment = p / 25; // 0-4 range
+    const segmentIndex = Math.min(Math.floor(segment), 3); // 0-3
+    const segmentProgress = segment - segmentIndex; // 0-1 within segment
+
+    // Interpolate between the two colors
+    const color1 = colors[segmentIndex];
+    const color2 = colors[segmentIndex + 1];
+
+    const r = Math.round(color1[0] + (color2[0] - color1[0]) * segmentProgress);
+    const g = Math.round(color1[1] + (color2[1] - color1[1]) * segmentProgress);
+    const b = Math.round(color1[2] + (color2[2] - color1[2]) * segmentProgress);
+
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -779,14 +810,11 @@ export const BillingPage: React.FC = () => {
           </div>
           <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all ${
-                calculateUsagePercent(usage.messages.used, usage.messages.limit) > 90
-                  ? 'bg-red-500'
-                  : calculateUsagePercent(usage.messages.used, usage.messages.limit) > 70
-                    ? 'bg-amber-500'
-                    : 'bg-blue-500'
-              }`}
-              style={{ width: `${calculateUsagePercent(usage.messages.used, usage.messages.limit)}%` }}
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${calculateUsagePercent(usage.messages.used, usage.messages.limit)}%`,
+                backgroundColor: getUsageColor(calculateUsagePercent(usage.messages.used, usage.messages.limit))
+              }}
             />
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -807,8 +835,11 @@ export const BillingPage: React.FC = () => {
           </div>
           <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-purple-500 transition-all"
-              style={{ width: `${calculateUsagePercent(usage.chatbots.used, usage.chatbots.limit)}%` }}
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${calculateUsagePercent(usage.chatbots.used, usage.chatbots.limit)}%`,
+                backgroundColor: getUsageColor(calculateUsagePercent(usage.chatbots.used, usage.chatbots.limit))
+              }}
             />
           </div>
         </div>
@@ -826,8 +857,11 @@ export const BillingPage: React.FC = () => {
           </div>
           <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-green-500 transition-all"
-              style={{ width: usage.documents.limit === 'Unlimited' ? 0 : `${calculateUsagePercent(usage.documents.used, usage.documents.limit)}%` }}
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${calculateUsagePercent(usage.documents.used, usage.documents.limit)}%`,
+                backgroundColor: getUsageColor(calculateUsagePercent(usage.documents.used, usage.documents.limit))
+              }}
             />
           </div>
         </div>
@@ -845,8 +879,11 @@ export const BillingPage: React.FC = () => {
           </div>
           <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-cyan-500 transition-all"
-              style={{ width: `${calculateUsagePercent(usage.teamMembers.used, usage.teamMembers.limit)}%` }}
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${calculateUsagePercent(usage.teamMembers.used, usage.teamMembers.limit)}%`,
+                backgroundColor: getUsageColor(calculateUsagePercent(usage.teamMembers.used, usage.teamMembers.limit))
+              }}
             />
           </div>
         </div>

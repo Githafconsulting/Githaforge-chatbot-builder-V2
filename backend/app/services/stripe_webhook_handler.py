@@ -618,7 +618,9 @@ class StripeWebhookHandler:
 
     def _get_plan_from_price_id(self, price_id: str) -> Optional[str]:
         """Determine plan from Stripe price ID"""
-        if price_id == settings.STRIPE_PRICE_ID_PRO:
+        if price_id == settings.STRIPE_PRICE_ID_STARTER:
+            return "starter"
+        elif price_id == settings.STRIPE_PRICE_ID_PRO:
             return "pro"
         elif price_id == settings.STRIPE_PRICE_ID_ENTERPRISE:
             return "enterprise"
@@ -626,7 +628,7 @@ class StripeWebhookHandler:
 
     def _is_upgrade(self, from_plan: Optional[str], to_plan: str) -> bool:
         """Check if plan change is an upgrade"""
-        plan_order = {"free": 0, "pro": 1, "enterprise": 2}
+        plan_order = {"free": 0, "starter": 1, "pro": 2, "enterprise": 3}
         from_order = plan_order.get(from_plan or "free", 0)
         to_order = plan_order.get(to_plan, 0)
         return to_order > from_order

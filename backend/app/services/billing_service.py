@@ -913,17 +913,46 @@ class BillingService:
     # USAGE TRACKING
     # ========================================================================
 
+    def _get_billing_period_key(self, company: dict) -> str:
+        """
+        Get the billing period key for usage tracking.
+
+        - Free plans: Use calendar month (e.g., "2026-01")
+        - Paid plans: Use subscription period start date (e.g., "2026-01-14")
+
+        This ensures usage resets align with billing cycles for paid customers.
+        """
+        plan = company.get("plan", "free")
+
+        # Free plans use calendar month
+        if plan == "free":
+            return datetime.utcnow().strftime("%Y-%m")
+
+        # Paid plans use subscription period
+        period_start = company.get("subscription_current_period_start")
+        if period_start:
+            # Parse the period start date and use it as the key
+            # Format: "2026-01-14" (date when current billing period started)
+            if isinstance(period_start, str):
+                period_start_dt = datetime.fromisoformat(period_start.replace("Z", "+00:00"))
+            else:
+                period_start_dt = period_start
+            return period_start_dt.strftime("%Y-%m-%d")
+
+        # Fallback to calendar month if no subscription period (shouldn't happen for paid plans)
+        return datetime.utcnow().strftime("%Y-%m")
+
     async def get_usage_status(self, company_id: str) -> UsageStatus:
         """Get current usage status for a company"""
         company = await self._get_company(company_id)
         if not company:
             raise ValueError(f"Company {company_id} not found")
 
-        # Get current billing month
-        billing_month = datetime.utcnow().strftime("%Y-%m")
+        # Get billing period key (calendar month for free, subscription period for paid)
+        billing_period = self._get_billing_period_key(company)
 
         # Get or create usage record
-        usage = await self._get_or_create_usage_record(company_id, billing_month)
+        usage = await self._get_or_create_usage_record(company_id, billing_period)
 
         # Get limits based on plan
         plan = PlanTier(company.get("plan", "free"))
@@ -956,7 +985,7 @@ class BillingService:
         return UsageStatus(
             current=current,
             limits=limits,
-            billing_month=billing_month,
+            billing_month=billing_period,
             messages_percentage=calc_percent(current.messages_used, limits.messages_limit),
             documents_percentage=calc_percent(current.documents_used, limits.documents_limit),
             chatbots_percentage=calc_percent(current.chatbots_used, limits.chatbots_limit),
@@ -973,8 +1002,13 @@ class BillingService:
         team_members: int = 0
     ) -> UsageMetrics:
         """Increment usage counters for a company"""
-        billing_month = datetime.utcnow().strftime("%Y-%m")
-        usage = await self._get_or_create_usage_record(company_id, billing_month)
+        company = await self._get_company(company_id)
+        if not company:
+            raise ValueError(f"Company {company_id} not found")
+
+        # Get billing period key (calendar month for free, subscription period for paid)
+        billing_period = self._get_billing_period_key(company)
+        usage = await self._get_or_create_usage_record(company_id, billing_period)
 
         new_usage = {
             "messages_used": usage.get("messages_used", 0) + messages,
@@ -985,7 +1019,7 @@ class BillingService:
 
         self.client.table("usage_records").update(new_usage).eq(
             "company_id", company_id
-        ).eq("billing_month", billing_month).execute()
+        ).eq("billing_month", billing_period).execute()
 
         return UsageMetrics(**new_usage)
 
