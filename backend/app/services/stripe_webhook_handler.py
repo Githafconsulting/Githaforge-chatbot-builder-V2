@@ -50,6 +50,8 @@ class StripeWebhookHandler:
                 "payment_method.attached": self._handle_payment_method_attached,
                 "payment_method.detached": self._handle_payment_method_detached,
                 "checkout.session.completed": self._handle_checkout_completed,
+                "subscription_schedule.completed": self._handle_schedule_completed,
+                "subscription_schedule.released": self._handle_schedule_released,
             }
 
             handler = handler_map.get(event_type)
@@ -436,6 +438,84 @@ class StripeWebhookHandler:
 
         # The subscription.created event will handle the rest
         logger.info(f"Checkout completed for company {company_id}, plan: {plan}")
+
+    # ========================================================================
+    # SUBSCRIPTION SCHEDULE HANDLERS (for scheduled downgrades)
+    # ========================================================================
+
+    async def _handle_schedule_completed(self, schedule: dict):
+        """
+        Handle subscription schedule completion.
+        This fires when a scheduled downgrade takes effect at the end of a billing cycle.
+        """
+        subscription_id = schedule.get("subscription")
+        if not subscription_id:
+            logger.warning(f"Schedule completed with no subscription ID: {schedule.get('id')}")
+            return
+
+        company_id = await self._get_company_by_subscription(subscription_id)
+        if not company_id:
+            logger.warning(f"No company found for subscription {subscription_id}")
+            return
+
+        # Get the new plan from the subscription
+        try:
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            price_id = subscription["items"]["data"][0]["price"]["id"]
+            new_plan = self._get_plan_from_price_id(price_id)
+
+            if not new_plan:
+                logger.warning(f"Could not determine plan from price {price_id}")
+                return
+
+            # Update company with new plan and clear pending plan
+            plan_limits = PLAN_CONFIG.get(PlanTier(new_plan), PLAN_CONFIG[PlanTier.FREE])
+            update_data = {
+                "plan": new_plan,
+                "subscription_status": subscription.get("status", "active"),
+                "max_bots": plan_limits["chatbots_limit"],
+                "max_documents": plan_limits["documents_limit"],
+                "max_monthly_messages": plan_limits["messages_limit"],
+                "max_team_members": plan_limits["team_members_limit"],
+                "pending_plan": None,
+                "pending_plan_effective_date": None
+            }
+
+            self.client.table("companies").update(update_data).eq("id", company_id).execute()
+
+            # Record in history
+            await self._record_subscription_history(
+                company_id=company_id,
+                event_type=SubscriptionEventType.DOWNGRADED,
+                new_plan=new_plan,
+                metadata={"schedule_id": schedule.get("id"), "completed": True}
+            )
+
+            logger.info(f"Scheduled downgrade completed for company {company_id}. New plan: {new_plan}")
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Error retrieving subscription {subscription_id}: {e}")
+
+    async def _handle_schedule_released(self, schedule: dict):
+        """
+        Handle subscription schedule release.
+        This fires when a scheduled downgrade is cancelled by the user.
+        """
+        subscription_id = schedule.get("subscription")
+        if not subscription_id:
+            return
+
+        company_id = await self._get_company_by_subscription(subscription_id)
+        if not company_id:
+            return
+
+        # Clear pending plan info (user cancelled the downgrade)
+        self.client.table("companies").update({
+            "pending_plan": None,
+            "pending_plan_effective_date": None
+        }).eq("id", company_id).execute()
+
+        logger.info(f"Subscription schedule released for company {company_id}. Pending downgrade cleared.")
 
     # ========================================================================
     # HELPER METHODS

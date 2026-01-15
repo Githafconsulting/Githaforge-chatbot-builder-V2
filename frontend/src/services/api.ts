@@ -1185,6 +1185,16 @@ class ApiService {
     return response.data;
   }
 
+  // Cancel a scheduled downgrade (keeps current plan)
+  async cancelScheduledDowngrade(): Promise<{
+    success: boolean;
+    message: string;
+    current_plan: string;
+  }> {
+    const response = await this.api.post('/api/v1/billing/cancel-scheduled-downgrade');
+    return response.data;
+  }
+
   // Update existing subscription (upgrade/downgrade with proration)
   async updateSubscription(newPlan: 'pro' | 'enterprise'): Promise<{
     success: boolean;

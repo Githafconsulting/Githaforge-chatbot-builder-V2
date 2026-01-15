@@ -226,7 +226,12 @@ class BillingService:
         new_plan: PlanTier,
         prorate: bool = True
     ) -> PlanChangeResponse:
-        """Upgrade or downgrade subscription"""
+        """
+        Upgrade or downgrade subscription.
+
+        - Upgrades: Take effect immediately, charge prorated difference
+        - Downgrades: Scheduled for end of billing cycle, no credit issued
+        """
         try:
             company = await self._get_company(company_id)
             if not company:
@@ -246,98 +251,166 @@ class BillingService:
 
             # Get current subscription from Stripe
             subscription = stripe.Subscription.retrieve(subscription_id)
+            subscription_item_id = subscription["items"]["data"][0]["id"]
+
+            # Get the period end date for scheduled downgrades
+            period_end = subscription["items"]["data"][0].get("current_period_end")
+            if not period_end:
+                period_end = subscription.get("current_period_end")
 
             # Determine if this is an upgrade or downgrade
             current_price = PLAN_CONFIG[PlanTier(current_plan)]["price"]
             new_price = PLAN_CONFIG[new_plan]["price"]
             is_upgrade = new_price > current_price
+            is_downgrade = new_price < current_price
 
-            # Update the subscription
-            # For upgrades: use payment_behavior="pending_if_incomplete" to charge immediately
-            # For downgrades: credit is applied to next invoice automatically
-            # Note: When using pending_if_incomplete, metadata is not supported by Stripe
-            update_params = {
-                "items": [{
-                    "id": subscription["items"]["data"][0]["id"],
-                    "price": new_price_id
-                }],
-                "proration_behavior": "create_prorations" if prorate else "none"
-            }
+            if is_upgrade:
+                # UPGRADE: Immediate change with proration charge
+                logger.info(f"Processing UPGRADE for company {company_id}: {current_plan} -> {new_plan.value}")
 
-            # For upgrades, we need to invoice immediately to charge the prorated difference
-            # Note: metadata cannot be passed with pending_if_incomplete
-            if is_upgrade and prorate:
-                update_params["payment_behavior"] = "pending_if_incomplete"
-            else:
-                # Only add metadata for downgrades (where pending_if_incomplete is not used)
-                update_params["metadata"] = {
-                    "company_id": company_id,
-                    "plan": new_plan.value,
-                    "previous_plan": current_plan
+                update_params = {
+                    "items": [{
+                        "id": subscription_item_id,
+                        "price": new_price_id
+                    }],
+                    "proration_behavior": "create_prorations" if prorate else "none",
+                    "payment_behavior": "pending_if_incomplete"
                 }
 
-            updated_subscription = stripe.Subscription.modify(
-                subscription_id,
-                **update_params
-            )
+                updated_subscription = stripe.Subscription.modify(
+                    subscription_id,
+                    **update_params
+                )
 
-            # For upgrades, create and pay the invoice immediately for the prorated amount
-            if is_upgrade and prorate:
-                try:
-                    # Create an invoice for any pending proration items
-                    invoice = stripe.Invoice.create(
-                        customer=company.get("stripe_customer_id"),
-                        subscription=subscription_id,
-                        auto_advance=True,  # Automatically finalize the invoice
-                    )
+                # Create and pay the invoice immediately for the prorated amount
+                if prorate:
+                    try:
+                        invoice = stripe.Invoice.create(
+                            customer=company.get("stripe_customer_id"),
+                            subscription=subscription_id,
+                            auto_advance=True,
+                        )
+                        if invoice.amount_due > 0:
+                            stripe.Invoice.pay(invoice.id)
+                            logger.info(f"Charged proration invoice {invoice.id} for ${invoice.amount_due / 100:.2f}")
+                    except stripe.error.InvalidRequestError as e:
+                        if "Nothing to invoice" not in str(e):
+                            logger.warning(f"Could not create proration invoice: {e}")
+                    except stripe.error.CardError as e:
+                        logger.error(f"Payment failed for proration: {e}")
+                        raise ValueError(f"Payment failed: {e.user_message}")
 
-                    # Pay the invoice immediately if there's an amount due
-                    if invoice.amount_due > 0:
-                        stripe.Invoice.pay(invoice.id)
-                        logger.info(f"Charged proration invoice {invoice.id} for ${invoice.amount_due / 100:.2f}")
-                except stripe.error.InvalidRequestError as e:
-                    # This can happen if there are no pending invoice items
-                    # (e.g., the proration was already invoiced)
-                    if "Nothing to invoice" not in str(e):
-                        logger.warning(f"Could not create proration invoice: {e}")
-                except stripe.error.CardError as e:
-                    # Payment failed - subscription is still updated but payment is pending
-                    logger.error(f"Payment failed for proration: {e}")
-                    raise ValueError(f"Payment failed: {e.user_message}")
+                # Update company in database immediately
+                plan_limits = PLAN_CONFIG[new_plan]
+                update_data = {
+                    "plan": new_plan.value,
+                    "subscription_status": updated_subscription.status,
+                    "max_bots": plan_limits["chatbots_limit"],
+                    "max_documents": plan_limits["documents_limit"],
+                    "max_monthly_messages": plan_limits["messages_limit"],
+                    "max_team_members": plan_limits["team_members_limit"],
+                    "pending_plan": None,  # Clear any pending downgrade
+                    "pending_plan_effective_date": None
+                }
+                self.client.table("companies").update(update_data).eq("id", company_id).execute()
 
-            # Update company in database
-            plan_limits = PLAN_CONFIG[new_plan]
-            update_data = {
-                "plan": new_plan.value,
-                "subscription_status": updated_subscription.status,
-                "max_bots": plan_limits["chatbots_limit"],
-                "max_documents": plan_limits["documents_limit"],
-                "max_monthly_messages": plan_limits["messages_limit"],
-                "max_team_members": plan_limits["team_members_limit"]
-            }
-            logger.info(f"Updating company {company_id} with plan data: {update_data}")
-            result = self.client.table("companies").update(update_data).eq("id", company_id).execute()
-            logger.info(f"Database update result: {result.data}")
+                # Record in history
+                await self._record_subscription_event(
+                    company_id=company_id,
+                    event_type=SubscriptionEventType.UPGRADED,
+                    previous_plan=current_plan,
+                    new_plan=new_plan.value,
+                    stripe_subscription_id=subscription_id
+                )
 
-            # Record in history
-            event_type = SubscriptionEventType.UPGRADED if new_plan.value > current_plan else SubscriptionEventType.DOWNGRADED
-            await self._record_subscription_event(
-                company_id=company_id,
-                event_type=event_type,
-                previous_plan=current_plan,
-                new_plan=new_plan.value,
-                stripe_subscription_id=subscription_id
-            )
+                logger.info(f"Upgrade complete for company {company_id}: {current_plan} -> {new_plan.value}")
 
-            logger.info(f"Updated subscription for company {company_id} from {current_plan} to {new_plan.value}")
+                return PlanChangeResponse(
+                    success=True,
+                    message=f"Successfully upgraded to {new_plan.value}",
+                    new_plan=new_plan,
+                    effective_date=datetime.utcnow(),
+                    proration_amount=None
+                )
 
-            return PlanChangeResponse(
-                success=True,
-                message=f"Successfully changed plan to {new_plan.value}",
-                new_plan=new_plan,
-                effective_date=datetime.utcnow(),
-                proration_amount=None  # Could calculate from Stripe invoice preview
-            )
+            elif is_downgrade:
+                # DOWNGRADE: Schedule for end of billing cycle
+                logger.info(f"Processing DOWNGRADE for company {company_id}: {current_plan} -> {new_plan.value}")
+                logger.info(f"Downgrade will take effect at period end: {period_end}")
+
+                # Use Stripe's subscription schedule to schedule the downgrade
+                # First, check if there's an existing schedule
+                existing_schedules = stripe.SubscriptionSchedule.list(
+                    customer=company.get("stripe_customer_id"),
+                    limit=1
+                )
+
+                if existing_schedules.data:
+                    # Update existing schedule
+                    schedule = existing_schedules.data[0]
+                    if schedule.status == "active":
+                        # Release the old schedule and create a new one
+                        stripe.SubscriptionSchedule.release(schedule.id)
+
+                # Create a new subscription schedule from the existing subscription
+                schedule = stripe.SubscriptionSchedule.create(
+                    from_subscription=subscription_id
+                )
+
+                # Get current price ID
+                current_price_id = subscription["items"]["data"][0]["price"]["id"]
+
+                # Update the schedule with phases:
+                # Phase 1: Current plan until period end
+                # Phase 2: New (downgraded) plan starting at period end
+                stripe.SubscriptionSchedule.modify(
+                    schedule.id,
+                    phases=[
+                        {
+                            "items": [{"price": current_price_id}],
+                            "start_date": subscription["current_period_start"],
+                            "end_date": period_end,
+                        },
+                        {
+                            "items": [{"price": new_price_id}],
+                            "start_date": period_end,
+                            "iterations": 1,  # Will continue indefinitely after this
+                        }
+                    ],
+                    end_behavior="release"  # After schedule completes, continue as normal subscription
+                )
+
+                # Update database with pending downgrade info
+                effective_date = datetime.utcfromtimestamp(period_end)
+                update_data = {
+                    "pending_plan": new_plan.value,
+                    "pending_plan_effective_date": effective_date.isoformat()
+                }
+                self.client.table("companies").update(update_data).eq("id", company_id).execute()
+
+                # Record in history (as scheduled, not completed)
+                await self._record_subscription_event(
+                    company_id=company_id,
+                    event_type=SubscriptionEventType.DOWNGRADED,
+                    previous_plan=current_plan,
+                    new_plan=new_plan.value,
+                    stripe_subscription_id=subscription_id,
+                    metadata={"scheduled": True, "effective_date": effective_date.isoformat()}
+                )
+
+                logger.info(f"Downgrade scheduled for company {company_id}: {current_plan} -> {new_plan.value} on {effective_date}")
+
+                return PlanChangeResponse(
+                    success=True,
+                    message=f"Your plan will change to {new_plan.value} on {effective_date.strftime('%B %d, %Y')}",
+                    new_plan=new_plan,
+                    effective_date=effective_date,
+                    proration_amount=None
+                )
+
+            else:
+                # Same plan, no change needed
+                raise ValueError("New plan is the same as current plan")
 
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error updating subscription: {e}")
@@ -502,6 +575,60 @@ class BillingService:
             raise ValueError(f"Failed to get proration preview: {str(e)}")
         except Exception as e:
             logger.error(f"Error getting proration preview: {e}")
+            raise
+
+    async def cancel_scheduled_downgrade(self, company_id: str) -> dict:
+        """
+        Cancel a scheduled downgrade and keep the current plan.
+        """
+        try:
+            company = await self._get_company(company_id)
+            if not company:
+                raise ValueError(f"Company {company_id} not found")
+
+            pending_plan = company.get("pending_plan")
+            if not pending_plan:
+                raise ValueError("No scheduled downgrade to cancel")
+
+            customer_id = company.get("stripe_customer_id")
+            subscription_id = company.get("stripe_subscription_id")
+
+            if not customer_id or not subscription_id:
+                raise ValueError("No active subscription found")
+
+            # Find and release the subscription schedule
+            schedules = stripe.SubscriptionSchedule.list(
+                customer=customer_id,
+                limit=5
+            )
+
+            for schedule in schedules.data:
+                if schedule.status == "active" and schedule.subscription == subscription_id:
+                    stripe.SubscriptionSchedule.release(schedule.id)
+                    logger.info(f"Released subscription schedule {schedule.id}")
+                    break
+
+            # Clear the pending plan from database
+            update_data = {
+                "pending_plan": None,
+                "pending_plan_effective_date": None
+            }
+            self.client.table("companies").update(update_data).eq("id", company_id).execute()
+
+            current_plan = company.get("plan", "free")
+            logger.info(f"Cancelled scheduled downgrade for company {company_id}. Keeping plan: {current_plan}")
+
+            return {
+                "success": True,
+                "message": f"Scheduled downgrade cancelled. You will continue on the {current_plan.capitalize()} plan.",
+                "current_plan": current_plan
+            }
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error cancelling scheduled downgrade: {e}")
+            raise ValueError(f"Failed to cancel scheduled downgrade: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error cancelling scheduled downgrade: {e}")
             raise
 
     async def cancel_subscription(

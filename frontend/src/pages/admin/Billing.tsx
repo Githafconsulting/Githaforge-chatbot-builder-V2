@@ -25,6 +25,10 @@ import {
   Trash2,
   Plus,
   Shield,
+  Clock,
+  XCircle,
+  ExternalLink,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -51,6 +55,9 @@ interface CompanyData {
   subscription_current_period_end?: string;
   stripe_subscription_id?: string;
   subscription_status?: string;
+  // Scheduled plan change (for end-of-cycle downgrades)
+  pending_plan?: string | null;
+  pending_plan_effective_date?: string | null;
 }
 
 interface UsageData {
@@ -63,9 +70,11 @@ interface UsageData {
 interface Invoice {
   id: string;
   date: string;
+  time: string;
   amount: number;
   status: 'paid' | 'pending' | 'failed';
   downloadUrl?: string;
+  previewUrl?: string;
 }
 
 type TabId = 'overview' | 'usage' | 'preferences' | 'history';
@@ -123,6 +132,9 @@ export const BillingPage: React.FC = () => {
     existing_credit_dollars?: number;
     this_change_net_dollars?: number;
   } | null>(null);
+
+  // Cancel scheduled downgrade state
+  const [isCancelingScheduledDowngrade, setIsCancelingScheduledDowngrade] = useState(false);
 
   // Usage data - fetched from API
   const [usage, setUsage] = useState<UsageData>({
@@ -219,17 +231,26 @@ export const BillingPage: React.FC = () => {
     try {
       const invoiceData = await apiService.getInvoices();
       // Transform to our Invoice format
-      setInvoices(invoiceData.map(inv => ({
-        id: inv.id,
-        date: inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }) : 'N/A',
-        amount: inv.amount_paid / 100, // Convert from cents
-        status: inv.status === 'paid' ? 'paid' : inv.status === 'open' ? 'pending' : 'failed',
-        downloadUrl: inv.invoice_pdf_url || undefined,
-      })));
+      setInvoices(invoiceData.map(inv => {
+        const invoiceDate = inv.invoice_date ? new Date(inv.invoice_date) : null;
+        return {
+          id: inv.id,
+          date: invoiceDate ? invoiceDate.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          }) : 'N/A',
+          time: invoiceDate ? invoiceDate.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          }) : '',
+          amount: inv.amount_paid / 100, // Convert from cents
+          status: inv.status === 'paid' ? 'paid' : inv.status === 'open' ? 'pending' : 'failed',
+          downloadUrl: inv.invoice_pdf_url || undefined,
+          previewUrl: inv.hosted_invoice_url || undefined,
+        };
+      }));
     } catch (error) {
       console.error('Failed to load invoices:', error);
       // Don't show error toast - invoices are not critical
@@ -341,28 +362,47 @@ export const BillingPage: React.FC = () => {
       company?.subscription_status === 'active';
 
     if (hasActiveSubscription) {
-      // Show plan change modal and fetch proration from Stripe
+      // Show plan change modal
       setTargetPlan(planId as 'pro' | 'enterprise');
       setPlanChangeOption('credit');
       setShowPlanChangeModal(true);
       setProrationData(null);
-      setIsLoadingProration(true);
 
-      try {
-        const proration = await apiService.getProrationPreview(planId as 'pro' | 'enterprise');
-        setProrationData({
-          credit_dollars: proration.credit_dollars,
-          charge_dollars: proration.charge_dollars,
-          net_dollars: proration.net_dollars,
-          is_downgrade: proration.is_downgrade,
-          existing_credit_dollars: proration.existing_credit_dollars,
-          this_change_net_dollars: proration.this_change_net_dollars
-        });
-      } catch (error: any) {
-        console.error('Failed to get proration preview:', error);
-        // Modal will show fallback estimate
-      } finally {
+      // Check if this is a downgrade or upgrade
+      const planHierarchy = { free: 0, pro: 1, enterprise: 2 };
+      const isDowngrade = planHierarchy[planId as keyof typeof planHierarchy] < planHierarchy[currentPlan as keyof typeof planHierarchy];
+
+      if (isDowngrade) {
+        // Downgrades are scheduled for end-of-cycle, no proration needed
+        // Just set is_downgrade flag for the UI
         setIsLoadingProration(false);
+        setProrationData({
+          credit_dollars: 0,
+          charge_dollars: 0,
+          net_dollars: 0,
+          is_downgrade: true,
+          existing_credit_dollars: 0,
+          this_change_net_dollars: 0
+        });
+      } else {
+        // Upgrades: fetch proration from Stripe
+        setIsLoadingProration(true);
+        try {
+          const proration = await apiService.getProrationPreview(planId as 'pro' | 'enterprise');
+          setProrationData({
+            credit_dollars: proration.credit_dollars,
+            charge_dollars: proration.charge_dollars,
+            net_dollars: proration.net_dollars,
+            is_downgrade: proration.is_downgrade,
+            existing_credit_dollars: proration.existing_credit_dollars,
+            this_change_net_dollars: proration.this_change_net_dollars
+          });
+        } catch (error: any) {
+          console.error('Failed to get proration preview:', error);
+          // Modal will show fallback estimate
+        } finally {
+          setIsLoadingProration(false);
+        }
       }
     } else {
       // New subscription - go through Stripe checkout
@@ -426,6 +466,21 @@ export const BillingPage: React.FC = () => {
       toast.error(error.response?.data?.detail || 'Failed to cancel subscription. Please try again.');
     } finally {
       setIsCanceling(false);
+    }
+  };
+
+  const handleCancelScheduledDowngrade = async () => {
+    setIsCancelingScheduledDowngrade(true);
+    try {
+      const response = await apiService.cancelScheduledDowngrade();
+      toast.success(response.message);
+      // Refresh company data to clear pending plan
+      await loadCompanyData();
+    } catch (error: any) {
+      console.error('Failed to cancel scheduled downgrade:', error);
+      toast.error(error.response?.data?.detail || 'Failed to cancel scheduled downgrade. Please try again.');
+    } finally {
+      setIsCancelingScheduledDowngrade(false);
     }
   };
 
@@ -541,6 +596,48 @@ export const BillingPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Pending Downgrade Banner */}
+          {company?.pending_plan && company?.pending_plan_effective_date && (
+            <div className="flex items-start gap-8 border-t border-slate-700/50 pt-6">
+              <div className="w-40 text-sm text-slate-400">Scheduled change</div>
+              <div className="flex-1">
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-amber-300 font-medium">
+                          Downgrade scheduled to {company.pending_plan.charAt(0).toUpperCase() + company.pending_plan.slice(1)}
+                        </p>
+                        <p className="text-sm text-amber-300/80 mt-1">
+                          Your plan will change on{' '}
+                          {new Date(company.pending_plan_effective_date).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                          . You'll continue to have full access to your current plan features until then.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleCancelScheduledDowngrade}
+                      disabled={isCancelingScheduledDowngrade}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      {isCancelingScheduledDowngrade ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <XCircle className="w-4 h-4" />
+                      )}
+                      Cancel change
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Billing Cycle */}
           <div className="flex items-start gap-8 border-t border-slate-700/50 pt-6">
             <div className="w-40 text-sm text-slate-400">Billing cycle</div>
@@ -580,7 +677,7 @@ export const BillingPage: React.FC = () => {
           </div>
 
           {/* Account Credit */}
-          {accountCredit && accountCredit.has_credit && (
+          {accountCredit && accountCredit.has_credit && accountCredit.credit_balance_dollars >= 1.00 && (
             <div className="flex items-start gap-8 border-t border-slate-700/50 pt-6">
               <div className="w-40 text-sm text-slate-400">Account credit</div>
               <div>
@@ -896,7 +993,7 @@ export const BillingPage: React.FC = () => {
       </div>
 
       {/* Account Credit */}
-      {accountCredit && accountCredit.has_credit && (
+      {accountCredit && accountCredit.has_credit && accountCredit.credit_balance_dollars >= 1.00 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Account credit</h2>
           <div className="flex items-center justify-between">
@@ -1074,15 +1171,17 @@ export const BillingPage: React.FC = () => {
             <thead>
               <tr className="text-left text-sm text-slate-400 border-b border-slate-700">
                 <th className="pb-3 font-medium">Date</th>
+                <th className="pb-3 font-medium">Time</th>
                 <th className="pb-3 font-medium">Amount</th>
                 <th className="pb-3 font-medium">Status</th>
-                <th className="pb-3 font-medium"></th>
+                <th className="pb-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {invoices.map((invoice) => (
-                <tr key={invoice.id} className="border-b border-slate-700/50">
+                <tr key={invoice.id} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
                   <td className="py-3 text-sm text-slate-300">{invoice.date}</td>
+                  <td className="py-3 text-sm text-slate-500">{invoice.time || '-'}</td>
                   <td className="py-3 text-sm text-slate-300">${invoice.amount.toFixed(2)}</td>
                   <td className="py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs ${
@@ -1095,12 +1194,36 @@ export const BillingPage: React.FC = () => {
                       {invoice.status}
                     </span>
                   </td>
-                  <td className="py-3 text-right">
-                    {invoice.downloadUrl && (
-                      <button className="text-purple-400 hover:text-purple-300 text-sm">
-                        Download
-                      </button>
-                    )}
+                  <td className="py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {invoice.previewUrl && (
+                        <a
+                          href={invoice.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-2 py-1 text-sm text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                          title="View invoice"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span className="hidden sm:inline">View</span>
+                        </a>
+                      )}
+                      {invoice.downloadUrl && (
+                        <a
+                          href={invoice.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-2 py-1 text-sm text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded transition-colors"
+                          title="Download PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span className="hidden sm:inline">PDF</span>
+                        </a>
+                      )}
+                      {!invoice.previewUrl && !invoice.downloadUrl && (
+                        <span className="text-xs text-slate-500">-</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1420,18 +1543,18 @@ export const BillingPage: React.FC = () => {
 
             {/* Content */}
             <div className="p-6 space-y-4">
-              {/* Proration Explanation */}
+              {/* Plan Change Explanation */}
               <div className={`rounded-lg p-4 ${
                 planLimits[targetPlan].price < planLimits[currentPlan].price
                   ? 'bg-amber-500/10 border border-amber-500/30'
                   : 'bg-purple-500/10 border border-purple-500/30'
               }`}>
                 <div className="flex items-start gap-3">
-                  <Info className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                    planLimits[targetPlan].price < planLimits[currentPlan].price
-                      ? 'text-amber-400'
-                      : 'text-purple-400'
-                  }`} />
+                  {planLimits[targetPlan].price < planLimits[currentPlan].price ? (
+                    <Clock className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-400" />
+                  ) : (
+                    <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-purple-400" />
+                  )}
                   <div>
                     <p className={`text-sm font-medium ${
                       planLimits[targetPlan].price < planLimits[currentPlan].price
@@ -1439,8 +1562,8 @@ export const BillingPage: React.FC = () => {
                         : 'text-purple-300'
                     }`}>
                       {planLimits[targetPlan].price < planLimits[currentPlan].price
-                        ? 'How proration works for downgrades'
-                        : 'How proration works for upgrades'
+                        ? 'Scheduled for end of billing cycle'
+                        : 'Immediate upgrade with proration'
                       }
                     </p>
                     <p className={`text-sm mt-1 ${
@@ -1450,8 +1573,10 @@ export const BillingPage: React.FC = () => {
                     }`}>
                       {planLimits[targetPlan].price < planLimits[currentPlan].price ? (
                         <>
-                          You'll receive credit for the unused time on your current {currentPlan} plan.
-                          This credit will be applied to your next invoice, reducing or eliminating your next payment.
+                          Your downgrade will take effect at the end of your current billing period on{' '}
+                          <strong>{billingCycle.end}</strong>. You'll continue to have full access to your{' '}
+                          {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} plan features until then.
+                          No refunds or credits are issued for downgrades.
                         </>
                       ) : (
                         <>
@@ -1469,22 +1594,28 @@ export const BillingPage: React.FC = () => {
                 {isLoadingProration ? (
                   <div className="flex items-center justify-center gap-2 py-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
-                    <span className="text-sm text-slate-400">Calculating proration from Stripe...</span>
+                    <span className="text-sm text-slate-400">Loading plan details...</span>
                   </div>
                 ) : prorationData ? (
                   // Show real data from Stripe
                   <>
                     {prorationData.is_downgrade ? (
-                      // Downgrade: show credit for unused time
+                      // Downgrade: Show scheduled change info (no credit/refund issued)
                       <>
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-400 text-sm">Credit for unused time</span>
-                          <span className="text-lg font-semibold text-green-400">
-                            ${prorationData.credit_dollars.toFixed(2)}
+                          <span className="text-slate-400 text-sm">Current plan until {billingCycle.end}</span>
+                          <span className="text-sm text-white">
+                            {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} (${planLimits[currentPlan].price}/mo)
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                          This credit will be applied to your next invoice.
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-slate-400 text-sm">New plan starting next cycle</span>
+                          <span className="text-lg font-semibold text-white">
+                            {targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)} (${planLimits[targetPlan].price}/mo)
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-3">
+                          You've already paid for your current billing period. Your {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} features remain active until {billingCycle.end}.
                         </p>
                       </>
                     ) : (
@@ -1521,33 +1652,42 @@ export const BillingPage: React.FC = () => {
                     )}
                   </>
                 ) : (
-                  // Fallback to estimate if Stripe API failed
-                  planLimits[targetPlan].price < planLimits[currentPlan].price && (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-sm">Estimated credit value</span>
-                        <span className="text-lg font-semibold text-green-400">
-                          ~${(() => {
-                            if (company?.subscription_current_period_start && company?.subscription_current_period_end) {
-                              const periodStart = new Date(company.subscription_current_period_start);
-                              const periodEnd = new Date(company.subscription_current_period_end);
-                              const now = new Date();
-                              const totalPeriodDays = (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24);
-                              const msRemaining = Math.max(0, periodEnd.getTime() - now.getTime());
-                              const daysRemaining = msRemaining / (1000 * 60 * 60 * 24);
-                              const monthlyPrice = planLimits[currentPlan].price;
-                              const credit = (daysRemaining / totalPeriodDays) * monthlyPrice;
-                              return credit.toFixed(2);
-                            }
-                            return '0.00';
-                          })()}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Estimate only. Final amount calculated by Stripe.
-                      </p>
-                    </>
-                  )
+                  // Fallback if Stripe API failed
+                  <>
+                    {planLimits[targetPlan].price < planLimits[currentPlan].price ? (
+                      // Downgrade fallback
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 text-sm">Current plan until {billingCycle.end}</span>
+                          <span className="text-sm text-white">
+                            {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} (${planLimits[currentPlan].price}/mo)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-slate-400 text-sm">New plan starting next cycle</span>
+                          <span className="text-lg font-semibold text-white">
+                            {targetPlan.charAt(0).toUpperCase() + targetPlan.slice(1)} (${planLimits[targetPlan].price}/mo)
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Change takes effect at end of billing cycle.
+                        </p>
+                      </>
+                    ) : (
+                      // Upgrade fallback
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 text-sm">New monthly price</span>
+                          <span className="text-lg font-semibold text-white">
+                            ${planLimits[targetPlan].price}.00/mo
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          You'll be charged the prorated difference today.
+                        </p>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1589,14 +1729,18 @@ export const BillingPage: React.FC = () => {
                 {isChangingPlan ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Processing...
+                    {planLimits[targetPlan].price < planLimits[currentPlan].price ? 'Scheduling...' : 'Processing...'}
                   </>
                 ) : (
                   <>
-                    {planLimits[targetPlan].price < planLimits[currentPlan].price
-                      ? 'Confirm downgrade'
-                      : 'Confirm upgrade'
-                    }
+                    {planLimits[targetPlan].price < planLimits[currentPlan].price ? (
+                      <>
+                        <Clock className="w-4 h-4" />
+                        Schedule downgrade
+                      </>
+                    ) : (
+                      'Confirm upgrade'
+                    )}
                   </>
                 )}
               </button>

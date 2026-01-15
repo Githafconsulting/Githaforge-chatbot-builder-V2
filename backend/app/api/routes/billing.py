@@ -378,6 +378,45 @@ async def cancel_subscription(
         )
 
 
+@router.post("/cancel-scheduled-downgrade")
+async def cancel_scheduled_downgrade(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Cancel a scheduled downgrade.
+
+    If a downgrade was scheduled to take effect at the end of the billing period,
+    this cancels that scheduled change and keeps the current plan.
+    Only accessible by company owners.
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with a company"
+        )
+
+    if current_user.get("role") != "owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only company owners can manage subscriptions"
+        )
+
+    try:
+        return await billing_service.cancel_scheduled_downgrade(company_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error canceling scheduled downgrade: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel scheduled downgrade: {str(e)}"
+        )
+
+
 # ============================================================================
 # PAYMENT METHOD ENDPOINTS
 # ============================================================================

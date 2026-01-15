@@ -75,6 +75,10 @@ class Company(CompanyBase):
     subscription_current_period_end: Optional[datetime] = None
     trial_ends_at: Optional[datetime] = None
 
+    # Scheduled plan change (for end-of-cycle downgrades)
+    pending_plan: Optional[str] = Field(default=None, description="Plan scheduled to take effect at end of billing cycle")
+    pending_plan_effective_date: Optional[datetime] = Field(default=None, description="Date when pending_plan takes effect")
+
     # Billing address (synced from Stripe)
     billing_address_line1: Optional[str] = None
     billing_address_line2: Optional[str] = None
