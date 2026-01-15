@@ -94,10 +94,14 @@ const tabs: Tab[] = [
 
 // Plan limits configuration
 const planLimits: Record<string, { chatbots: number | 'Unlimited'; messages: number | 'Unlimited'; documents: number | 'Unlimited'; teamMembers: number | 'Unlimited'; price: number }> = {
-  free: { chatbots: 1, messages: 100, documents: 10, teamMembers: 1, price: 0 },
-  pro: { chatbots: 5, messages: 10000, documents: 'Unlimited', teamMembers: 5, price: 29 },
-  enterprise: { chatbots: 'Unlimited', messages: 'Unlimited', documents: 'Unlimited', teamMembers: 'Unlimited', price: 99 },
+  free: { chatbots: 1, messages: 1000, documents: 1, teamMembers: 1, price: 0 },
+  starter: { chatbots: 2, messages: 5000, documents: 3, teamMembers: 2, price: 25 },
+  pro: { chatbots: 5, messages: 15000, documents: 5, teamMembers: 5, price: 50 },
+  enterprise: { chatbots: 15, messages: 50000, documents: 10, teamMembers: 15, price: 100 },
 };
+
+// Plan hierarchy for upgrade/downgrade detection
+const planHierarchy: Record<string, number> = { free: 0, starter: 1, pro: 2, enterprise: 3 };
 
 export const BillingPage: React.FC = () => {
   const { userInfo, logout } = useAuth();
@@ -120,7 +124,7 @@ export const BillingPage: React.FC = () => {
 
   // Plan change modal state (for upgrades/downgrades between paid plans)
   const [showPlanChangeModal, setShowPlanChangeModal] = useState(false);
-  const [targetPlan, setTargetPlan] = useState<'pro' | 'enterprise' | null>(null);
+  const [targetPlan, setTargetPlan] = useState<'starter' | 'pro' | 'enterprise' | null>(null);
   const [planChangeOption, setPlanChangeOption] = useState<'credit' | 'refund'>('credit');
   const [isChangingPlan, setIsChangingPlan] = useState(false);
   const [isLoadingProration, setIsLoadingProration] = useState(false);
@@ -352,7 +356,7 @@ export const BillingPage: React.FC = () => {
       return;
     }
 
-    if (planId !== 'pro' && planId !== 'enterprise') {
+    if (planId !== 'starter' && planId !== 'pro' && planId !== 'enterprise') {
       toast.error('Invalid plan selected');
       return;
     }
@@ -363,14 +367,13 @@ export const BillingPage: React.FC = () => {
 
     if (hasActiveSubscription) {
       // Show plan change modal
-      setTargetPlan(planId as 'pro' | 'enterprise');
+      setTargetPlan(planId as 'starter' | 'pro' | 'enterprise');
       setPlanChangeOption('credit');
       setShowPlanChangeModal(true);
       setProrationData(null);
 
       // Check if this is a downgrade or upgrade
-      const planHierarchy = { free: 0, pro: 1, enterprise: 2 };
-      const isDowngrade = planHierarchy[planId as keyof typeof planHierarchy] < planHierarchy[currentPlan as keyof typeof planHierarchy];
+      const isDowngrade = planHierarchy[planId] < planHierarchy[currentPlan];
 
       if (isDowngrade) {
         // Downgrades are scheduled for end-of-cycle, no proration needed
@@ -388,7 +391,7 @@ export const BillingPage: React.FC = () => {
         // Upgrades: fetch proration from Stripe
         setIsLoadingProration(true);
         try {
-          const proration = await apiService.getProrationPreview(planId as 'pro' | 'enterprise');
+          const proration = await apiService.getProrationPreview(planId as 'starter' | 'pro' | 'enterprise');
           setProrationData({
             credit_dollars: proration.credit_dollars,
             charge_dollars: proration.charge_dollars,
@@ -408,7 +411,7 @@ export const BillingPage: React.FC = () => {
       // New subscription - go through Stripe checkout
       setUpgradingPlan(planId);
       try {
-        const { checkout_url } = await apiService.createCheckoutSession(planId as 'pro' | 'enterprise');
+        const { checkout_url } = await apiService.createCheckoutSession(planId as 'starter' | 'pro' | 'enterprise');
         window.location.href = checkout_url;
       } catch (error: any) {
         console.error('Failed to create checkout session:', error);
@@ -1016,11 +1019,10 @@ export const BillingPage: React.FC = () => {
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Compare plans</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {(['free', 'pro', 'enterprise'] as const).map((planId) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {(['free', 'starter', 'pro', 'enterprise'] as const).map((planId) => {
             const plan = planLimits[planId];
             const isCurrent = planId === currentPlan;
-            const planHierarchy = { free: 0, pro: 1, enterprise: 2 };
             const isDowngrade = planHierarchy[planId] < planHierarchy[currentPlan];
 
             return (
@@ -1048,7 +1050,7 @@ export const BillingPage: React.FC = () => {
                 <ul className="space-y-2 text-sm text-slate-400 mb-4">
                   <li>{plan.chatbots} chatbot{plan.chatbots !== 1 && typeof plan.chatbots === 'number' ? 's' : ''}</li>
                   <li>{typeof plan.messages === 'number' ? `${plan.messages.toLocaleString()} messages/mo` : 'Unlimited messages'}</li>
-                  <li>{plan.documents} documents</li>
+                  <li>{plan.documents} document{plan.documents !== 1 && typeof plan.documents === 'number' ? 's' : ''}</li>
                   <li>{plan.teamMembers} team member{plan.teamMembers !== 1 && typeof plan.teamMembers === 'number' ? 's' : ''}</li>
                 </ul>
 
@@ -1062,7 +1064,9 @@ export const BillingPage: React.FC = () => {
                         ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                         : planId === 'enterprise'
                           ? 'bg-purple-600 text-white hover:bg-purple-500'
-                          : 'bg-gradient-to-r from-yellow-600 to-orange-600 text-white hover:from-yellow-500 hover:to-orange-500'
+                          : planId === 'pro'
+                            ? 'bg-gradient-to-r from-yellow-600 to-orange-600 text-white hover:from-yellow-500 hover:to-orange-500'
+                            : 'bg-blue-600 text-white hover:bg-blue-500'
                   }`}
                 >
                   {upgradingPlan === planId ? 'Processing...' : isCurrent ? 'Current plan' : isDowngrade ? `Downgrade to ${planId}` : `Upgrade to ${planId}`}
@@ -1070,6 +1074,7 @@ export const BillingPage: React.FC = () => {
               </div>
             );
           })}
+
         </div>
       </div>
 

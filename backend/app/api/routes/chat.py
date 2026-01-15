@@ -1,10 +1,11 @@
 """
 Chat API endpoints
 """
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, status
 from app.models.message import ChatRequest, ChatResponse
 from app.services.rag_service import get_rag_response
 from app.services.conversation_service import get_or_create_conversation, save_message
+from app.services.billing_service import billing_service
 from app.middleware.rate_limiter import limiter
 from app.utils.logger import get_logger
 from app.utils.geolocation import get_country_from_ip, anonymize_ip
@@ -22,10 +23,10 @@ DEFAULT_PAUSED_MESSAGE = "This chatbot is currently unavailable. Please try agai
 
 async def get_chatbot_status(chatbot_id: str) -> Optional[Dict[str, Any]]:
     """
-    Fetch chatbot deploy_status and paused_message from database.
+    Fetch chatbot deploy_status, paused_message, and company_id from database.
 
     Returns:
-        Dict with deploy_status, paused_message, is_active, or None if not found
+        Dict with deploy_status, paused_message, is_active, company_id, or None if not found
     """
     if not chatbot_id:
         return None
@@ -33,7 +34,7 @@ async def get_chatbot_status(chatbot_id: str) -> Optional[Dict[str, Any]]:
     try:
         client = get_supabase_client()
         response = client.table("chatbots").select(
-            "deploy_status, paused_message, is_active"
+            "deploy_status, paused_message, is_active, company_id"
         ).eq("id", chatbot_id).single().execute()
 
         if response.data:
@@ -62,6 +63,9 @@ async def chat(chat_request: ChatRequest, request: Request):
         if not chatbot_id and settings.SYSTEM_CHATBOT_ID:
             chatbot_id = settings.SYSTEM_CHATBOT_ID
             logger.info(f"Using system chatbot for public chat: {chatbot_id[:8]}...")
+
+        # Initialize chatbot_status for usage tracking later
+        chatbot_status = None
 
         # Check if chatbot is paused or inactive
         if chatbot_id:
@@ -101,6 +105,30 @@ async def chat(chat_request: ChatRequest, request: Request):
                         context_found=False,
                         message_id=None
                     )
+
+                # Check message usage limit for the company
+                company_id = chatbot_status.get("company_id")
+                if company_id:
+                    try:
+                        allowed, current_usage, limit = await billing_service.check_usage_limit(
+                            company_id, "messages"
+                        )
+                        if not allowed:
+                            logger.warning(
+                                f"Message limit exceeded for company {company_id[:8]}... "
+                                f"({current_usage}/{limit})"
+                            )
+                            return ChatResponse(
+                                response="Your monthly message limit has been reached. "
+                                         "Please upgrade your plan to continue chatting.",
+                                session_id=session_id,
+                                sources=None,
+                                context_found=False,
+                                message_id=None
+                            )
+                    except Exception as e:
+                        # Log but don't block if usage check fails
+                        logger.warning(f"Failed to check usage limit: {e}")
 
         # Get client IP address
         client_ip = request.client.host if request.client else None
@@ -187,6 +215,16 @@ async def chat(chat_request: ChatRequest, request: Request):
                     logger.info(f"Stored {memory_result['facts_stored']} semantic facts for session {session_id[:8]}...")
         except Exception as e:
             logger.warning(f"Failed to extract semantic memory: {e}")
+
+        # Increment message usage for billing (count bot response only)
+        if chatbot_id and chatbot_status and chatbot_status.get("company_id"):
+            try:
+                await billing_service.increment_usage(
+                    company_id=chatbot_status["company_id"],
+                    messages=1  # Count bot response only
+                )
+            except Exception as e:
+                logger.warning(f"Failed to increment message usage: {e}")
 
         return ChatResponse(
             response=response_text,

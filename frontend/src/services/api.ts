@@ -1155,7 +1155,7 @@ class ApiService {
   }
 
   // Create checkout session for upgrading to a plan
-  async createCheckoutSession(plan: 'pro' | 'enterprise'): Promise<{
+  async createCheckoutSession(plan: 'starter' | 'pro' | 'enterprise'): Promise<{
     checkout_url: string;
     session_id: string;
   }> {
@@ -1196,7 +1196,7 @@ class ApiService {
   }
 
   // Update existing subscription (upgrade/downgrade with proration)
-  async updateSubscription(newPlan: 'pro' | 'enterprise'): Promise<{
+  async updateSubscription(newPlan: 'starter' | 'pro' | 'enterprise'): Promise<{
     success: boolean;
     message: string;
     new_plan: string;
@@ -1211,7 +1211,7 @@ class ApiService {
   }
 
   // Get proration preview from Stripe for plan changes
-  async getProrationPreview(newPlan: 'pro' | 'enterprise'): Promise<{
+  async getProrationPreview(newPlan: 'starter' | 'pro' | 'enterprise'): Promise<{
     current_plan: string;
     new_plan: string;
     is_downgrade: boolean;

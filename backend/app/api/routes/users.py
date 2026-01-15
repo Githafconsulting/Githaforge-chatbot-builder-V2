@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from app.models.user import UserCreate, User
 from app.core.database import get_supabase_client
 from app.core.security import get_password_hash
+from app.services.billing_service import billing_service
 from app.utils.logger import get_logger
 from datetime import datetime
 from typing import List
@@ -57,6 +58,26 @@ async def create_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Cannot create users without a company"
             )
+
+        # Check team member usage limit before creating
+        try:
+            allowed, current_usage, limit = await billing_service.check_usage_limit(
+                company_id, "team_members"
+            )
+            if not allowed:
+                logger.warning(
+                    f"Team member limit exceeded for company {company_id[:8]}... "
+                    f"({current_usage}/{limit})"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Team member limit reached ({current_usage}/{limit}). "
+                           f"Please upgrade your plan to add more team members."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check team member limit: {e}")
 
         # Check if user already exists
         existing = client.table("users").select("*").eq("email", user_data.email).execute()
@@ -120,6 +141,12 @@ async def create_user(
             )
 
         user = response.data[0]
+
+        # Increment team member usage count
+        try:
+            await billing_service.increment_usage(company_id=company_id, team_members=1)
+        except Exception as e:
+            logger.warning(f"Failed to increment team member usage: {e}")
 
         logger.info(f"User created: {user['email']} for company: {company_id}")
 

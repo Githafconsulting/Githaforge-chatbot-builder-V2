@@ -1,7 +1,7 @@
 """
 Document management API endpoints
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Body
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Body, status
 from typing import Optional, List
 from pydantic import BaseModel
 from app.models.document import Document, DocumentList, DocumentUpload
@@ -14,6 +14,7 @@ from app.services.document_service import (
     get_document_full_content,
     update_document
 )
+from app.services.billing_service import billing_service
 from app.core.dependencies import get_current_user
 from app.core.multitenancy import (
     get_filtered_company_id,
@@ -94,6 +95,26 @@ async def upload_document(
         # Ensure user has company association
         company_id = require_company_association(current_user)
 
+        # Check document usage limit before upload
+        try:
+            allowed, current_usage, limit = await billing_service.check_usage_limit(
+                company_id, "documents"
+            )
+            if not allowed:
+                logger.warning(
+                    f"Document limit exceeded for company {company_id[:8]}... "
+                    f"({current_usage}/{limit})"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Document limit reached ({current_usage}/{limit}). "
+                           f"Please upgrade your plan to upload more documents."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check document limit: {e}")
+
         # Read file content
         file_content = await file.read()
         logger.info(f"[UPLOAD ROUTE] Read file: {file.filename}, size: {len(file_content)} bytes, is_shared: {is_shared}")
@@ -107,12 +128,20 @@ async def upload_document(
             is_shared=is_shared
         )
 
+        # Increment document usage count
+        try:
+            await billing_service.increment_usage(company_id=company_id, documents=1)
+        except Exception as e:
+            logger.warning(f"Failed to increment document usage: {e}")
+
         return {
             "success": True,
             "message": "Document uploaded and processed successfully",
             "document": document
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error uploading document: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -138,6 +167,26 @@ async def add_url(
         # Ensure user has company association
         company_id = require_company_association(current_user)
 
+        # Check document usage limit before processing URL
+        try:
+            allowed, current_usage, limit = await billing_service.check_usage_limit(
+                company_id, "documents"
+            )
+            if not allowed:
+                logger.warning(
+                    f"Document limit exceeded for company {company_id[:8]}... "
+                    f"({current_usage}/{limit})"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Document limit reached ({current_usage}/{limit}). "
+                           f"Please upgrade your plan to add more documents."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check document limit: {e}")
+
         document = await process_url(
             url=url,
             category=category,
@@ -145,12 +194,20 @@ async def add_url(
             is_shared=is_shared
         )
 
+        # Increment document usage count
+        try:
+            await billing_service.increment_usage(company_id=company_id, documents=1)
+        except Exception as e:
+            logger.warning(f"Failed to increment document usage: {e}")
+
         return {
             "success": True,
             "message": "URL content processed successfully",
             "document": document
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error processing URL: {e}")
         raise HTTPException(status_code=500, detail=str(e))

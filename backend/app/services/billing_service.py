@@ -1389,8 +1389,19 @@ class BillingService:
         logger.info(f"Downgraded company {company_id} to free plan")
 
     def _get_price_id_for_plan(self, plan: PlanTier) -> Optional[str]:
-        """Get Stripe price ID for a plan tier"""
-        if plan == PlanTier.PRO:
+        """
+        Get Stripe price ID for a plan tier.
+
+        NOTE: To add the Starter plan price ID:
+        1. Create a product in Stripe Dashboard (Products -> Add Product)
+           - Name: "Githaforge Starter"
+           - Price: $12/month (recurring)
+        2. Copy the Price ID (starts with price_...)
+        3. Add to your .env file: STRIPE_PRICE_ID_STARTER=price_xxx
+        """
+        if plan == PlanTier.STARTER:
+            return settings.STRIPE_PRICE_ID_STARTER
+        elif plan == PlanTier.PRO:
             return settings.STRIPE_PRICE_ID_PRO
         elif plan == PlanTier.ENTERPRISE:
             return settings.STRIPE_PRICE_ID_ENTERPRISE

@@ -31,6 +31,7 @@ class InvoiceStatus(str, Enum):
 class PlanTier(str, Enum):
     """Available subscription plan tiers"""
     FREE = "free"
+    STARTER = "starter"
     PRO = "pro"
     ENTERPRISE = "enterprise"
 
@@ -318,28 +319,43 @@ class WebhookEvent(BaseModel):
 PLAN_CONFIG = {
     PlanTier.FREE: {
         "price": 0,
-        "messages_limit": 100,
-        "documents_limit": 10,
+        "messages_limit": 1000,
+        "documents_limit": 1,
         "chatbots_limit": 1,
         "team_members_limit": 1,
         "features": [
             "1 Chatbot",
-            "100 messages/month",
-            "10 documents",
+            "1,000 messages/month",
+            "1 document",
             "Basic analytics",
             "Email support"
         ]
     },
+    PlanTier.STARTER: {
+        "price": 2500,  # $25.00 in cents
+        "messages_limit": 5000,
+        "documents_limit": 3,
+        "chatbots_limit": 2,
+        "team_members_limit": 2,
+        "features": [
+            "2 Chatbots",
+            "5,000 messages/month",
+            "3 documents",
+            "Basic analytics",
+            "Email support",
+            "Custom branding"
+        ]
+    },
     PlanTier.PRO: {
-        "price": 2900,  # $29.00 in cents
-        "messages_limit": 10000,
-        "documents_limit": -1,  # Unlimited
+        "price": 5000,  # $50.00 in cents
+        "messages_limit": 15000,
+        "documents_limit": 5,
         "chatbots_limit": 5,
         "team_members_limit": 5,
         "features": [
             "5 Chatbots",
-            "10,000 messages/month",
-            "Unlimited documents",
+            "15,000 messages/month",
+            "5 documents",
             "Advanced analytics",
             "Priority support",
             "Custom branding",
@@ -347,16 +363,16 @@ PLAN_CONFIG = {
         ]
     },
     PlanTier.ENTERPRISE: {
-        "price": 9900,  # $99.00 in cents (base price, usually custom)
-        "messages_limit": -1,  # Unlimited
-        "documents_limit": -1,  # Unlimited
-        "chatbots_limit": -1,  # Unlimited
-        "team_members_limit": -1,  # Unlimited
+        "price": 10000,  # $100.00 in cents
+        "messages_limit": 50000,
+        "documents_limit": 10,
+        "chatbots_limit": 15,
+        "team_members_limit": 15,
         "features": [
-            "Unlimited chatbots",
-            "Unlimited messages",
-            "Unlimited documents",
-            "Unlimited team members",
+            "15 Chatbots",
+            "50,000 messages/month",
+            "10 documents",
+            "15 team members",
             "White-label solution",
             "Dedicated support",
             "Custom integrations",

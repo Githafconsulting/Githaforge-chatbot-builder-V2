@@ -14,10 +14,13 @@ from app.models.chatbot import (
 )
 from app.services.chatbot_service import ChatbotService
 from app.services.branding_service import clear_branding_cache
+from app.services.billing_service import billing_service
 from app.core.dependencies import get_current_user, require_permission, require_any_permission
 from app.models.user import User
+from app.utils.logger import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 class ChatbotPublicStatus(BaseModel):
@@ -205,18 +208,36 @@ async def create_chatbot(
     # Override company_id from JWT (security: prevent users from creating bots for other companies)
     chatbot_data.company_id = str(company_id)
 
-    # TODO: Check company plan limits (max_bots)
-    # service = ChatbotService()
-    # company_bots = await service.list_company_chatbots(company_id)
-    # if len(company_bots) >= current_user.company.max_bots:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail=f"Plan limit reached: {current_user.company.max_bots} bots maximum"
-    #     )
+    # Check chatbot usage limit before creating
+    try:
+        allowed, current_usage, limit = await billing_service.check_usage_limit(
+            company_id, "chatbots"
+        )
+        if not allowed:
+            logger.warning(
+                f"Chatbot limit exceeded for company {company_id[:8]}... "
+                f"({current_usage}/{limit})"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Chatbot limit reached ({current_usage}/{limit}). "
+                       f"Please upgrade your plan to create more chatbots."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to check chatbot limit: {e}")
 
     try:
         service = ChatbotService()
         chatbot = await service.create_chatbot(chatbot_data, str(company_id))
+
+        # Increment chatbot usage count
+        try:
+            await billing_service.increment_usage(company_id=company_id, chatbots=1)
+        except Exception as e:
+            logger.warning(f"Failed to increment chatbot usage: {e}")
+
         return chatbot
     except ValueError as e:
         raise HTTPException(
