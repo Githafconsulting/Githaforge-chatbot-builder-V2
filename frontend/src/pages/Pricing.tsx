@@ -294,7 +294,7 @@ const pricingPlans = [
   },
   {
     name: 'Starter',
-    price: 25,
+    price: 30,
     targetAudience: 'Freelancers & Solopreneurs',
     description: 'Perfect for small projects and personal websites with moderate traffic.',
     features: [

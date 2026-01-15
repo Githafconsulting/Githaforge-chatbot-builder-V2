@@ -332,7 +332,7 @@ PLAN_CONFIG = {
         ]
     },
     PlanTier.STARTER: {
-        "price": 2500,  # $25.00 in cents
+        "price": 3000,  # $30.00 in cents
         "messages_limit": 5000,
         "documents_limit": 3,
         "chatbots_limit": 2,

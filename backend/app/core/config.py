@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""  # Stripe secret key (sk_test_... or sk_live_...)
     STRIPE_PUBLISHABLE_KEY: str = ""  # Stripe publishable key (pk_test_... or pk_live_...)
     STRIPE_WEBHOOK_SECRET: str = ""  # Stripe webhook signing secret (whsec_...)
-    STRIPE_PRICE_ID_STARTER: str = ""  # Stripe Price ID for Starter plan ($25/month)
+    STRIPE_PRICE_ID_STARTER: str = ""  # Stripe Price ID for Starter plan ($30/month)
     STRIPE_PRICE_ID_PRO: str = ""  # Stripe Price ID for Pro plan ($50/month)
     STRIPE_PRICE_ID_ENTERPRISE: str = ""  # Stripe Price ID for Enterprise plan ($100/month)
     STRIPE_SUCCESS_URL: str = ""  # URL to redirect after successful payment

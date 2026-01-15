@@ -95,7 +95,7 @@ const tabs: Tab[] = [
 // Plan limits configuration
 const planLimits: Record<string, { chatbots: number | 'Unlimited'; messages: number | 'Unlimited'; documents: number | 'Unlimited'; teamMembers: number | 'Unlimited'; price: number }> = {
   free: { chatbots: 1, messages: 1000, documents: 1, teamMembers: 1, price: 0 },
-  starter: { chatbots: 2, messages: 5000, documents: 3, teamMembers: 2, price: 25 },
+  starter: { chatbots: 2, messages: 5000, documents: 3, teamMembers: 2, price: 30 },
   pro: { chatbots: 5, messages: 15000, documents: 5, teamMembers: 5, price: 50 },
   enterprise: { chatbots: 15, messages: 50000, documents: 10, teamMembers: 15, price: 100 },
 };
@@ -144,7 +144,7 @@ export const BillingPage: React.FC = () => {
   const [usage, setUsage] = useState<UsageData>({
     chatbots: { used: 0, limit: 1 },
     messages: { used: 0, limit: 100 },
-    documents: { used: 0, limit: 10 },
+    documents: { used: 0, limit: 1 },
     teamMembers: { used: 0, limit: 1 },
   });
 
@@ -204,10 +204,11 @@ export const BillingPage: React.FC = () => {
       // Enterprise plan always has unlimited everything
       // For other plans, treat -1 or very high numbers (999+, 9999+, 999999+) as unlimited
       const isEnterprise = companyData.plan === 'enterprise';
-      const chatbotsLimit = isEnterprise || isUnlimited(companyData.max_bots, 999) ? 'Unlimited' : (companyData.max_bots || 1);
-      const documentsLimit = isEnterprise || isUnlimited(companyData.max_documents, 9999) ? 'Unlimited' : (companyData.max_documents || 10);
-      const messagesLimit = isEnterprise || isUnlimited(companyData.max_monthly_messages, 999999) ? 'Unlimited' : (companyData.max_monthly_messages || 100);
-      const teamMembersLimit = isEnterprise || isUnlimited(companyData.max_team_members, 999) ? 'Unlimited' : (companyData.max_team_members || 1);
+      const currentPlanConfig = planLimits[companyData.plan] || planLimits.free;
+      const chatbotsLimit = isEnterprise || isUnlimited(companyData.max_bots, 999) ? 'Unlimited' : (companyData.max_bots || currentPlanConfig.chatbots);
+      const documentsLimit = isEnterprise || isUnlimited(companyData.max_documents, 9999) ? 'Unlimited' : (companyData.max_documents || currentPlanConfig.documents);
+      const messagesLimit = isEnterprise || isUnlimited(companyData.max_monthly_messages, 999999) ? 'Unlimited' : (companyData.max_monthly_messages || currentPlanConfig.messages);
+      const teamMembersLimit = isEnterprise || isUnlimited(companyData.max_team_members, 999) ? 'Unlimited' : (companyData.max_team_members || currentPlanConfig.teamMembers);
 
       // Get actual usage counts
       // Backend returns array directly, or object with chatbots array - handle both
