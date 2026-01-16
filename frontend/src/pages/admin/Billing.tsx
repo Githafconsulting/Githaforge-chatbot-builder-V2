@@ -103,6 +103,37 @@ const planLimits: Record<string, { chatbots: number | 'Unlimited'; messages: num
 // Plan hierarchy for upgrade/downgrade detection
 const planHierarchy: Record<string, number> = { free: 0, starter: 1, pro: 2, enterprise: 3 };
 
+// Get gradient color based on usage percentage (smooth transition from blue → green → yellow → orange → red)
+const getUsageColor = (percent: number): string => {
+  // Clamp percent between 0 and 100
+  const p = Math.min(Math.max(percent, 0), 100);
+
+  // Define color stops: blue (0%) → green (25%) → yellow (50%) → orange (75%) → red (100%)
+  // Each color is defined as [r, g, b]
+  const colors: [number, number, number][] = [
+    [59, 130, 246],   // blue-500 at 0%
+    [34, 197, 94],    // green-500 at 25%
+    [234, 179, 8],    // yellow-500 at 50%
+    [249, 115, 22],   // orange-500 at 75%
+    [239, 68, 68],    // red-500 at 100%
+  ];
+
+  // Calculate which segment we're in and the position within that segment
+  const segment = p / 25; // 0-4 range
+  const segmentIndex = Math.min(Math.floor(segment), 3); // 0-3
+  const segmentProgress = segment - segmentIndex; // 0-1 within segment
+
+  // Interpolate between the two colors
+  const color1 = colors[segmentIndex];
+  const color2 = colors[segmentIndex + 1];
+
+  const r = Math.round(color1[0] + (color2[0] - color1[0]) * segmentProgress);
+  const g = Math.round(color1[1] + (color2[1] - color1[1]) * segmentProgress);
+  const b = Math.round(color1[2] + (color2[2] - color1[2]) * segmentProgress);
+
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
 export const BillingPage: React.FC = () => {
   const { userInfo, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -150,6 +181,10 @@ export const BillingPage: React.FC = () => {
 
   // Invoices from API
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  // Invoice filters
+  const [invoiceDateFilter, setInvoiceDateFilter] = useState<'all' | '30days' | '90days' | 'thisYear'>('all');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'all' | 'paid' | 'pending' | 'failed'>('all');
 
   // Account credit balance from Stripe
   const [accountCredit, setAccountCredit] = useState<{
@@ -516,36 +551,43 @@ export const BillingPage: React.FC = () => {
     return Math.min((used / limit) * 100, 100);
   };
 
-  // Get gradient color based on usage percentage (smooth transition from blue → green → yellow → orange → red)
-  const getUsageColor = (percent: number): string => {
-    // Clamp percent between 0 and 100
-    const p = Math.min(Math.max(percent, 0), 100);
+  // Filter invoices based on selected filters
+  const getFilteredInvoices = () => {
+    return invoices.filter(invoice => {
+      // Status filter
+      if (invoiceStatusFilter !== 'all' && invoice.status !== invoiceStatusFilter) {
+        return false;
+      }
 
-    // Define color stops: blue (0%) → green (25%) → yellow (50%) → orange (75%) → red (100%)
-    // Each color is defined as [r, g, b]
-    const colors: [number, number, number][] = [
-      [59, 130, 246],   // blue-500 at 0%
-      [34, 197, 94],    // green-500 at 25%
-      [234, 179, 8],    // yellow-500 at 50%
-      [249, 115, 22],   // orange-500 at 75%
-      [239, 68, 68],    // red-500 at 100%
-    ];
+      // Date filter - need to parse the date string back to Date object
+      if (invoiceDateFilter !== 'all') {
+        const invoiceDate = new Date(invoice.date);
+        const now = new Date();
 
-    // Calculate which segment we're in and the position within that segment
-    const segment = p / 25; // 0-4 range
-    const segmentIndex = Math.min(Math.floor(segment), 3); // 0-3
-    const segmentProgress = segment - segmentIndex; // 0-1 within segment
+        switch (invoiceDateFilter) {
+          case '30days': {
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            if (invoiceDate < thirtyDaysAgo) return false;
+            break;
+          }
+          case '90days': {
+            const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            if (invoiceDate < ninetyDaysAgo) return false;
+            break;
+          }
+          case 'thisYear': {
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            if (invoiceDate < startOfYear) return false;
+            break;
+          }
+        }
+      }
 
-    // Interpolate between the two colors
-    const color1 = colors[segmentIndex];
-    const color2 = colors[segmentIndex + 1];
-
-    const r = Math.round(color1[0] + (color2[0] - color1[0]) * segmentProgress);
-    const g = Math.round(color1[1] + (color2[1] - color1[1]) * segmentProgress);
-    const b = Math.round(color1[2] + (color2[2] - color1[2]) * segmentProgress);
-
-    return `rgb(${r}, ${g}, ${b})`;
+      return true;
+    });
   };
+
+  const filteredInvoices = getFilteredInvoices();
 
   if (loading) {
     return (
@@ -1182,32 +1224,51 @@ export const BillingPage: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-medium text-white">Invoices</h3>
           <div className="flex gap-2">
-            <select className="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm text-slate-300">
-              <option>All time</option>
-              <option>Last 30 days</option>
-              <option>Last 90 days</option>
-              <option>This year</option>
+            <select
+              value={invoiceDateFilter}
+              onChange={(e) => setInvoiceDateFilter(e.target.value as typeof invoiceDateFilter)}
+              className="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm text-slate-300"
+            >
+              <option value="all">All time</option>
+              <option value="30days">Last 30 days</option>
+              <option value="90days">Last 90 days</option>
+              <option value="thisYear">This year</option>
             </select>
-            <select className="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm text-slate-300">
-              <option>All status</option>
-              <option>Paid</option>
-              <option>Pending</option>
-              <option>Failed</option>
+            <select
+              value={invoiceStatusFilter}
+              onChange={(e) => setInvoiceStatusFilter(e.target.value as typeof invoiceStatusFilter)}
+              className="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm text-slate-300"
+            >
+              <option value="all">All status</option>
+              <option value="paid">Paid</option>
+              <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
             </select>
           </div>
         </div>
 
-        {invoices.length === 0 ? (
+        {filteredInvoices.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-24 h-24 mx-auto mb-4 relative">
               <div className="absolute inset-0 border-2 border-dashed border-slate-600 rounded-lg transform rotate-6"></div>
               <div className="absolute inset-0 border-2 border-dashed border-slate-600 rounded-lg"></div>
               <Receipt className="w-8 h-8 text-slate-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
             </div>
-            <h3 className="text-white font-medium mb-1">No invoices yet</h3>
-            <p className="text-sm text-slate-400">
-              Your invoices will appear here once you upgrade to a paid plan.
-            </p>
+            {invoices.length === 0 ? (
+              <>
+                <h3 className="text-white font-medium mb-1">No invoices yet</h3>
+                <p className="text-sm text-slate-400">
+                  Your invoices will appear here once you upgrade to a paid plan.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-white font-medium mb-1">No matching invoices</h3>
+                <p className="text-sm text-slate-400">
+                  No invoices match your current filters. Try adjusting the date range or status filter.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <table className="w-full">
@@ -1221,7 +1282,7 @@ export const BillingPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((invoice) => (
+              {filteredInvoices.map((invoice) => (
                 <tr key={invoice.id} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
                   <td className="py-3 text-sm text-slate-300">{invoice.date}</td>
                   <td className="py-3 text-sm text-slate-500">{invoice.time || '-'}</td>
@@ -1834,18 +1895,24 @@ const UsageCard: React.FC<{
 
           {/* Horizontal bar chart */}
           <div className="space-y-3">
-            {data.map((item, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <span className="text-xs text-slate-500 w-28 flex-shrink-0">{item.period}</span>
-                <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${(item.value / maxValue) * 100}%` }}
-                  />
+            {data.map((item, index) => {
+              const percent = (item.value / maxValue) * 100;
+              return (
+                <div key={index} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 w-28 flex-shrink-0">{item.period}</span>
+                  <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${percent}%`,
+                        backgroundColor: getUsageColor(percent)
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-400 w-16 text-right">{item.value.toLocaleString()}</span>
                 </div>
-                <span className="text-xs text-slate-400 w-16 text-right">{item.value.toLocaleString()}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
