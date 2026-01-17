@@ -1135,8 +1135,41 @@ class ApiService {
     paid_at: string | null;
     invoice_pdf_url: string | null;
     hosted_invoice_url: string | null;
+    is_archived?: boolean;
   }>> {
     const response = await this.api.get('/api/v1/billing/invoices');
+    return response.data;
+  }
+
+  // Archive a single invoice
+  async archiveInvoice(invoiceId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.api.post(`/api/v1/billing/invoices/${invoiceId}/archive`);
+    return response.data;
+  }
+
+  // Unarchive a single invoice
+  async unarchiveInvoice(invoiceId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.api.post(`/api/v1/billing/invoices/${invoiceId}/unarchive`);
+    return response.data;
+  }
+
+  // Bulk archive invoices
+  async bulkArchiveInvoices(invoiceIds: string[]): Promise<{
+    success: boolean;
+    message: string;
+    details: { archived_count: number; failed_ids: string[]; total_requested: number };
+  }> {
+    const response = await this.api.post('/api/v1/billing/invoices/bulk-archive', invoiceIds);
+    return response.data;
+  }
+
+  // Bulk unarchive invoices
+  async bulkUnarchiveInvoices(invoiceIds: string[]): Promise<{
+    success: boolean;
+    message: string;
+    details: { unarchived_count: number; failed_ids: string[]; total_requested: number };
+  }> {
+    const response = await this.api.post('/api/v1/billing/invoices/bulk-unarchive', invoiceIds);
     return response.data;
   }
 

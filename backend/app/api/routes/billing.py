@@ -585,6 +585,136 @@ async def sync_invoices(
         )
 
 
+@router.post("/invoices/{invoice_id}/archive")
+async def archive_invoice(
+    invoice_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Archive an invoice.
+
+    Archived invoices are hidden from the default view but can be accessed via filter.
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with a company"
+        )
+
+    try:
+        result = await billing_service.archive_invoice(company_id, invoice_id)
+        return {"success": True, "message": "Invoice archived", "invoice": result}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error archiving invoice: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to archive invoice: {str(e)}"
+        )
+
+
+@router.post("/invoices/{invoice_id}/unarchive")
+async def unarchive_invoice(
+    invoice_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Unarchive an invoice.
+
+    Restores an archived invoice back to the active view.
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with a company"
+        )
+
+    try:
+        result = await billing_service.unarchive_invoice(company_id, invoice_id)
+        return {"success": True, "message": "Invoice unarchived", "invoice": result}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error unarchiving invoice: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to unarchive invoice: {str(e)}"
+        )
+
+
+@router.post("/invoices/bulk-archive")
+async def bulk_archive_invoices(
+    invoice_ids: List[str],
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Archive multiple invoices at once.
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with a company"
+        )
+
+    if not invoice_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No invoice IDs provided"
+        )
+
+    try:
+        result = await billing_service.bulk_archive_invoices(company_id, invoice_ids)
+        return {"success": True, "message": f"Archived {result['archived_count']} invoices", "details": result}
+    except Exception as e:
+        logger.error(f"Error bulk archiving invoices: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to archive invoices: {str(e)}"
+        )
+
+
+@router.post("/invoices/bulk-unarchive")
+async def bulk_unarchive_invoices(
+    invoice_ids: List[str],
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Unarchive multiple invoices at once.
+    """
+    company_id = current_user.get("company_id")
+    if not company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with a company"
+        )
+
+    if not invoice_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No invoice IDs provided"
+        )
+
+    try:
+        result = await billing_service.bulk_unarchive_invoices(company_id, invoice_ids)
+        return {"success": True, "message": f"Unarchived {result['unarchived_count']} invoices", "details": result}
+    except Exception as e:
+        logger.error(f"Error bulk unarchiving invoices: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to unarchive invoices: {str(e)}"
+        )
+
+
 # ============================================================================
 # USAGE ENDPOINTS
 # ============================================================================

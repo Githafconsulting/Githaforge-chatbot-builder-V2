@@ -29,6 +29,10 @@ import {
   XCircle,
   ExternalLink,
   Eye,
+  Archive,
+  ArchiveRestore,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiService } from '../../services/api';
@@ -75,6 +79,7 @@ interface Invoice {
   status: 'paid' | 'pending' | 'failed';
   downloadUrl?: string;
   previewUrl?: string;
+  isArchived?: boolean;
 }
 
 type TabId = 'overview' | 'usage' | 'preferences' | 'history';
@@ -185,6 +190,12 @@ export const BillingPage: React.FC = () => {
   // Invoice filters
   const [invoiceDateFilter, setInvoiceDateFilter] = useState<'all' | '30days' | '90days' | 'thisYear'>('all');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'all' | 'paid' | 'pending' | 'failed'>('all');
+  const [invoiceArchiveFilter, setInvoiceArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+
+  // Bulk selection state
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   // Account credit balance from Stripe
   const [accountCredit, setAccountCredit] = useState<{
@@ -289,6 +300,7 @@ export const BillingPage: React.FC = () => {
           status: inv.status === 'paid' ? 'paid' : inv.status === 'open' ? 'pending' : 'failed',
           downloadUrl: inv.invoice_pdf_url || undefined,
           previewUrl: inv.hosted_invoice_url || undefined,
+          isArchived: inv.is_archived || false,
         };
       }));
     } catch (error) {
@@ -554,6 +566,14 @@ export const BillingPage: React.FC = () => {
   // Filter invoices based on selected filters
   const getFilteredInvoices = () => {
     return invoices.filter(invoice => {
+      // Archive filter
+      if (invoiceArchiveFilter === 'active' && invoice.isArchived) {
+        return false;
+      }
+      if (invoiceArchiveFilter === 'archived' && !invoice.isArchived) {
+        return false;
+      }
+
       // Status filter
       if (invoiceStatusFilter !== 'all' && invoice.status !== invoiceStatusFilter) {
         return false;
@@ -588,6 +608,106 @@ export const BillingPage: React.FC = () => {
   };
 
   const filteredInvoices = getFilteredInvoices();
+
+  // Bulk actions handlers
+  const handleSelectAll = () => {
+    if (selectedInvoices.size === filteredInvoices.length) {
+      setSelectedInvoices(new Set());
+    } else {
+      setSelectedInvoices(new Set(filteredInvoices.map(inv => inv.id)));
+    }
+  };
+
+  const handleSelectInvoice = (invoiceId: string) => {
+    const newSelected = new Set(selectedInvoices);
+    if (newSelected.has(invoiceId)) {
+      newSelected.delete(invoiceId);
+    } else {
+      newSelected.add(invoiceId);
+    }
+    setSelectedInvoices(newSelected);
+  };
+
+  const handleArchiveInvoice = async (invoiceId: string) => {
+    try {
+      setIsArchiving(true);
+      await apiService.archiveInvoice(invoiceId);
+      // Update local state
+      setInvoices(prev => prev.map(inv =>
+        inv.id === invoiceId ? { ...inv, isArchived: true } : inv
+      ));
+      toast.success('Invoice archived');
+    } catch (error) {
+      console.error('Error archiving invoice:', error);
+      toast.error('Failed to archive invoice');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleUnarchiveInvoice = async (invoiceId: string) => {
+    try {
+      setIsArchiving(true);
+      await apiService.unarchiveInvoice(invoiceId);
+      // Update local state
+      setInvoices(prev => prev.map(inv =>
+        inv.id === invoiceId ? { ...inv, isArchived: false } : inv
+      ));
+      toast.success('Invoice unarchived');
+    } catch (error) {
+      console.error('Error unarchiving invoice:', error);
+      toast.error('Failed to unarchive invoice');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    if (selectedInvoices.size === 0) return;
+    try {
+      setIsArchiving(true);
+      const invoiceIds = Array.from(selectedInvoices);
+      const result = await apiService.bulkArchiveInvoices(invoiceIds);
+      // Update local state
+      setInvoices(prev => prev.map(inv =>
+        selectedInvoices.has(inv.id) ? { ...inv, isArchived: true } : inv
+      ));
+      setSelectedInvoices(new Set());
+      setIsBulkMode(false);
+      toast.success(`Archived ${result.details.archived_count} invoices`);
+    } catch (error) {
+      console.error('Error bulk archiving invoices:', error);
+      toast.error('Failed to archive invoices');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleBulkUnarchive = async () => {
+    if (selectedInvoices.size === 0) return;
+    try {
+      setIsArchiving(true);
+      const invoiceIds = Array.from(selectedInvoices);
+      const result = await apiService.bulkUnarchiveInvoices(invoiceIds);
+      // Update local state
+      setInvoices(prev => prev.map(inv =>
+        selectedInvoices.has(inv.id) ? { ...inv, isArchived: false } : inv
+      ));
+      setSelectedInvoices(new Set());
+      setIsBulkMode(false);
+      toast.success(`Unarchived ${result.details.unarchived_count} invoices`);
+    } catch (error) {
+      console.error('Error bulk unarchiving invoices:', error);
+      toast.error('Failed to unarchive invoices');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const exitBulkMode = () => {
+    setIsBulkMode(false);
+    setSelectedInvoices(new Set());
+  };
 
   if (loading) {
     return (
@@ -1218,12 +1338,33 @@ export const BillingPage: React.FC = () => {
   // Payment History Tab Content
   const renderHistory = () => (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-white">Payment history</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-white">Payment history</h2>
+        {!isBulkMode && filteredInvoices.length > 0 && (
+          <button
+            onClick={() => setIsBulkMode(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm"
+          >
+            <CheckSquare className="w-4 h-4" />
+            Bulk edit
+          </button>
+        )}
+      </div>
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
-        <div className="flex items-center justify-between mb-4">
+        {/* Filters row */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <h3 className="font-medium text-white">Invoices</h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={invoiceArchiveFilter}
+              onChange={(e) => setInvoiceArchiveFilter(e.target.value as typeof invoiceArchiveFilter)}
+              className="px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-sm text-slate-300"
+            >
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+              <option value="all">All</option>
+            </select>
             <select
               value={invoiceDateFilter}
               onChange={(e) => setInvoiceDateFilter(e.target.value as typeof invoiceDateFilter)}
@@ -1247,18 +1388,93 @@ export const BillingPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Bulk action bar */}
+        {isBulkMode && (
+          <div className="flex items-center justify-between p-3 mb-4 bg-slate-700/50 rounded-lg border border-slate-600">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
+              >
+                {selectedInvoices.size === filteredInvoices.length ? (
+                  <CheckSquare className="w-4 h-4 text-purple-400" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {selectedInvoices.size === filteredInvoices.length ? 'Deselect all' : 'Select all'}
+              </button>
+              {selectedInvoices.size > 0 && (
+                <span className="text-sm text-slate-400">
+                  {selectedInvoices.size} selected
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedInvoices.size > 0 && (
+                <>
+                  {invoiceArchiveFilter === 'archived' ? (
+                    <button
+                      onClick={handleBulkUnarchive}
+                      disabled={isArchiving}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors text-sm disabled:opacity-50"
+                    >
+                      {isArchiving ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ArchiveRestore className="w-4 h-4" />
+                      )}
+                      Unarchive
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleBulkArchive}
+                      disabled={isArchiving}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-500 transition-colors text-sm disabled:opacity-50"
+                    >
+                      {isArchiving ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Archive className="w-4 h-4" />
+                      )}
+                      Archive
+                    </button>
+                  )}
+                </>
+              )}
+              <button
+                onClick={exitBulkMode}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 transition-colors text-sm"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {filteredInvoices.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-24 h-24 mx-auto mb-4 relative">
               <div className="absolute inset-0 border-2 border-dashed border-slate-600 rounded-lg transform rotate-6"></div>
               <div className="absolute inset-0 border-2 border-dashed border-slate-600 rounded-lg"></div>
-              <Receipt className="w-8 h-8 text-slate-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              {invoiceArchiveFilter === 'archived' ? (
+                <Archive className="w-8 h-8 text-slate-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              ) : (
+                <Receipt className="w-8 h-8 text-slate-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              )}
             </div>
             {invoices.length === 0 ? (
               <>
                 <h3 className="text-white font-medium mb-1">No invoices yet</h3>
                 <p className="text-sm text-slate-400">
                   Your invoices will appear here once you upgrade to a paid plan.
+                </p>
+              </>
+            ) : invoiceArchiveFilter === 'archived' ? (
+              <>
+                <h3 className="text-white font-medium mb-1">No archived invoices</h3>
+                <p className="text-sm text-slate-400">
+                  Archived invoices will appear here. You can archive invoices to declutter your view.
                 </p>
               </>
             ) : (
@@ -1274,6 +1490,7 @@ export const BillingPage: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="text-left text-sm text-slate-400 border-b border-slate-700">
+                {isBulkMode && <th className="pb-3 font-medium w-10"></th>}
                 <th className="pb-3 font-medium">Date</th>
                 <th className="pb-3 font-medium">Time</th>
                 <th className="pb-3 font-medium">Amount</th>
@@ -1283,7 +1500,26 @@ export const BillingPage: React.FC = () => {
             </thead>
             <tbody>
               {filteredInvoices.map((invoice) => (
-                <tr key={invoice.id} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
+                <tr
+                  key={invoice.id}
+                  className={`border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors ${
+                    selectedInvoices.has(invoice.id) ? 'bg-purple-500/10' : ''
+                  }`}
+                >
+                  {isBulkMode && (
+                    <td className="py-3">
+                      <button
+                        onClick={() => handleSelectInvoice(invoice.id)}
+                        className="p-1 hover:bg-slate-600/50 rounded transition-colors"
+                      >
+                        {selectedInvoices.has(invoice.id) ? (
+                          <CheckSquare className="w-4 h-4 text-purple-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-400" />
+                        )}
+                      </button>
+                    </td>
+                  )}
                   <td className="py-3 text-sm text-slate-300">{invoice.date}</td>
                   <td className="py-3 text-sm text-slate-500">{invoice.time || '-'}</td>
                   <td className="py-3 text-sm text-slate-300">${invoice.amount.toFixed(2)}</td>
@@ -1324,7 +1560,30 @@ export const BillingPage: React.FC = () => {
                           <span className="hidden sm:inline">PDF</span>
                         </a>
                       )}
-                      {!invoice.previewUrl && !invoice.downloadUrl && (
+                      {!isBulkMode && (
+                        invoice.isArchived ? (
+                          <button
+                            onClick={() => handleUnarchiveInvoice(invoice.id)}
+                            disabled={isArchiving}
+                            className="flex items-center gap-1 px-2 py-1 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50"
+                            title="Unarchive"
+                          >
+                            <ArchiveRestore className="w-4 h-4" />
+                            <span className="hidden sm:inline">Unarchive</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleArchiveInvoice(invoice.id)}
+                            disabled={isArchiving}
+                            className="flex items-center gap-1 px-2 py-1 text-sm text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded transition-colors disabled:opacity-50"
+                            title="Archive"
+                          >
+                            <Archive className="w-4 h-4" />
+                            <span className="hidden sm:inline">Archive</span>
+                          </button>
+                        )
+                      )}
+                      {!invoice.previewUrl && !invoice.downloadUrl && !isBulkMode && !invoice.isArchived && (
                         <span className="text-xs text-slate-500">-</span>
                       )}
                     </div>

@@ -909,6 +909,102 @@ class BillingService:
             logger.error(f"Error syncing invoices: {e}")
             raise
 
+    async def archive_invoice(self, company_id: str, invoice_id: str) -> dict:
+        """Archive a single invoice"""
+        # Verify invoice belongs to company
+        response = self.client.table("invoices").select("*").eq(
+            "id", invoice_id
+        ).eq("company_id", company_id).execute()
+
+        if not response.data:
+            raise ValueError(f"Invoice {invoice_id} not found")
+
+        # Update is_archived to True
+        result = self.client.table("invoices").update({
+            "is_archived": True
+        }).eq("id", invoice_id).execute()
+
+        logger.info(f"Archived invoice {invoice_id} for company {company_id}")
+        return result.data[0] if result.data else response.data[0]
+
+    async def unarchive_invoice(self, company_id: str, invoice_id: str) -> dict:
+        """Unarchive a single invoice"""
+        # Verify invoice belongs to company
+        response = self.client.table("invoices").select("*").eq(
+            "id", invoice_id
+        ).eq("company_id", company_id).execute()
+
+        if not response.data:
+            raise ValueError(f"Invoice {invoice_id} not found")
+
+        # Update is_archived to False
+        result = self.client.table("invoices").update({
+            "is_archived": False
+        }).eq("id", invoice_id).execute()
+
+        logger.info(f"Unarchived invoice {invoice_id} for company {company_id}")
+        return result.data[0] if result.data else response.data[0]
+
+    async def bulk_archive_invoices(self, company_id: str, invoice_ids: List[str]) -> dict:
+        """Archive multiple invoices at once"""
+        archived_count = 0
+        failed_ids = []
+
+        for invoice_id in invoice_ids:
+            try:
+                # Verify invoice belongs to company
+                response = self.client.table("invoices").select("id").eq(
+                    "id", invoice_id
+                ).eq("company_id", company_id).execute()
+
+                if response.data:
+                    self.client.table("invoices").update({
+                        "is_archived": True
+                    }).eq("id", invoice_id).execute()
+                    archived_count += 1
+                else:
+                    failed_ids.append(invoice_id)
+            except Exception as e:
+                logger.error(f"Error archiving invoice {invoice_id}: {e}")
+                failed_ids.append(invoice_id)
+
+        logger.info(f"Bulk archived {archived_count} invoices for company {company_id}")
+        return {
+            "archived_count": archived_count,
+            "failed_ids": failed_ids,
+            "total_requested": len(invoice_ids)
+        }
+
+    async def bulk_unarchive_invoices(self, company_id: str, invoice_ids: List[str]) -> dict:
+        """Unarchive multiple invoices at once"""
+        unarchived_count = 0
+        failed_ids = []
+
+        for invoice_id in invoice_ids:
+            try:
+                # Verify invoice belongs to company
+                response = self.client.table("invoices").select("id").eq(
+                    "id", invoice_id
+                ).eq("company_id", company_id).execute()
+
+                if response.data:
+                    self.client.table("invoices").update({
+                        "is_archived": False
+                    }).eq("id", invoice_id).execute()
+                    unarchived_count += 1
+                else:
+                    failed_ids.append(invoice_id)
+            except Exception as e:
+                logger.error(f"Error unarchiving invoice {invoice_id}: {e}")
+                failed_ids.append(invoice_id)
+
+        logger.info(f"Bulk unarchived {unarchived_count} invoices for company {company_id}")
+        return {
+            "unarchived_count": unarchived_count,
+            "failed_ids": failed_ids,
+            "total_requested": len(invoice_ids)
+        }
+
     # ========================================================================
     # USAGE TRACKING
     # ========================================================================
